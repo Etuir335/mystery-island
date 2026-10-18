@@ -48,7 +48,7 @@ const MODES = {
       'Враги сильнее, шум разносится дальше',
     ],
     f: { parts: true, infection: true, illness: true, rad: true, spoil: true, cold: true, virus: true,
-      death: 'perma', hints: 0, emWarn: 30, horde: 1.4, hordeLoot: true, needs: 1.2, enemies: 1.15, count: 1.2, fog: true, noise: 1.3 },
+      death: 'perma', hints: 0, emWarn: 30, horde: 1.4, hordeLoot: true, needs: 1.15, enemies: 1.1, count: 1.1, fog: true, noise: 1.3 },
   },
 };
 
@@ -206,6 +206,7 @@ const ITEMS = {
   dband:    { n: 'Грязная повязка', ic: '🩹', c: 'med', w: 0.05, v: 3, med: 'band', dirty: 1 },
   bandage:  { n: 'Стерильный бинт', ic: '🩹', c: 'med', w: 0.05, v: 12, med: 'band' },
   antisep:  { n: 'Антисептик', ic: '🧴', c: 'med', w: 0.2, v: 20, med: 'disinf', uses: 3 },
+  herbwash: { n: 'Травяной отвар', ic: '🍵', c: 'med', w: 0.3, v: 8, med: 'disinf', uses: 1 },
   alcohol:  { n: 'Медицинский спирт', ic: '⚗️', c: 'med', w: 0.3, v: 18, med: 'disinf', uses: 2 },
   antibio:  { n: 'Антибиотики', ic: '💊', c: 'med', w: 0.05, v: 60, med: 'antibio' },
   painkill: { n: 'Обезболивающее', ic: '💉', c: 'med', w: 0.05, v: 30, med: 'pain' },
@@ -329,7 +330,7 @@ const ENEMY = {
   runner:  { n: 'Бегун', ic: '🏃', hp: 22, dmg: [5, 8], sp: 2, acc: 0.6, inj: ['scratch', 'lacer', 'bite'], loot: 'body', xp: 5 },
   drowned: { n: 'Утопленник', ic: '🧟‍♂️', hp: 35, dmg: [6, 10], sp: 1, acc: 0.5, inj: ['scratch', 'bite', 'bruise'], loot: 'body', xp: 5 },
   soldier: { n: 'Заражённый солдат', ic: '🪖', hp: 45, dmg: [7, 11], sp: 1, acc: 0.55, arm: 3, inj: ['lacer', 'bite', 'bruise'], loot: 'locker', xp: 8 },
-  dog:     { n: 'Одичавший пёс', ic: '🐕', hp: 18, dmg: [5, 8], sp: 2, acc: 0.65, inj: ['bite', 'lacer'], noVirus: 1, xp: 4, drop: [['meat', 1]] },
+  dog:     { n: 'Одичавший пёс', ic: '🐕', hp: 18, dmg: [4, 7], sp: 2, acc: 0.6, inj: ['bite', 'lacer'], noVirus: 1, xp: 4, drop: [['meat', 1]] },
   raider:  { n: 'Мародёр', ic: '🥷', hp: 40, dmg: [8, 14], sp: 1, acc: 0.6, arm: 1, human: 1, inj: ['bullet', 'lacer', 'bruise'], loot: 'body', xp: 10, noVirus: 1, gear: [['knife', 3], ['bat', 2], ['pm', 2], ['sawn', 1]] },
   pdog:    { n: 'Псевдопёс', ic: '🐺', hp: 38, dmg: [8, 13], sp: 2, acc: 0.65, inj: ['bite', 'lacer'], noVirus: 1, xp: 10, drop: [['meat', 2]] },
   swamper: { n: 'Болотник', ic: '👹', hp: 65, dmg: [12, 18], sp: 2, acc: 0.6, arm: 2, inj: ['lacer', 'frac', 'bruise'], noVirus: 1, xp: 18, cloak: 1 },
@@ -503,6 +504,7 @@ const RECIPES = [
   { id: 'bomb', n: 'Самодельная бомба', need: { tape: 1, scrap: 1, a12: 3 }, out: { bomb: 1 }, st: 'bench', t: 30 },
   { id: 'c4', n: 'Взрывпакет', need: { bomb: 2, elec: 2, battery: 1 }, out: { c4: 1 }, st: 'bench2', bp: 'c4', t: 45 },
   { id: 'herbal', n: 'Травяная мазь (антисептик)', need: { herbs: 3, alcohol: 1 }, out: { antisep: 1 }, st: 'fire', t: 30 },
+  { id: 'herbal2', n: 'Отвар из трав (промыть рану)', need: { herbs: 4, water: 1 }, out: { herbwash: 1, bottle: 1 }, st: 'fire', t: 25 },
 ];
 
 // ---------- ТОРГОВЦЫ И КВЕСТЫ ----------
@@ -519,7 +521,7 @@ const TRADERS = {
     stock: [['bag3', 0], ['detector', 0], ['vest', 0], ['gasmask', 0], ['medkit', 0], ['antirad', 0], ['antibio', 0], ['a545', 0], ['a9', 0], ['bp_ammo', 0], ['bp_traps', 0], ['serum', 0]],
     buys: ['food', 'drink', 'med', 'melee', 'gun', 'ammo', 'wear', 'art', 'tool', 'mat', 'val'], artBonus: 1.2, quests: [] },
   levin: { n: 'Доктор Левин', ic: '👨‍🔬', d: 'Учёный из НИИ. Знает про Аппарат больше, чем говорит.',
-    stock: [['antirad', 0], ['bolts', 0], ['antibio', 0], ['gasmask', 1], ['medkit', 1], ['detector', 2], ['coldpill', 0], ['serum', 3]],
+    stock: [['antirad', 0], ['bolts', 0], ['antibio', 0], ['gasmask', 1], ['medkit', 1], ['detector', 2], ['coldpill', 0], ['serum', 1]],
     buys: ['art', 'med', 'val', 'mat'], artBonus: 1.5,
     quests: ['q_art', 'q_anom', 'q_nii', 'q_shards'] },
 };

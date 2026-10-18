@@ -126,12 +126,13 @@ const UI = (() => {
     h += `<div class="sechead"><div class="toggle"><button class="${!G.sneak ? 'on' : ''}" onclick="${a(() => G.sneak = false)}">🚶 Обычно</button><button class="${G.sneak ? 'on' : ''}" onclick="${a(() => G.sneak = true)}">🐾 Крадучись</button></div><span class="mono muted">🔊 шум ${Math.round(G.noise)}</span></div>`;
     const acts = [];
     if (l.base) acts.push(btn('🏚️ Открыть базу', () => { st.tab = 'base'; }, 'pri'));
-    if (l.water) { const b = cnt(G.inv, 'bottle'); acts.push(btn(`${{ sea: '🌊 Набрать морской воды', well: '🪣 Вода из колодца', stream: '💧 Вода из ручья' }[l.water]} (🍶${b})`, collectWater, '', !b)); }
+    if (l.water) { const b = cnt(G.inv, 'bottle'); const noD = l.water === 'sea' && !(l.base && G.w.struct.distill); acts.push(btn(`${{ sea: '🌊 Набрать морской воды', well: '🪣 Вода из колодца', stream: '💧 Вода из ручья' }[l.water]} (🍶${b})${noD ? ' — нужен опреснитель' : ''}`, collectWater, '', !b || noD)); }
     if (l.fish) acts.push(btn('🎣 Рыбачить (1 ч)', doFish, '', !cnt(G.inv, 'rod')));
     if (l.forage) acts.push(btn('🌿 Собирать (40 мин)', doForage));
     if (l.hunt) acts.push(btn('🦌 Охотиться (1.5 ч)', doHunt));
     if (l.forage) acts.push(btn('🪓 Рубить дрова', doChop, '', !(G.eq.weapon && IT(G.eq.weapon.id).chop)));
     if (l.shelter && !l.base) acts.push(btn('😴 Переночевать', () => sleepHere()));
+    if (l.shelter) acts.push(btn('⏳ Переждать 1 ч', () => waitHere(1)));
     if (!l.base) acts.push(campHere() ? btn(`🔥 Костёр (${G.campfire.until - G.time} мин) — готовить`, () => { st.tab = 'inv'; st.scrollCraft = true; }) : btn('🔥 Развести костёр', makeCamp, '', !cnt(G.inv, 'lighter') || cnt(G.inv, 'wood') < 2));
     acts.push(btn('🔨 Крафт', () => { st.tab = 'inv'; st.scrollCraft = true; }));
     if (acts.length) h += `<div class="acts">${acts.join('')}</div>`;
@@ -273,6 +274,7 @@ const UI = (() => {
       if (it.c === 'bp') out.push(btn('Изучить', () => useItem(e.id), 'pri sm'));
       if (['melee', 'gun', 'wear', 'art'].includes(it.c)) out.push(btn('Надеть', () => equip(e), 'pri sm'));
       if (atBase()) out.push(btn('На склад', () => toStash(e)), e.n > 1 ? '' : '');
+      if (IT(e.id).btl) out.push(btn('🫗 Вылить', () => pourOut(e.id), 'sm'));
       if (e.n > 1) out.push(btn(G.room != null ? 'Бросить 1' : 'Выбросить 1', () => { drop(e, 1); }, 'sm'));
       out.push(btn(G.room != null ? (e.n > 1 ? 'Бросить все' : 'Бросить') : (e.n > 1 ? 'Выбросить все' : 'Выбросить'), () => { drop(e); }, 'sm'));
     } else out.push(btn('Взять', () => fromStash(e), 'pri sm'), (it.c === 'food' || it.c === 'drink' || it.c === 'med') ? btn('Использовать', () => useItem(e.id), 'sm') : '');
@@ -383,6 +385,8 @@ const UI = (() => {
     h += lbPanel();
     h += `<div class="sec"><h2>Записки (${G.w.notes.length}/${Object.keys(NOTES).length})</h2><div class="list">${G.w.notes.slice().reverse().map(id => `<div class="note"><b>${esc(NOTES[id].t)}</b><br>${esc(NOTES[id].x)}</div>`).join('')}</div></div>`;
     h += `<div class="sec"><h2>События</h2><div class="list" style="gap:2px">${G.log.slice(-60).reverse().map(x => `<div class="lg ${x.c}" style="font-size:13px"><span class="mono muted">Д${x.d} ${x.k}</span> ${esc(x.t)}</div>`).join('')}</div></div>`;
+    h += `<div class="sec"><h2>💾 Сохранения · слот ${SAVE_SLOT}</h2><div class="acts">${btn('🔄 Другой слот', () => { save(); startScreen(); }, 'sm')}${btn('📤 Экспорт', exportScreen, 'sm')}${btn('📥 Импорт', importScreen, 'sm')}</div></div>`;
+    h += `<div class="sec"><h2>Подсказки</h2><div class="acts">${btn(hintsState().off ? '💡 Включить подсказки' : '💡 Выключить подсказки', hintsToggle, 'sm')}</div></div>`;
     h += `<div class="sec"><h2>Звук</h2><div class="acts">${btn(SFX.on ? '🔊 Звук включён' : '🔇 Звук выключен', () => SFX.toggle(), 'sm')}${btn(SFX.music ? '🎵 Музыка: да' : '🎵 Музыка: нет', () => SFX.toggleMusic(), 'sm')}</div><label class="muted" style="display:flex;gap:8px;align-items:center;font-size:13px">Громкость <input type="range" id="vol" min="0" max="100" value="${Math.round(SFX.vol * 100)}" oninput="SFX.setVol(this.value/100)" style="flex:1"></label></div>`;
     h += `<div class="sec"><h2>Игра</h2>${st.confirmNew ? `<p class="bad">Прогресс этой игры удалится. Точно?</p><div class="acts">${btn('Да, начать заново', () => { wipe(); G = null; st.confirmNew = false; startScreen(); }, 'bad')}${btn('Отмена', () => st.confirmNew = false)}</div>` : btn('Новая игра', () => st.confirmNew = true)}<p class="muted" style="font-size:13px">Игра сохраняется сама после каждого действия — в этом браузере.</p></div>`;
     return h;
@@ -549,12 +553,30 @@ const UI = (() => {
     h += `<h3>Плюсы</h3><div class="traits">${T.filter(([, x]) => x.cost > 0).map(tbtn).join('')}</div><h3>Минусы</h3><div class="traits">${T.filter(([, x]) => x.cost < 0).map(tbtn).join('')}</div>`;
     return h;
   }
+  // ---------- слоты сохранений ----------
+  function slotPicker(draw) {
+    return `<h2>Сохранения</h2><div class="traits">${[1, 2, 3].map(n => { const i = slotInfo(n); return `<button class="trait ${n === SAVE_SLOT ? 'on' : ''}" onclick="${m(async () => { if (n === SAVE_SLOT) return; setSlot(n); if (window.TGA && TGA.syncSlot) { toast('Загружаю слот…'); await TGA.syncSlot(); } draw(); })}"><span class="tn"><span>💾 Слот ${n}</span><span class="mono">${n === SAVE_SLOT ? 'выбран' : ''}</span></span><span class="muted">${i ? `${esc(i.name || '?')} · ${MODES[i.mode] ? MODES[i.mode].ic + ' ' + MODES[i.mode].n : ''} · день ${i.day}${i.coop ? ' · 🤝 общий мир' : ''}${i.dead ? ' · ☠️' : ''}` : 'пусто — новая игра'}</span></button>`; }).join('')}</div>`;
+  }
+  function exportScreen() {
+    let raw = ''; try { raw = localStorage.getItem(SAVE_KEY) || ''; } catch (e) {}
+    showFull(() => `<div class="title"><small>РЕЗЕРВНАЯ КОПИЯ · СЛОТ ${SAVE_SLOT}</small>Экспорт</div><p class="muted">Это весь твой мир одним текстом. Скопируй и сохрани (например, отправь себе в «Избранное» в Телеграме) или скачай файлом.</p>
+      <textarea id="expd" readonly style="width:100%;height:160px;font-family:var(--f-mono);font-size:11px">${esc(raw)}</textarea>
+      <div class="acts">${mbtn('📋 Скопировать', () => { const t = $('expd'); t.select(); try { navigator.clipboard.writeText(raw).then(() => toast('Скопировано'), () => { document.execCommand('copy'); toast('Скопировано'); }); } catch (e) { document.execCommand('copy'); toast('Скопировано'); } }, 'pri')}${mbtn('💾 Скачать файл', () => { try { const a0 = document.createElement('a'); a0.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); a0.download = `mystery-island-slot${SAVE_SLOT}-day${day()}.json`; document.body.appendChild(a0); a0.click(); a0.remove(); } catch (e) { toast('Скачивание недоступно — скопируй текст'); } })}${mbtn('Закрыть', closeFull)}</div>`);
+  }
+  function importScreen() {
+    const doImport = txt => { try { const s0 = JSON.parse(String(txt || '').trim()); if (!s0 || s0.v !== 3 || !s0.ch || !s0.w) return toast('Это не сохранение игры.'); localStorage.setItem(SAVE_KEY, JSON.stringify(s0)); if (load()) { save(); closeFull(); toast(`Мир загружен в слот ${SAVE_SLOT}`); render(); if (G.coop) COOP.init(); } } catch (e) { toast('Не получилось прочитать сохранение.'); } };
+    showFull(() => `<div class="title"><small>СЛОТ ${SAVE_SLOT}</small>Импорт</div><p class="bad">Текущий мир в этом слоте будет заменён.</p><p class="muted">Вставь текст резервной копии или выбери файл.</p>
+      <textarea id="impd" style="width:100%;height:140px;font-family:var(--f-mono);font-size:11px" placeholder='{"v":3,…}'></textarea>
+      <input type="file" id="impf" accept=".json,application/json,text/plain">
+      <div class="acts">${mbtn('📥 Загрузить', () => { const f = $('impf'); if (f && f.files && f.files[0]) { const rd = new FileReader(); rd.onload = () => doImport(rd.result); rd.readAsText(f.files[0]); } else doImport($('impd').value); }, 'pri')}${mbtn('Отмена', closeFull)}</div>`);
+  }
   function startScreen(cont) {
     const pts = () => cpts(sel);
     const draw = () => showFull(() => {
       let h = `${ART.sceneTag({ loc: cont ? 'base' : 'lighthouse', key: 'title', title: true, alt: 'Остров на закате' })}<div class="title"><small>${cont ? 'ОСТРОВ ЖДЁТ НОВОГО' : 'ВЫЖИВАНИЕ · С 2020 ГОДА'}</small>${cont ? 'Новый выживший' : 'Mystery of the Island'}</div>`;
       if (!cont) {
         h += `<p class="muted">Ты очнулся в лодочном сарае на острове, закрытом на карантин. Заражённые, аномалии, Выбросы и Кровавые ночи. Где-то в глубине острова — Аппарат, с которого всё началось.</p>`;
+        h += slotPicker(draw);
         h += `<div class="acts">${localHas() ? mbtn('▶ Продолжить игру', () => { if (load()) { if (G.dead) return deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); closeFull(); if (G.coop) COOP.init(); } }, 'pri') : ''}${(window.TGA && !window.claude ? '' : mbtn('🤝 Присоединиться к другу', joinScreen))}</div>`;
         h += `<h2>Сложность</h2><div class="modes">${Object.entries(MODES).map(([k, M]) => `<button class="mode ${sel.mode === k ? 'on' : ''}" onclick="${m(() => { sel.mode = k; draw(); })}"><span class="sechead"><h3>${M.ic} ${M.n}</h3><span class="muted" style="font-size:12.5px">${M.tag}</span></span><ul>${M.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></button>`).join('')}</div>`;
       } else h += `<p class="muted">Прошлый выживший погиб. Мир остался прежним: база, склад и всё построенное ждут тебя.</p>`;
@@ -563,6 +585,8 @@ const UI = (() => {
       h += `<div class="acts">${mbtn(cont ? 'Высадиться на остров' : 'Начать', () => {
         const nm = (sel.name || '').trim() || 'Выживший';
         if (pts() < 0) return toast('Не хватает очков: убери плюс или добавь минус.');
+        if (!cont && localHas() && !sel.ow) { sel.ow = true; return toast(`В слоте ${SAVE_SLOT} уже есть мир. Нажми «Начать» ещё раз, чтобы перезаписать, или выбери пустой слот.`); }
+        sel.ow = false;
         if (cont) { continueWorld(nm, sel.traits.slice(), sel.prof); }
         else { newGame(sel.mode, nm, sel.traits.slice(), sel.prof); intro(); }
         setTimeout(checkPerks, 300);
@@ -626,6 +650,9 @@ const UI = (() => {
   function boot() {
     const inv = window.TGA && String(TGA.startParam || '').toUpperCase();
     if (inv && /^[A-Z0-9]{4,8}$/.test(inv) && FBM()) {
+      const same = [1, 2, 3].find(n => (slotInfo(n) || {}).coop === inv);
+      if (same && same !== SAVE_SLOT) setSlot(same);
+      else if (!same && slotInfo(SAVE_SLOT)) { const free = [1, 2, 3].find(n => !slotInfo(n)); if (free) setSlot(free); }
       const had = load();
       if (!(had && G.coop && G.coop.code === inv)) { jsel.code = inv; jsel.name = had && !G.dead ? G.ch.name : String((TGA.user && TGA.user.first_name) || '').slice(0, 24); return joinScreen(); }
     }

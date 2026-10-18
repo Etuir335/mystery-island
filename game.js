@@ -15,7 +15,12 @@ const SND = n => { if (window.SFX) SFX.play(n); };
 const setAct = t => { if (G) { G.act = t; G.actAt = G.time; } };
 const FEED = t => { if (G && G.coop && window.COOP) COOP.feed(t); };
 const roomName = () => G.room != null && LOCS[G.loc].rooms[G.room] ? LOCS[G.loc].rooms[G.room].n : '';
-const SAVE_KEY = 'moti3_save';
+// слоты сохранений: 1 — старый ключ (совместимость), 2 и 3 — новые
+const slotKey = n => n === 1 ? 'moti3_save' : 'moti3_save_' + n;
+var SAVE_SLOT = (() => { try { return [1, 2, 3].includes(+localStorage.getItem('moti3_slot')) ? +localStorage.getItem('moti3_slot') : 1; } catch (e) { return 1; } })();
+var SAVE_KEY = slotKey(SAVE_SLOT);
+function slotInfo(n) { try { const s = JSON.parse(localStorage.getItem(slotKey(n))); if (!s || s.v !== 3) return null; return { name: s.ch && s.ch.name, mode: s.mode, day: Math.floor(s.time / DAY) + 1, dead: !!s.dead, coop: s.coop ? s.coop.code : null, gen: s.w && s.w.gen }; } catch (e) { return null; } }
+function setSlot(n) { if (G && !G.dead) save(); SAVE_SLOT = n; SAVE_KEY = slotKey(n); try { localStorage.setItem('moti3_slot', String(n)); } catch (e) {} G = null; }
 const F = () => MODES[G.mode].f;
 const IT = id => ITEMS[id];
 const L = id => LOCS[id || G.loc];
@@ -86,6 +91,7 @@ function checkPerks() {
     const key = k + tier; if (c.perkAsk[key] || skill(k) < tier) continue;
     if (PERKS[k][tier].some(p => c.perks.includes(p.id))) { c.perkAsk[key] = 1; continue; }
     c.perkAsk[key] = 1;
+    if (typeof hint === 'function') hint('perks');
     const opts = PERKS[k][tier];
     UI.event({ title: `⭐ ${SKILLS[k].ic} ${SKILLS[k].n} ${tier}: выбери путь`, cls: 'good', text: opts.map(o => `${o.ic} ${o.n} — ${o.d}`).join('\n\n') + '\n\nВыбор навсегда для этого персонажа.', choices: opts.map(o => ({ t: `${o.ic} ${o.n}`, fn: () => { if (!c.perks.includes(o.id)) c.perks.push(o.id); UI.log(`⭐ Новый перк: ${o.ic} ${o.n}.`, 'good'); FEED(`⭐ взял перк «${o.n}»`); } })) });
   }
@@ -156,7 +162,7 @@ function newGame(mode, name, traits, prof) {
   save();
 }
 function startKit() {
-  invAdd(G.inv, 'water', 1); invAdd(G.inv, 'lighter', 1); invAdd(G.inv, 'bottle', 2); invAdd(G.inv, 'crackers', 2); invAdd(G.inv, 'rag', 2);
+  invAdd(G.inv, 'water', 2); invAdd(G.inv, 'lighter', 1); invAdd(G.inv, 'bottle', 2); invAdd(G.inv, 'crackers', 2); invAdd(G.inv, 'rag', 2);
   G.eq.weapon = { id: 'stick', n: 1, dur: 30 };
   if (hasTrait('medic')) { invAdd(G.inv, 'bandage', 2); invAdd(G.inv, 'antisep', 1); }
   if (hasTrait('smoker')) invAdd(G.inv, 'cigs', 3);
@@ -194,7 +200,7 @@ function tick(st, o) {
   const nr = f.needs * (sleep ? 0.5 : 1);
   // --- потребности
   c.food = clamp(c.food - 3 * t * nr * mul('hunger', 0.3), 0, 100);
-  c.drink = clamp(c.drink - 4.5 * t * nr * (c.ill.poison > 0 ? 2 : 1) * mul('thirst', 0.3), 0, 100);
+  c.drink = clamp(c.drink - 4 * t * nr * (c.ill.poison > 0 ? 2 : 1) * mul('thirst', 0.3), 0, 100);
   if (sleep) c.energy = clamp(c.energy + (o.bed ? 13 : 8) * t * mul('sleep', 0.3), 0, 100);
   else c.energy = clamp(c.energy - 4 * t * f.needs * mul('fatigue', 0.3) * (c.ill.cold > 0 ? 1.5 : 1) * (overW() ? 1.3 : 1) * (fever() ? 1.5 : 1), 0, 100);
   let ds = 0;
@@ -207,15 +213,17 @@ function tick(st, o) {
   c.stress = clamp(c.stress + ds * t, 0, 100);
   if (c.food <= 0) dmgTorso(2 * t, 'голод');
   if (c.drink <= 0) dmgTorso(4 * t, 'жажда');
+  if (c.drink < 35 && typeof hint === 'function') hint('thirst');
+  if (isNight() && !sleep && typeof hint === 'function' && day() <= 3) hint('night');
   // --- кровотечение и раны
   if (f.parts) {
     for (const j of c.inj) {
       if (!j.band && j.bleed > 0) hurtPart(j.part, j.bleed * 5 * t * mul('bleedRes', 0.2), true);
       if (f.infection && ['scratch', 'lacer', 'bite', 'bullet', 'burn'].includes(j.t) && !j.dis && G.time - j.born < 48 * H) {
         if (c.antibioUntil > G.time) j.inf = Math.max(0, j.inf - 12 * t);
-        else j.inf = clamp(j.inf + 5 * t * mul('infect', 0.1) * (j.dirty ? 1.6 : 1) * (j.band ? 0.7 : 1), 0, 100);
+        else j.inf = clamp(j.inf + 3.5 * t * mul('infect', 0.1) * (j.dirty ? 1.4 : 1) * (j.band ? 0.7 : 1), 0, 100);
       } else if (c.antibioUntil > G.time) j.inf = Math.max(0, j.inf - 12 * t);
-      if (j.inf >= 100) dmgTorso(3 * t, 'заражение крови');
+      if (j.inf >= 100) dmgTorso(2 * t, 'заражение крови');
       const canHeal = j.t === 'frac' ? j.splint : (j.band || j.bleed === 0);
       if (canHeal && j.inf < 40) j.prog += t * (sleep ? (atBase() && typeof npcs === 'function' && npcs().some(n => n.role === 'medic') ? 2.4 : 1.6) : 1) * (1 + skill('med') * 0.08) * mul('heal', 0.2);
     }
@@ -258,7 +266,7 @@ function tick(st, o) {
   }
   if (c.ill.cold > 0) c.ill.cold = Math.max(0, c.ill.cold - t * (sleep && o.bed ? 2.5 : 1));
   if (c.ill.poison > 0) { c.ill.poison = Math.max(0, c.ill.poison - t); dmgTorso(1 * t, 'отравление'); }
-  if (f.virus && c.virus && G.time - c.virus > 72 * H) { die('вирус — вы обратились'); return; }
+  if (f.virus && c.virus && G.time - c.virus > 96 * H) { die('вирус — вы обратились'); return; }
   // --- погода
   if (G.time >= G.weather.until) {
     const nw = wpick(typeof seasonWeather === 'function' ? seasonWeather() : WEATHER.map(x => [x.id, x.w]));
@@ -438,6 +446,8 @@ function travel(to, topt = {}) {
     advance(mins - half);
     if (G.dead) return;
     G.traveling = false; G.loc = to; G.w.locs[to].seen = true; if (to === 'forest') tutMark('forest');
+    if (to === 'gas' && typeof hint === 'function') hint('car');
+    if (day() >= 3 && to === 'base' && typeof hint === 'function') hint('raids');
     if (to === 'reef' && !G.w.flags.reef_seen) { G.w.flags.reef_seen = true; FEED('⛵ доплыл до Острова-8'); checkQuests(); }
     for (const l in LOCS[to].links) if (F().hints) G.w.locs[l].seen = G.w.locs[l].seen || F().hints > 0;
     UI.log(`${topt.car ? '🚗 Ты доехал' : '📍 Ты добрался'}: ${LOCS[to].ic} ${LOCS[to].n} (${mins} мин).`); setAct('осматривается');
@@ -650,6 +660,7 @@ function grabArtifact() {
 function startCombat(en, opts = {}) {
   if (G.dead) return;
   G.combat = { en, opts, turn: 1, log: [] };
+  if (typeof hint === 'function' && !G.pet && en.some(e => e.id === 'dog')) hint('dog');
   setAct('⚔️ в бою: ' + [...new Set(en.filter(e => e.hp > 0).map(e => ENEMY[e.id].n))].join(', '));
   if (G.coop && window.COOP && (en.length >= 3 || en.some(e => ENEMY[e.id].boss))) { const here = COOP.here(); if (here.length) cLog(`🤝 ${here.map(p => p.name).join(', ')} рядом — поможет в бою.`, 'good'); else FEED(`⚔️ в тяжёлом бою (${LOCS[G.loc].ic} ${LOCS[G.loc].n}) — нужна помощь!`); }
   const first = en.find(e => e.hp > 0); if (first) { const D = ENEMY[first.id]; SND(D.boss || first.id === 'swamper' ? 'roar' : (first.id === 'dog' || first.id === 'pdog') ? 'bark' : D.human ? 'click' : 'growl'); }
@@ -778,7 +789,7 @@ function enemyHit(e, ranged, near) {
   cLog(`💢 ${D.ic} ${D.n} ${ranged ? 'стреляет' : 'бьёт'}: −${dmg}`, 'bad'); SND(ranged ? 'shot' : 'hurt');
   const r = hitPlayer(dmg, ch(clamp(0.45 + mod('injChance'), 0.1, 0.9)) ? inj : 'bruise', null, D.n);
   if (r) cLog(r, 'bad');
-  if (inj === 'bite' && F().virus && !D.noVirus && !G.ch.virus && ch(0.25 * mul('virus', 0.1))) { G.ch.virus = G.time; }
+  if (inj === 'bite' && F().virus && !D.noVirus && !G.ch.virus && ch(0.12 * mul('virus', 0.1))) { G.ch.virus = G.time; UI.log('🦠 Укус горит огнём… Похоже, вирус. Нужна сыворотка (Левин, кочевой торговец, лаборатории) — у тебя около 4 суток.', 'bad'); }
   G.ch.stress = clamp(G.ch.stress + 4, 0, 100);
 }
 // урон игроку: часть тела + травма
@@ -795,6 +806,7 @@ function hitPlayer(dmg, inj, part, why) {
   let t = inj;
   if (t === 'frac' && (p === 'head' || p === 'torso')) t = 'bruise';
   if (dmg >= 14 && (p.endsWith('leg') || p.endsWith('arm')) && ch(0.15)) t = 'frac';
+  if (typeof hint === 'function' && t !== 'bruise') setTimeout(() => hint('wound'), 0);
   G.ch.inj.push({ t, part: p, bleed: INJ[t].bleed, band: false, dis: false, dirty: false, inf: 0, prog: 0, born: G.time, splint: false });
   return `${INJ[t].n}: ${PARTS[p].n}` + (INJ[t].bleed ? ' 🩸' : '');
 }
@@ -894,6 +906,8 @@ function useItem(id, quick, target) {
     advance(15); return;
   }
 }
+// вылить содержимое бутылки (например, морскую воду без опреснителя)
+function pourOut(id) { if (!IT(id).btl || !cnt(G.inv, id)) return; const n = cnt(G.inv, id); take(G.inv, id, n); invAdd(G.inv, 'bottle', n); UI.log(`🫗 Вылил: ${IT(id).n} ×${n}. Бутылки свободны.`); UI.render(); }
 function equip(e) {
   const it = IT(e.id); let slot = it.slot;
   if (it.c === 'melee' || it.c === 'gun') slot = 'weapon';
@@ -942,6 +956,7 @@ function doFish() {
 const WATER_SRC = { sea: ['seawater', '🌊 Ты набрал морской воды. Пить её нельзя — сначала опреснить.'], well: ['dwater', '🪣 Ты набрал воды из колодца. Её лучше прокипятить.'], stream: ['dwater', '💧 Ты набрал воды из ручья. Её лучше прокипятить.'] };
 function collectWater() {
   const src = WATER_SRC[L().water]; if (!src) return;
+  if (L().water === 'sea' && !(atBase() && G.w.struct.distill)) return UI.toast('Морскую воду пить нельзя, а кипячение соль не убирает. Сначала построй опреснитель на базе — или набери воды в колодце деревни / ручье в лесу.');
   const n = cnt(G.inv, 'bottle'); if (!n) return UI.toast('Нужны пустые бутылки.');
   take(G.inv, 'bottle', n); invAdd(G.inv, src[0], n);
   advance(5 + n * 2); if (G.dead) return;
@@ -993,6 +1008,12 @@ function sleepHere(hours) {
   if (!G.dead) UI.log(`☀️ Проснулся в ${clock()}. Спал ${Math.round(slept / 6) / 10} ч.`);
   UI.render();
 }
+// переждать время в укрытии (когда спать не хочется, а ночью идти опасно)
+function waitHere(hours) {
+  if (!inShelter()) return UI.toast('Пережидать безопасно только в укрытии.');
+  setAct('⏳ пережидает'); const ok = advance((hours || 1) * H, { interruptible: true });
+  UI.log(ok ? `⏳ Ты переждал ${hours || 1} ч. Сейчас ${clock()}.` : '⏳ Ожидание прервано!', ok ? 'dim' : 'warn'); UI.render();
+}
 function petCat() {
   if (G.w.catAway && !(G.pet && G.pet.type === 'cat')) return UI.toast('Кота нет на базе.');
   if (G.time - G.w.catAt < 6 * H) return UI.toast('Кот спит и не хочет, чтобы его трогали.');
@@ -1024,6 +1045,7 @@ function build(id) {
   UI.log(`🏗️ Построено: ${S.ic} ${nx.n}.`, 'good');
   if (G.w.struct.fire && G.w.struct.bed && !G.w.flags.camp_ready) { G.w.flags.camp_ready = true; }
   if (id === 'radio') { G.w.flags.radio_built = true; radioMsg(); }
+  if (id === 'bunks' && typeof hint === 'function') hint('npc');
   if (id === 'boat' && lv + 1 >= 2) { G.w.flags.boat_ready = true; UI.event({ title: '⛵ Лодка готова', cls: 'good', text: 'Ядро встало в двигатель, осколки загудели. Лодка дрожит у пристани, будто сама рвётся в пролив.\n\nНа карте открылся путь к Острову-8 (от базы, 2 часа по воде).', choices: [{ t: 'Отлично' }] }); }
   checkQuests(); UI.render();
 }

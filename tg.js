@@ -22,23 +22,25 @@ const TGA = (() => {
   const CS = ver('6.9') ? tg.CloudStorage : null;
   const csGet = keys => new Promise(res => { try { CS.getItems(keys, (err, v) => res(err ? null : v)); } catch (e) { res(null); } });
   const csSet = (k, v) => new Promise(res => { try { CS.setItem(k, v, (err, ok) => res(!err && ok)); } catch (e) { res(false); } });
-  const CH = 3800, TS_KEY = 'moti3_ts';
-  const localTs = () => { try { return +localStorage.getItem(TS_KEY) || 0; } catch (e) { return 0; } };
-  const setLocalTs = t => { try { localStorage.setItem(TS_KEY, String(t)); } catch (e) {} };
-  let meta = null, upT = null, uploading = false, again = false;
+  const CH = 3800;
+  const SX = () => (typeof SAVE_SLOT !== 'undefined' && SAVE_SLOT > 1 ? String(SAVE_SLOT) : '');
+  const TSK = () => 'moti3_ts' + SX();
+  const localTs = () => { try { return +localStorage.getItem(TSK()) || 0; } catch (e) { return 0; } };
+  const setLocalTs = t => { try { localStorage.setItem(TSK(), String(t)); } catch (e) {} };
+  const metas = {}; let upT = null, uploading = false, again = false;
 
   async function upload() {
     if (!CS) return;
     if (uploading) { again = true; return; }
     uploading = true;
     try {
-      let raw = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
-      const ts = localTs() || Date.now();
+      const sx = SX(); let raw = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
+      const ts = localTs() || Date.now(), meta = metas[sx];
       const gen = meta && meta.g === 0 ? 1 : 0; // пишем в «другой» слот, потом переключаем указатель — сейв не порвётся
       const n = raw ? Math.ceil(raw.length / CH) : 0;
       let ok = true;
-      for (let i = 0; i < n && ok; i++) ok = await csSet(`s${gen}_${i}`, raw.slice(i * CH, (i + 1) * CH));
-      if (ok) { const m = { g: gen, n, ts }; if (await csSet('m', JSON.stringify(m))) meta = m; }
+      for (let i = 0; i < n && ok; i++) ok = await csSet(`s${sx}${gen}_${i}`, raw.slice(i * CH, (i + 1) * CH));
+      if (ok) { const m = { g: gen, n, ts }; if (await csSet('m' + sx, JSON.stringify(m))) metas[sx] = m; }
     } finally { uploading = false; if (again) { again = false; upload(); } }
   }
   const schedule = (ms = 4000) => { clearTimeout(upT); upT = setTimeout(upload, ms); };
@@ -46,11 +48,17 @@ const TGA = (() => {
   async function before() {
     if (user.first_name) try { UI._name(String(user.first_name).slice(0, 24)); } catch (e) {}
     if (!CS) return;
-    const got = await Promise.race([csGet(['m']), new Promise(r => setTimeout(() => r(null), 4000))]);
-    try { meta = got && got.m ? JSON.parse(got.m) : null; } catch (e) { meta = null; }
+    return syncSlot();
+  }
+  async function syncSlot() {
+    if (!CS) return;
+    const sx = SX(); let meta;
+    const got = await Promise.race([csGet(['m' + sx]), new Promise(r => setTimeout(() => r(null), 4000))]);
+    try { meta = got && got['m' + sx] ? JSON.parse(got['m' + sx]) : null; } catch (e) { meta = null; }
+    metas[sx] = meta;
     if (!meta || !(meta.ts > localTs())) { if (localTs() > ((meta && meta.ts) || 0)) schedule(500); return; }
     if (!meta.n) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} setLocalTs(meta.ts); return; }
-    const keys = Array.from({ length: meta.n }, (_, i) => `s${meta.g}_${i}`);
+    const keys = Array.from({ length: meta.n }, (_, i) => `s${sx}${meta.g}_${i}`);
     const parts = {};
     for (let i = 0; i < keys.length; i += 50) { const v = await csGet(keys.slice(i, i + 50)); if (!v) return; Object.assign(parts, v); }
     const raw = keys.map(k => parts[k] || '').join('');
@@ -98,6 +106,6 @@ const TGA = (() => {
   // достижения — отдельный ключ в облаке (объединяем с локальными)
   function saveAch() { if (!CS) return; try { const v = localStorage.getItem('moti3_ach'); if (v && v.length < 4000) csSet('a', v); } catch (e) {} }
   async function loadAch() { if (!CS) return; const g = await csGet(['a']); if (!g || !g.a) return; try { const cloud = JSON.parse(g.a), loc = JSON.parse(localStorage.getItem('moti3_ach') || '{}'); localStorage.setItem('moti3_ach', JSON.stringify(Object.assign({}, cloud, loc))); } catch (e) {} }
-  return { before: () => Promise.all([before(), loadAch()]), tg, user, startParam, haptic, upload, ver, saveAch };
+  return { syncSlot, before: () => Promise.all([before(), loadAch()]), tg, user, startParam, haptic, upload, ver, saveAch };
 })();
 window.TGA = TGA;
