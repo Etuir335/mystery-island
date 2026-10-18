@@ -1105,6 +1105,21 @@ input[type=text] {
     }
   }
 }
+@media (prefers-reduced-motion: no-preference) {
+  #main.fadein {
+    animation: fadein .18s ease-out;
+  }
+  @keyframes fadein {
+    from {
+      opacity: .35;
+      transform: translateY(4px);
+    }
+  }
+}
+.chip.together {
+  background: var(--good);
+  color: #fff;
+}
 .side {
   display: none;
 }
@@ -1224,18 +1239,18 @@ input[type=text] {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792356087"></script>
-<script src="game.js?v=1792356087"></script>
-<script src="ext.js?v=1792356087"></script>
-<script src="content.js?v=1792356087"></script>
-<script src="art.js?v=1792356087"></script>
-<script src="audio.js?v=1792356087"></script>
-<script src="coop.js?v=1792356087"></script>
-<script src="tg.js?v=1792356087"></script>
-<script src="fbconfig.js?v=1792356087"></script>
-<script src="fbcoop.js?v=1792356087"></script>
-<script src="sync.js?v=1792356087"></script>
-<script src="ui.js?v=1792356087"></script>
+<script src="data.js?v=1792359541"></script>
+<script src="game.js?v=1792359541"></script>
+<script src="ext.js?v=1792359541"></script>
+<script src="content.js?v=1792359541"></script>
+<script src="art.js?v=1792359541"></script>
+<script src="audio.js?v=1792359541"></script>
+<script src="coop.js?v=1792359541"></script>
+<script src="tg.js?v=1792359541"></script>
+<script src="fbconfig.js?v=1792359541"></script>
+<script src="fbcoop.js?v=1792359541"></script>
+<script src="sync.js?v=1792359541"></script>
+<script src="ui.js?v=1792359541"></script>
 
 </body>
 </html>

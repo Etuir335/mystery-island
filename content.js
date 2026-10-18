@@ -2146,3 +2146,22 @@ CUI.jour = function() {
   }, "sm"), "</div>").concat(open ? '<div class="list">'.concat(GUIDE.map(([t, d]) => '<div class="row"><div class="grow"><span class="t">'.concat(t, '</span><span class="s" style="white-space:normal">').concat(d, "</span></div></div>")).join(""), "</div>") : '<p class="muted" style="font-size:13px">Как всё устроено: выброс, Кровавая ночь, еда, зима, склад, оружие, лодка, поселение, игра вдвоём, главы.</p>', "</div>");
   return _cuiJourG.apply(this, arguments) + g;
 };
+const together = () => !!(G && G.coop && window.COOP && COOP.here && !G.traveling && COOP.here().length);
+const _extraModT = extraMod;
+extraMod = function(k) {
+  let v = _extraModT(k);
+  if ((k === "carry" || k === "meleeAcc" || k === "gunAcc" || k === "stress") && together()) v += k === "carry" ? 4 : k === "stress" ? -0.25 : 0.05;
+  return v;
+};
+const _cuiTopT = CUI.top;
+CUI.top = function() {
+  const h = _cuiTopT.apply(this, arguments);
+  if (!together()) return h;
+  const names = COOP.here().map((p) => cesc(p.name)).join(", ");
+  return '<div class="moods"><span class="mood l0 chip together" title="+4 кг, +5% точности, меньше стресса">🤝 вместе с '.concat(names, "</span></div>") + h;
+};
+const _markNodeC = CUI.markNode;
+CUI.markNode = function(id, l) {
+  const h = _markNodeC.apply(this, arguments);
+  return (G.w.corpses || []).some((c) => c.loc === id) ? h + '<text x="'.concat(l.x - 7.6, '" y="').concat(l.y + 1.4, '" style="font-size:3.6px">🪦</text>') : h;
+};

@@ -458,8 +458,10 @@ const UI = /* @__PURE__ */ (() => {
   const INV_FL = { all: ["Всё", null], food: ["Еда", ["food", "drink"]], med: ["Медицина", ["med"]], war: ["Оружие", ["melee", "gun", "ammo", "wear", "mod"]], mat: ["Прочее", ["mat", "tool", "bp", "key", "quest", "val", "art"]] };
   function filtered(list, key) {
     const f = INV_FL[st[key] || "all"] || INV_FL.all;
-    const shown = f[1] ? list.filter((e) => f[1].includes(IT(e.id).c)) : list;
-    return '<div class="toggle filt">'.concat(Object.entries(INV_FL).map(([k, v]) => '<button class="'.concat((st[key] || "all") === k ? "on" : "", '" onclick="').concat(a(() => st[key] = k), '">').concat(v[0], "</button>")).join(""), "</div>") + (shown.length ? "" : '<p class="muted">Пусто.</p>') + '<div class="list">'.concat(itemList(shown, list === G.stash ? "stash" : "inv"), "</div>");
+    const q = String(st[key + "q"] || "").trim().toLowerCase();
+    let shown = f[1] ? list.filter((e) => f[1].includes(IT(e.id).c)) : list;
+    if (q) shown = shown.filter((e) => IT(e.id).n.toLowerCase().includes(q));
+    return (list.length > 6 ? '<input type="search" id="q_'.concat(key, '" placeholder="🔎 найти…" value="').concat(esc(st[key + "q"] || ""), '" oninput="UI._st[\'').concat(key, 'q\']=this.value; UI.render()" style="width:100%;margin-bottom:6px">') : "") + '<div class="toggle filt">'.concat(Object.entries(INV_FL).map(([k, v]) => '<button class="'.concat((st[key] || "all") === k ? "on" : "", '" onclick="').concat(a(() => st[key] = k), '">').concat(v[0], "</button>")).join(""), "</div>") + (shown.length ? "" : '<p class="muted">Пусто.</p>') + '<div class="list">'.concat(itemList(shown, list === G.stash ? "stash" : "inv"), "</div>");
   }
   function stashDual() {
     const side = st.sside || "stash";
@@ -703,15 +705,26 @@ const UI = /* @__PURE__ */ (() => {
     renderTabs();
     const scr = { map: renderMap, loc: renderLoc, inv: renderInv, char: renderChar, base: renderBase, jour: renderJour }[st.tab]();
     const mn = $("main");
-    const keep = st.lastTab === st.tab ? mn.scrollTop : 0;
+    const changed = st.lastTab !== st.tab;
+    const keep = changed ? 0 : mn.scrollTop;
     st.lastTab = st.tab;
     const ae = document.activeElement, keepId = ae && ae.id && ae.tagName === "INPUT" ? ae.id : null, keepVal = keepId ? ae.value : null, chatVal = $("chatin") ? $("chatin").value : "";
     mn.innerHTML = scr;
     mn.scrollTop = keep;
+    if (changed) {
+      mn.classList.remove("fadein");
+      void mn.offsetWidth;
+      mn.classList.add("fadein");
+    }
     if ($("chatin") && chatVal) $("chatin").value = chatVal;
     if (keepId && $(keepId)) {
-      $(keepId).value = keepVal;
-      $(keepId).focus();
+      const el = $(keepId);
+      el.value = keepVal;
+      el.focus();
+      try {
+        el.setSelectionRange(keepVal.length, keepVal.length);
+      } catch (e) {
+      }
     }
     ART.paintAll($("main"));
     if (window.SFX) SFX.refresh();
