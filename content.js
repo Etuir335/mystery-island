@@ -1718,3 +1718,195 @@ CUI.basePanel = function() {
   const b = UI.btn, n = bankAmt();
   return '<div class="sec"><h2>💰 Касса '.concat(G.coop ? "отряда" : "базы", ': <span class="mono">').concat(n, '₽</span></h2><div class="acts">').concat(b("+50₽", () => bankPut(50), "sm", G.money < 50)).concat(b("+всё", () => bankPut(G.money), "sm", G.money <= 0)).concat(b("−50₽", () => bankTake(50), "sm", n < 50)).concat(b("−всё", () => bankTake(n), "sm", n <= 0), "</div></div>") + _cuiBaseK.apply(this, arguments);
 };
+const DAILY_CH = [
+  { id: "melee", n: "Тихая работа", d: "Упокой 6 врагов без огнестрела", goal: 6, ic: "🔪" },
+  { id: "night", n: "Ночной охотник", d: "Упокой 5 врагов ночью", goal: 5, ic: "🌙" },
+  { id: "search", n: "Барахольщик", d: "Обыщи 12 ящиков, шкафов и тел", goal: 12, ic: "🔍" },
+  { id: "cook", n: "Повар", d: "Приготовь 3 блюда или порции еды", goal: 3, ic: "🍳" },
+  { id: "fish", n: "Рыбный день", d: "Поймай 6 рыб", goal: 6, ic: "🎣" },
+  { id: "travel", n: "Бродяга", d: "Побывай в 5 разных местах", goal: 5, ic: "🧭" }
+];
+const dayKey = () => Math.floor((Date.now() + 3 * 36e5) / 864e5);
+const dailyCh = () => DAILY_CH[dayKey() % DAILY_CH.length];
+function dailyState() {
+  let s0;
+  try {
+    s0 = JSON.parse(localStorage.getItem("moti3_daily")) || {};
+  } catch (e) {
+    s0 = {};
+  }
+  if (s0.k !== dayKey()) s0 = { k: dayKey(), prog: 0, done: false, locs: [] };
+  return s0;
+}
+function dailyProg(kind, n, extra) {
+  if (typeof G === "undefined" || !G || dailyCh().id !== kind) return;
+  const s0 = dailyState();
+  if (s0.done) return;
+  if (kind === "travel") {
+    if (s0.locs.includes(extra)) return;
+    s0.locs.push(extra);
+    s0.prog = s0.locs.length;
+  } else s0.prog += n;
+  if (s0.prog >= dailyCh().goal) {
+    s0.done = true;
+    const rew = pick(["medkit", "antibio", "scope", "coffee", "tea", "balm", "c4"]);
+    invAdd(G.inv, rew, 1);
+    G.money += 120;
+    setTimeout(() => {
+      SND("quest");
+      UI.event({ title: "".concat(dailyCh().ic, " Испытание дня выполнено!"), cls: "good", text: "".concat(dailyCh().n, ": ").concat(dailyCh().d, ".\n\nНаграда: 120₽ и ").concat(IT(rew).ic, " ").concat(IT(rew).n, "."), choices: [{ t: "Отлично" }] });
+    }, 0);
+    diaryAdd("".concat(dailyCh().ic, " выполнил испытание дня «").concat(dailyCh().n, "»"));
+  }
+  try {
+    localStorage.setItem("moti3_daily", JSON.stringify(s0));
+  } catch (e) {
+  }
+}
+const _onKillD = onKill;
+onKill = function(e) {
+  const w = G.eq.weapon;
+  if (!w || IT(w.id).c !== "gun") dailyProg("melee", 1);
+  if (isNight()) dailyProg("night", 1);
+  return _onKillD.apply(this, arguments);
+};
+const _searchContD = searchCont;
+searchCont = function(k) {
+  const s = G.room != null && roomSt(G.room), was = s && s.cont && s.cont[k];
+  const r = _searchContD.apply(this, arguments);
+  const now = s && s.cont && s.cont[k];
+  if (now && now !== was) dailyProg("search", 1);
+  return r;
+};
+const _craftD = craft;
+craft = function(r) {
+  const ok = !recipeState(r);
+  const res = _craftD.apply(this, arguments);
+  if (ok && r && r.out && Object.keys(r.out).some((id) => IT(id).c === "food" || IT(id).c === "drink" && id !== "water")) dailyProg("cook", 1);
+  return res;
+};
+const _doFishD = doFish;
+doFish = function() {
+  const b = cnt(G.inv, "fish");
+  const r = _doFishD.apply(this, arguments);
+  const d = cnt(G.inv, "fish") - b;
+  if (d > 0) dailyProg("fish", d);
+  return r;
+};
+const _travelD = travel;
+travel = function(to) {
+  const r = _travelD.apply(this, arguments);
+  if (!G.dead && G.loc === to) dailyProg("travel", 1, to);
+  return r;
+};
+function dailyHtml() {
+  const c = dailyCh(), s0 = dailyState();
+  return '<div class="row '.concat(s0.done ? "dim" : "", '"><span class="ic">').concat(c.ic, '</span><div class="grow"><span class="t">Испытание дня: ').concat(c.n, '</span><span class="s">').concat(c.d, " · ").concat(Math.min(s0.prog, c.goal), "/").concat(c.goal).concat(s0.done ? " · ✅ награда получена" : " · награда 120₽ и вещь", "</span></div></div>");
+}
+const _cuiJour4 = CUI.jour;
+CUI.jour = function() {
+  return '<div class="sec"><h2>🎯 Испытания</h2>'.concat(dailyHtml(), "</div>") + _cuiJour4.apply(this, arguments);
+};
+Object.assign(ITEMS, {
+  wolfpelt: { n: "Шкура Белого волка", ic: "🤍", c: "wear", w: 2, v: 450, slot: "body", warm: 6, arm: 2 },
+  tusk: { n: "Бивневый кинжал", ic: "🦷", c: "melee", w: 0.5, v: 400, dmg: [11, 17], dur: 140, noise: 1 },
+  pearl: { n: "Чёрная жемчужина", ic: "⚫", c: "val", w: 0.05, v: 700, info: "Нашли в горле Короля утопленников. Очень дорого стоит." }
+});
+Object.assign(ENEMY, {
+  whitewolf: { n: "Белый волк", ic: "🐺", spr: "dog", hp: 110, dmg: [11, 17], sp: 2, acc: 0.7, inj: ["bite", "lacer"], noVirus: 1, xp: 45, boss: 1, drop: [["wolfpelt", 1], ["meat", 3]] },
+  kingdrowned: { n: "Король утопленников", ic: "👑", spr: "drowned", hp: 170, dmg: [12, 19], sp: 1, acc: 0.6, arm: 3, inj: ["bite", "bruise", "lacer"], xp: 55, boss: 1, drop: [["pearl", 1], ["scuba", 1]] },
+  boar: { n: "Кабан-мутант", ic: "🐗", spr: "pdog", hp: 140, dmg: [13, 20], sp: 2, acc: 0.6, arm: 2, inj: ["lacer", "frac", "bruise"], noVirus: 1, xp: 50, boss: 1, drop: [["tusk", 1], ["meat", 5]] }
+});
+const LEGENDS = { whitewolf: ["forest", "meteo"], kingdrowned: ["beach", "wreck"], boar: ["farm", "swamp"] };
+EVTS.legend = { n: "Легендарный зверь", ic: "🐾", dur: 48 };
+function addLegend() {
+  const id = pick(Object.keys(LEGENDS).filter((k) => !G.w.flags[k + "_dead"]));
+  if (!id) return;
+  const ev = { id: "legend" + G.time, type: "legend", beast: id, until: G.time + 48 * H, loc: pick(LEGENDS[id]) };
+  G.w.events = (G.w.events || []).concat([ev]);
+  UI.event({ title: "🐾 ".concat(ENEMY[id].ic, " ").concat(ENEMY[id].n), text: "Выжившие рассказывают: в локации ".concat(LOCS[ev.loc].ic, " ").concat(LOCS[ev.loc].n, " видели ").concat(ENEMY[id].n, ". Говорят, тот, кто его одолеет, получит редкий трофей. Через двое суток зверь уйдёт."), choices: [{ t: "Интересно" }] });
+}
+const _dailyEventL = dailyEvent;
+dailyEvent = function(force) {
+  const r = _dailyEventL.apply(this, arguments);
+  if (!force && day() >= 5 && ch(0.1) && !activeEvents().some((e) => e.type === "legend")) addLegend();
+  return r;
+};
+function huntLegend(ev) {
+  setAct("🐾 выслеживает: ".concat(ENEMY[ev.beast].n));
+  advance(30);
+  if (G.dead) return;
+  const e = mkEnemy(ev.beast);
+  e.dist = 2;
+  SND("roar");
+  startCombat([e], { road: true, onEnd: (r) => {
+    if (r === "win") {
+      ev.done = true;
+      FEED("🐾 одолел легендарного зверя: ".concat(ENEMY[ev.beast].n));
+      UI.event({ title: "🏆 Легенда повержена", cls: "good", text: "".concat(ENEMY[ev.beast].n, " больше не бродит по острову. Трофей — у тебя в рюкзаке."), choices: [{ t: "Отлично" }] });
+    }
+    save();
+    UI.render();
+  } });
+}
+const _cuiGround3 = CUI.ground;
+CUI.ground = function() {
+  let h = _cuiGround3.apply(this, arguments);
+  if (G.room != null || G.traveling) return h;
+  for (const ev of eventsAt(G.loc).filter((e) => e.type === "legend")) h += '<div class="row evt"><span class="ic">'.concat(ENEMY[ev.beast].ic, '</span><div class="grow"><span class="t">Следы: ').concat(ENEMY[ev.beast].n, '</span><span class="s">Легендарный зверь · уйдёт через ~').concat(Math.ceil((ev.until - G.time) / H), " ч</span></div>").concat(UI.btn("Выследить", () => huntLegend(ev), "sm pri"), "</div>");
+  return h;
+};
+const MUTS = {
+  nighteye: { n: "Ночное зрение", ic: "👁️", good: 1, m: { nightEye: 1 }, d: "Видишь в темноте" },
+  thick: { n: "Толстая кожа", ic: "🦏", good: 1, m: { injChance: -0.15 }, d: "Реже получаешь травмы" },
+  gills: { n: "Сухой метаболизм", ic: "🐫", good: 1, m: { thirst: -0.2 }, d: "Меньше хочется пить" },
+  regen: { n: "Регенерация", ic: "🧬", good: 1, m: { heal: 0.25 }, d: "Раны заживают быстрее" },
+  glow: { n: "Свечение кожи", ic: "✨", good: 0, m: { stealth: -1 }, d: "Тебя легче заметить" },
+  twitch: { n: "Нервный тик", ic: "🫨", good: 0, m: { meleeAcc: -0.04 }, d: "Чуть хуже попадаешь" }
+};
+function mutCheck() {
+  const c = G.ch;
+  c.muts = c.muts || [];
+  if (c.rad < 100 || c.muts.length >= 3 || !ch(0.3)) return;
+  const pool = Object.keys(MUTS).filter((k2) => !c.muts.includes(k2));
+  if (!pool.length) return;
+  const k = ch(0.6) ? pick(pool.filter((x) => MUTS[x].good).concat(pool)) : pick(pool);
+  c.muts.push(k);
+  const M = MUTS[k];
+  diaryAdd("🧬 мутация: ".concat(M.n));
+  UI.event({ title: "🧬 Мутация: ".concat(M.ic, " ").concat(M.n), cls: M.good ? "good" : "bad", text: "Радиация изменила тебя. ".concat(M.d, ".").concat(M.good ? "" : "\n\nЭто навсегда… если не найдёшь сыворотку Левина."), choices: [{ t: "Понятно" }] });
+}
+const _useItemMut = useItem;
+useItem = function(id) {
+  if (id === "serum" && (G.ch.muts || []).some((k) => !MUTS[k].good)) {
+    const r = _useItemMut.apply(this, arguments);
+    G.ch.muts = G.ch.muts.filter((k) => MUTS[k].good);
+    UI.log("💉 Сыворотка подавила вредные мутации.", "good");
+    return r;
+  }
+  return _useItemMut.apply(this, arguments);
+};
+const _extraModMut = extraMod;
+extraMod = function(k) {
+  let v = _extraModMut(k);
+  for (const id of G && G.ch && G.ch.muts || []) {
+    const M = MUTS[id];
+    if (M && M.m[k]) v += M.m[k];
+  }
+  return v;
+};
+const _extNewDayMut = extNewDay;
+extNewDay = function() {
+  _extNewDayMut.apply(this, arguments);
+  mutCheck();
+};
+const _charPanelM = EXTUI.charPanel;
+EXTUI.charPanel = function() {
+  const ms = G.ch.muts || [];
+  return (ms.length ? '<div class="sec"><h2>🧬 Мутации</h2><div class="list">'.concat(ms.map((k) => '<div class="row"><span class="ic">'.concat(MUTS[k].ic, '</span><div class="grow"><span class="t">').concat(MUTS[k].n, '</span><span class="s ').concat(MUTS[k].good ? "good" : "bad", '">').concat(MUTS[k].d, "</span></div></div>")).join(""), "</div></div>") : "") + _charPanelM.apply(this, arguments);
+};
+const _sideLeftD = sideLeft;
+sideLeft = function() {
+  const c = dailyCh(), s0 = dailyState();
+  return _sideLeftD.apply(this, arguments) + '<div class="card"><h3>🎯 Испытание дня</h3><div class="ln '.concat(s0.done ? "good" : "", '">').concat(c.ic, " ").concat(c.n, ": ").concat(c.d, " — ").concat(Math.min(s0.prog, c.goal), "/").concat(c.goal).concat(s0.done ? " ✅" : "", "</div></div>");
+};
