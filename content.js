@@ -2201,7 +2201,7 @@ const UIP = (() => {
     p = JSON.parse(localStorage.getItem("moti3_ui") || "{}");
   } catch (e) {
   }
-  return Object.assign({ emoji: true, dens: "normal", log: 2, sides: true, art: "big" }, p);
+  return Object.assign({ emoji: true, dens: "normal", log: 2, sides: true, art: "big", swipe: true }, p);
 })();
 function uiWide() {
   return typeof window !== "undefined" && window.innerWidth >= 1130 && UIP.sides !== false;
@@ -2297,7 +2297,7 @@ function uiSettingsHtml() {
   const opt = (k, list) => '<div class="toggle">'.concat(list.map(([v, n]) => '<button class="'.concat(UIP[k] === v ? "on" : "", "\" onclick='setUi(").concat(JSON.stringify(k), ", ").concat(JSON.stringify(v), ")'>").concat(n, "</button>")).join(""), "</div>");
   const row = (t, d, ctl) => '<div class="setrow"><div><b>'.concat(t, "</b>").concat(d ? '<div class="s muted">'.concat(d, "</div>") : "", "</div>").concat(ctl, "</div>");
   const wideOk = typeof window !== "undefined" && window.innerWidth >= 1130;
-  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n  </div></div>");
+  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Свайпы", "Провёл пальцем влево или вправо по экрану — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал).", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n  </div></div>");
 }
 if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
   const strip = (root) => {
@@ -2904,3 +2904,54 @@ window.sideResReset = (id) => {
   delete L2.h[id];
   laySave();
 };
+const SWIPE_TABS = ["map", "loc", "inv", "char", "base", "jour"];
+if (typeof document !== "undefined") (() => {
+  let s = null;
+  const blocked = (el) => {
+    for (let n = el; n && n !== document.body; n = n.parentNode) {
+      if (n.nodeType !== 1) continue;
+      if (n.id === "main") return false;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(n.tagName) || n.id === "modal" || n.classList.contains("side")) return true;
+      if (n.scrollWidth > n.clientWidth + 4) {
+        const ox = getComputedStyle(n).overflowX;
+        if (ox === "auto" || ox === "scroll") return true;
+      }
+    }
+    return false;
+  };
+  document.addEventListener("touchstart", (e) => {
+    s = null;
+    if (UIP.swipe === false || e.touches.length !== 1 || typeof G === "undefined" || !G || G.dead) return;
+    const t = e.touches[0];
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    const mo = document.getElementById("modal");
+    if (mo && mo.innerHTML.trim()) return;
+    if (!e.target.closest || !e.target.closest("#main") || blocked(e.target)) return;
+    s = { x: t.clientX, y: t.clientY, at: Date.now() };
+  }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (!s) return;
+    const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y, dt = Date.now() - s.at;
+    s = null;
+    if (dt > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (G.combat || G.traveling) return;
+    const st = UI._st, i = SWIPE_TABS.indexOf(st.tab === "room" ? "loc" : st.tab);
+    if (i < 0) return;
+    const j = i + (dx < 0 ? 1 : -1);
+    if (j < 0 || j >= SWIPE_TABS.length) return;
+    const mn = document.getElementById("main");
+    if (mn) {
+      mn.classList.remove("swl", "swr");
+      void mn.offsetWidth;
+      mn.classList.add(dx < 0 ? "swl" : "swr");
+      setTimeout(() => mn.classList.remove("swl", "swr"), 260);
+    }
+    st.open = null;
+    if (SWIPE_TABS[j] !== "loc") st.trader = null;
+    UI.go(SWIPE_TABS[j]);
+    try {
+      if (window.TGA && TGA.tg && TGA.tg.HapticFeedback) TGA.tg.HapticFeedback.selectionChanged();
+    } catch (x) {
+    }
+  }, { passive: true });
+})();

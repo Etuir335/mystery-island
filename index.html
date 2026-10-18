@@ -1884,6 +1884,26 @@ html.art-off canvas.scene {
   max-height: 460px;
   overflow-y: auto;
 }
+@media (prefers-reduced-motion: no-preference) {
+  #main.swl {
+    animation: swl .24s ease-out;
+  }
+  #main.swr {
+    animation: swr .24s ease-out;
+  }
+  @keyframes swl {
+    from {
+      transform: translateX(40px);
+      opacity: .4;
+    }
+  }
+  @keyframes swr {
+    from {
+      transform: translateX(-40px);
+      opacity: .4;
+    }
+  }
+}
 </style>
 
 </head>
@@ -1897,18 +1917,18 @@ html.art-off canvas.scene {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792365264"></script>
-<script src="game.js?v=1792365264"></script>
-<script src="ext.js?v=1792365264"></script>
-<script src="content.js?v=1792365264"></script>
-<script src="art.js?v=1792365264"></script>
-<script src="audio.js?v=1792365264"></script>
-<script src="coop.js?v=1792365264"></script>
-<script src="tg.js?v=1792365264"></script>
-<script src="fbconfig.js?v=1792365264"></script>
-<script src="fbcoop.js?v=1792365264"></script>
-<script src="sync.js?v=1792365264"></script>
-<script src="ui.js?v=1792365264"></script>
+<script src="data.js?v=1792365678"></script>
+<script src="game.js?v=1792365678"></script>
+<script src="ext.js?v=1792365678"></script>
+<script src="content.js?v=1792365678"></script>
+<script src="art.js?v=1792365678"></script>
+<script src="audio.js?v=1792365678"></script>
+<script src="coop.js?v=1792365678"></script>
+<script src="tg.js?v=1792365678"></script>
+<script src="fbconfig.js?v=1792365678"></script>
+<script src="fbcoop.js?v=1792365678"></script>
+<script src="sync.js?v=1792365678"></script>
+<script src="ui.js?v=1792365678"></script>
 
 </body>
 </html>
