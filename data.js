@@ -261,6 +261,8 @@ const ITEMS = {
   battery:  { n: 'Батарейки', ic: '🔋', c: 'mat', w: 0.1, v: 12 },
   seeds:    { n: 'Семена', ic: '🌱', c: 'mat', w: 0.05, v: 15 },
   herbs:    { n: 'Лечебные травы', ic: '🌿', c: 'mat', w: 0.05, v: 8 },
+  carpart:  { n: 'Автозапчасти', ic: '⚙️', c: 'mat', w: 2, v: 30 },
+  fuel:     { n: 'Канистра бензина', ic: '⛽', c: 'mat', w: 4, v: 45 },
   // Ценности
   watch:    { n: 'Часы', ic: '⌚', c: 'val', w: 0.1, v: 60 },
   ring:     { n: 'Золотое кольцо', ic: '💍', c: 'val', w: 0.01, v: 120 },
@@ -302,9 +304,9 @@ const CONT = {
   medcab:  { n: 'Аптечный шкафчик', ic: '⛑️', t: 10, roll: [1, 3], loot: [['bandage', 5], ['antisep', 3], ['painkill', 3], ['antibio', 2], ['coldpill', 3], ['alcohol', 2], ['splint', 1], ['medkit', 1]] },
   shelf:   { n: 'Стеллаж с продуктами', ic: '🛒', t: 12, roll: [1, 4], loot: [['canned', 4], ['crackers', 4], ['soda', 4], ['water', 4], ['choco', 3], ['cigs', 2], ['vodka', 1], ['battery', 1], ['bottle', 2]] },
   kassa:   { n: 'Касса', ic: '💰', t: 5, roll: [1, 2], loot: [['cash', 6], ['battery', 1]] },
-  toolbox: { n: 'Ящик с инструментами', ic: '🧰', t: 15, roll: [1, 3], loot: [['nails', 6], ['tape', 4], ['wire', 4], ['scrap', 4], ['crowbar', 1], ['tools', 1], ['flash', 2], ['battery', 2], ['bp_nail', 1]] },
+  toolbox: { n: 'Ящик с инструментами', ic: '🧰', t: 15, roll: [1, 3], loot: [['nails', 6], ['tape', 4], ['wire', 4], ['scrap', 4], ['crowbar', 1], ['tools', 1], ['flash', 2], ['battery', 2], ['bp_nail', 1], ['carpart', 1]] },
   shed:    { n: 'Сарай', ic: '🛖', t: 20, roll: [1, 4], loot: [['planks', 5], ['nails', 5], ['wood', 4], ['rope', 3], ['axe', 1], ['seeds', 2], ['bp_garden', 1], ['bp_traps', 1]] },
-  car:     { n: 'Багажник машины', ic: '🚗', t: 12, roll: [0, 3], loot: [['tools', 1], ['tape', 3], ['water', 3], ['bat', 1], ['bag2', 1], ['scrap', 4], ['flash', 2], ['a12', 1]] },
+  car:     { n: 'Багажник машины', ic: '🚗', t: 12, roll: [0, 3], loot: [['tools', 1], ['tape', 3], ['water', 3], ['bat', 1], ['bag2', 1], ['scrap', 4], ['flash', 2], ['a12', 1], ['fuel', 2], ['carpart', 3]] },
   backpack:{ n: 'Брошенный рюкзак', ic: '🎒', t: 10, roll: [1, 3], loot: [['canned', 3], ['water', 3], ['bandage', 2], ['lighter', 2], ['rod', 1], ['bag2', 1], ['cigs', 2], ['a9', 1], ['antirad', 1], ['bolts', 2], ['bottle', 2]] },
   locker:  { n: 'Шкафчик солдата', ic: '🗄️', t: 12, roll: [1, 3], loot: [['ration', 3], ['mjacket', 2], ['a545', 2], ['a9', 3], ['bandage', 2], ['cigs', 3], ['k_armory', 1], ['watch', 1]] },
   milcrate:{ n: 'Военный ящик', ic: '🪖', t: 20, roll: [2, 4], loot: [['ration', 4], ['a545', 3], ['a9', 3], ['a12', 2], ['bandage', 3], ['medkit', 1], ['gasmask', 1], ['bag3', 1], ['antirad', 2], ['bp_ammo', 1]] },
@@ -345,7 +347,7 @@ const ANOM = {
 // ---------- ЛОКАЦИИ ----------
 // links: {id: минут пути}; dg: опасность 0..3; zone: зона аномалии (радиация)
 const LOCS = {
-  base: { n: 'Лодочная станция', ic: '🏚️', x: 30, y: 72, dg: 0, shelter: 1, base: 1,
+  base: { n: 'Лодочная станция', ic: '🏚️', x: 30, y: 72, dg: 0, shelter: 1, base: 1, road: 1,
     d: 'Старый лодочный сарай у воды. Твоя база. Где-то тут живёт кот.',
     links: { beach: 40, village: 50, forest: 45, reef: 120 }, fish: 1, water: 'sea',
     rooms: [{ n: 'Пристань', cont: ['shore', 'toolbox'], once: 1 }] },
@@ -357,7 +359,7 @@ const LOCS = {
       { n: 'Перевёрнутая лодка', cont: ['shore', 'backpack'], en: [['drowned', 0, 1]] },
       { n: 'Скалы', cont: ['shore'], en: [['dog', 0, 2]], dark: 1, fixed: { note: 'n_rocks' } },
     ] },
-  village: { n: 'Рыбацкая деревня', ic: '🏘️', x: 44, y: 84, dg: 1, shelter: 1, trader: 'semen',
+  village: { n: 'Рыбацкая деревня', ic: '🏘️', x: 44, y: 84, dg: 1, shelter: 1, trader: 'semen', road: 1,
     d: 'Десяток домиков. В крайнем живёт Семёныч — тот самый, что тебя вытащил.',
     links: { base: 50, gas: 60, farm: 70 }, fish: 1, water: 'well',
     rooms: [
@@ -367,7 +369,7 @@ const LOCS = {
       { n: 'Лодочный гараж', cont: ['toolbox', 'shed'], en: [['zombie', 0, 2]] },
       { n: 'Часовня', cont: ['night'], en: [['runner', 0, 1]], dark: 1, fixed: { note: 'n_chapel' } },
     ] },
-  forest: { n: 'Сосновый лес', ic: '🌲', x: 40, y: 52, dg: 1,
+  forest: { n: 'Сосновый лес', ic: '🌲', x: 40, y: 52, dg: 1, road: 1,
     d: 'Тихий сосняк. Грибы, ягоды, дичь — и стаи одичавших собак.',
     links: { base: 45, farm: 50, meteo: 80, swamp: 70, lighthouse: 60 }, forage: 1, hunt: 1, water: 'stream',
     rooms: [
@@ -376,7 +378,7 @@ const LOCS = {
       { n: 'Лагерь туристов', cont: ['tent', 'tent', 'body'], en: [['zombie', 1, 2], ['dog', 0, 1]] },
       { n: 'Глухая чаща', cont: ['bushes', 'stash'], en: [['dog', 1, 3]], dark: 1 },
     ] },
-  farm: { n: 'Заброшенная ферма', ic: '🌾', x: 66, y: 64, dg: 2,
+  farm: { n: 'Заброшенная ферма', ic: '🌾', x: 66, y: 64, dg: 2, road: 1,
     d: 'Ферма, где всё началось для местных. Заражённых тут много.',
     links: { village: 70, forest: 50, gas: 45, post: 90 },
     rooms: [
@@ -385,7 +387,7 @@ const LOCS = {
       { n: 'Хозяйский дом', cont: ['fridge', 'wardrobe', 'night', 'medcab'], en: [['zombie', 1, 2], ['runner', 0, 1]] },
       { n: 'Подвал', cont: ['shelf', 'safe'], en: [['zombie', 1, 1]], lock: 'k_farm', dark: 1, fixed: { note: 'n_farm' } },
     ] },
-  gas: { n: 'Заправка «Остров»', ic: '⛽', x: 77, y: 80, dg: 2,
+  gas: { n: 'Заправка «Остров»', ic: '⛽', x: 77, y: 80, dg: 2, road: 1,
     d: 'Заправка у дороги. Мародёры любят это место.',
     links: { village: 60, farm: 45, post: 70 },
     rooms: [
@@ -394,7 +396,7 @@ const LOCS = {
       { n: 'Подсобка', cont: ['safe', 'desk'], lock: 'pry', en: [['runner', 0, 1]], fixed: { item: 'dogtag', note: 'n_misha' } },
       { n: 'Стоянка', cont: ['car', 'car', 'car'], en: [['raider', 0, 2]] },
     ] },
-  post: { n: 'Военный блокпост', ic: '🪖', x: 86, y: 50, dg: 3,
+  post: { n: 'Военный блокпост', ic: '🪖', x: 86, y: 50, dg: 3, road: 1,
     d: 'Карантинный блокпост. Солдаты остались на посту — уже мёртвыми.',
     links: { farm: 90, gas: 70, nii: 60 },
     rooms: [
@@ -404,7 +406,7 @@ const LOCS = {
       { n: 'Оружейная', cont: ['armory', 'milcrate'], lock: 'k_armory', en: [['soldier', 1, 1]] },
       { n: 'Радиорубка', cont: ['desk'], en: [['soldier', 0, 1]], fixed: { item: 'rpart', note: 'n_radio' } },
     ] },
-  lighthouse: { n: 'Маяк', ic: '🗼', x: 12, y: 28, dg: 1, shelter: 1, trader: 'serg',
+  lighthouse: { n: 'Маяк', ic: '🗼', x: 12, y: 28, dg: 1, shelter: 1, trader: 'serg', road: 1,
     d: 'Маяк на скале. Сержант Ковальчук превратил его в крепость.',
     links: { beach: 70, forest: 60, meteo: 70 },
     rooms: [
@@ -412,7 +414,7 @@ const LOCS = {
       { n: 'Кладовка', cont: ['shelf', 'toolbox'], en: [['runner', 0, 1]] },
       { n: 'Фонарная', cont: ['desk'], en: [['runner', 0, 1]], fixed: { item: 'rpart', note: 'n_light' } },
     ] },
-  meteo: { n: 'Метеостанция №7', ic: '📡', x: 40, y: 18, dg: 2, shelter: 1, trader: 'levin', zone: 1,
+  meteo: { n: 'Метеостанция №7', ic: '📡', x: 40, y: 18, dg: 2, shelter: 1, trader: 'levin', zone: 1, road: 1,
     d: 'Метеостанция на холме. В бункере под ней прячется доктор Левин.',
     links: { lighthouse: 70, forest: 80, swamp: 50 },
     rooms: [

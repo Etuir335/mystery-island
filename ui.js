@@ -109,7 +109,7 @@ const UI = (() => {
       card += '</div>';
     } else card += '<p class="muted">Ты ещё не бывал в этой части острова.</p>';
     if (sel === G.loc) card += btn('📍 Осмотреться', () => { st.tab = 'loc'; }, 'pri');
-    else if (near[sel] != null) { const err = canTravel(sel); card += `<div class="acts">${btn(`🚶 Идти — ${travelTime(sel)} мин${isNight() ? ' (ночью опаснее)' : ''}`, () => { st.sel = null; travel(sel); }, 'pri', !!err)}</div>${err ? `<p class="bad">${esc(err)}</p>` : ''}`; }
+    else if (near[sel] != null) { const err = canTravel(sel); card += `<div class="acts">${btn(`🚶 Идти — ${travelTime(sel)} мин${isNight() ? ' (ночью опаснее)' : ''}`, () => { st.sel = null; travel(sel); }, 'pri', !!err)}${EXTUI.mapDrive(sel)}</div>${err ? `<p class="bad">${esc(err)}</p>` : ''}`; }
     else { const r = route(G.loc, sel); card += r ? `<p class="muted">Маршрут: ${r.path.map(k => seen(k) ? LOCS[k].n : '???').join(' → ')} · ~${r.mins} мин</p><div class="acts">${btn('🧭 Проложить маршрут', () => { st.sel = null; goTo(sel); }, 'pri', !!canTravel(r.path[0]))}</div>` : '<p class="muted">Сюда пока не пройти.</p>'; }
     if (sel !== G.loc && (G.ch.food < 25 || G.ch.drink < 25)) card += '<p class="warn">⚠️ Мало еды или воды — поешь перед дорогой.</p>';
     card += '</div>';
@@ -135,6 +135,7 @@ const UI = (() => {
     if (!l.base) acts.push(campHere() ? btn(`🔥 Костёр (${G.campfire.until - G.time} мин) — готовить`, () => { st.tab = 'inv'; st.scrollCraft = true; }) : btn('🔥 Развести костёр', makeCamp, '', !cnt(G.inv, 'lighter') || cnt(G.inv, 'wood') < 2));
     acts.push(btn('🔨 Крафт', () => { st.tab = 'inv'; st.scrollCraft = true; }));
     if (acts.length) h += `<div class="acts">${acts.join('')}</div>`;
+    h += EXTUI.locRows();
     for (const ev of eventsAt(G.loc)) {
       const E = EVTS[ev.type], left = Math.ceil((ev.until - G.time) / H);
       if (ev.type === 'drop') h += `<div class="row evt"><span class="ic">${E.ic}</span><div class="grow"><span class="t">Контейнер гуманитарки</span><span class="s">ещё ~${left} ч${ev.checked ? '' : ' · возможно, рядом мародёры'}</span></div>${btn('Вскрыть (20 мин)', () => openDrop(ev), 'pri sm')}</div>`;
@@ -342,6 +343,7 @@ const UI = (() => {
     h += '</div>';
     h += `<div class="sec"><h2>Навыки</h2><div class="grid2">${Object.keys(SKILLS).map(k => { const lv = skill(k), raw = SKILL_XP.findIndex((x, i) => i > 0 && c.xp[k] < x); const lo = SKILL_XP[Math.max(0, (raw < 0 ? SKILL_XP.length : raw) - 1)], hi = raw < 0 ? lo : SKILL_XP[raw]; return `<div class="vit" style="font-size:12.5px">${SKILLS[k].ic} ${SKILLS[k].n} <b class="mono">${lv}</b>${bar(raw < 0 ? 1 : c.xp[k] - lo, raw < 0 ? 1 : hi - lo)}</div>`; }).join('')}</div><p class="muted" style="font-size:13px">Навыки растут от дела: дерёшься — растёт ближний бой, обыскиваешь — поиск.</p></div>`;
     h += `<div class="sec"><div class="sechead"><h2>Правила сложности</h2>${btn(st.showRules ? 'Скрыть' : 'Показать', () => st.showRules = !st.showRules, 'sm')}</div>${st.showRules ? `<ul class="muted" style="margin:0;padding-left:18px">${MODES[G.mode].rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}</div>`;
+    h += EXTUI.charPanel();
     return h;
   }
 
@@ -352,7 +354,7 @@ const UI = (() => {
     const d = day(), nextBN = d % 7 === 0 && hour() < 22 ? d : d + (7 - d % 7);
     const power = Math.round((25 + nextBN * 2.5) * F().horde);
     let h = `${ART.sceneTag({ loc: 'base', key: 'base', alt: 'Лодочная станция', camp: false })}${tutCard()}${logLast(3)}<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">${defense()}</b> · следующая Кровавая ночь — день ${nextBN}, натиск ≈ <b class="mono">${power}</b> за ночь (3 волны).${s.walls ? ` Укрепления: ${G.w.wallHp}%.` : ''}</p></div>`;
-    h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
+    h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${(G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn('🐈 Взять кота с собой', takeCat) : ''}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
     h += '<div class="sec"><h2>Постройки</h2><div class="list">';
     for (const id in STRUCT) {
       if (STRUCT[id].ch2 && !CH2()) continue;
@@ -478,6 +480,7 @@ const UI = (() => {
       if (e.dist <= (ms.reach ? 1 : 0)) acts.push(mbtn(`⚔️ ${esc(ms.n)}`, () => pAttack(i), 'pri sm'));
       if (gun) acts.push(mbtn(`🔫 (${cnt(G.inv, w.ammo)})`, () => pShoot(i), 'sm', !cnt(G.inv, w.ammo)));
       if (e.dist === 0 && !D.boss) acts.push(mbtn('🦶', () => pPush(i), 'sm'));
+      const ex = EXTUI.combatActs(i, e); if (ex) acts.push(ex);
       return `<div class="enemy">${ART.enemyImg(e.id, e.stun ? 'stun' : '')}<div><div class="t">${D.n}${e.gear ? ` <span class="muted">(${IT(e.gear).n})</span>` : ''}${e.stun ? ' 💫' : ''}</div>${bar(e.hp, e.max)}<span class="dist">${DIST[Math.min(2, e.dist)]}</span></div><div class="acts">${acts.join('')}</div></div>`; }).join('');
     const meds = ['bandage', 'dband', 'medkit', 'painkill', 'antisep', 'splint'].filter(id => cnt(G.inv, id));
     const human = alive.some(e => ENEMY[e.id].human);
@@ -625,7 +628,7 @@ const UI = (() => {
     if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); setTimeout(checkPerks, 900); } }
     else startScreen();
   }
-  return { run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,
+  return { btn, mbtn, run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,
     _name: v => { sel.name = v; }, _st: st, _j: (k, v) => { jsel[k] = v; }, _chat: sendChat };
 })();
 (window.TGA ? TGA.before() : Promise.resolve()).then(() => UI.boot(), () => UI.boot());

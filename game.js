@@ -131,7 +131,7 @@ function newWorld() {
   for (const id in LOCS) locs[id] = { seen: id === 'base', rooms: LOCS[id].rooms.map(() => ({ cont: {}, en: [], enAt: -1e9, an: null, art: null, ground: [], aware: true, fixed: false })), kills: 0 };
   return { locs, struct: { bed: 0, fire: 0, bench: 0, walls: 0, traps: 0, rain: 0, smoke: 0, garden: 0, radio: 0, distill: 0, boat: 0 }, wallHp: 0,
     bp: {}, flags: {}, quests: {}, qstart: {}, rep: { semen: 0, serg: 0, levin: 0, nomad: 0 }, notes: [], counters: { anomFound: 0 }, corpses: [],
-    prod: { rain: 0, garden: 0 }, catAt: -1e9, gen: 1, hordeDone: {}, ending: null, deaths: [], events: [] };
+    prod: { rain: 0, garden: 0 }, catAt: -1e9, catLove: 0, car: { loc: 'gas', stage: 0, fuel: 0, hp: 100 }, gen: 1, hordeDone: {}, ending: null, deaths: [], events: [] };
 }
 function newChar(name, traits, prof) {
   const ch = { name, traits, prof: PROFS[prof] ? prof : 'unemployed', perks: [], perkAsk: {}, xp: {}, hp: 100, parts: {}, inj: [], bleed: 0, food: 80, drink: 80, energy: 90, stress: 10, rad: 0, cold: 0, wet: 0,
@@ -411,9 +411,9 @@ function canTravel(to) {
   if (LOCS[to].lock && !cnt(G.inv, LOCS[to].lock)) return `Нужен: ${IT(LOCS[to].lock).ic} ${IT(LOCS[to].lock).n}`;
   return '';
 }
-function travel(to) {
+function travel(to, topt = {}) {
   const err = canTravel(to); if (err) return UI.toast(err);
-  const mins = travelTime(to);
+  const mins = topt.car ? Math.max(10, Math.round(travelTime(to) * 0.35)) : travelTime(to);
   SND('travel'); setAct(`идёт: ${LOCS[to].ic} ${LOCS[to].n}`);
   G.room = null; G.traveling = true; G.travelTo = to; G.noise = 0;
   const half = Math.round(mins / 2);
@@ -424,6 +424,7 @@ function travel(to) {
   let p = (0.12 + dg * 0.08) * (isNight() ? 1.8 : 1) * F().enemies;
   if (isBloodNight()) p *= 3;
   p *= mul('ambush', 0.2);
+  if (topt.car) p *= 0.5;
   if (fogEvent()) p *= 1.6;
   const finish = () => {
     if (G.dead) return;
@@ -432,7 +433,7 @@ function travel(to) {
     G.traveling = false; G.loc = to; G.w.locs[to].seen = true; if (to === 'forest') tutMark('forest');
     if (to === 'reef' && !G.w.flags.reef_seen) { G.w.flags.reef_seen = true; FEED('⛵ доплыл до Острова-8'); checkQuests(); }
     for (const l in LOCS[to].links) if (F().hints) G.w.locs[l].seen = G.w.locs[l].seen || F().hints > 0;
-    UI.log(`📍 Ты добрался: ${LOCS[to].ic} ${LOCS[to].n} (${mins} мин).`); setAct('осматривается');
+    UI.log(`${topt.car ? '🚗 Ты доехал' : '📍 Ты добрался'}: ${LOCS[to].ic} ${LOCS[to].n} (${mins} мин).`); setAct('осматривается');
     corpseHint();
     if (G.route && G.route.length) UI.log(`🧭 Маршрут: дальше ${LOCS[G.route[0]].ic} ${LOCS[G.route[0]].n}.`, 'sys'); else if (G.routeDest === to) { G.routeDest = null; UI.log('🧭 Ты на месте.', 'good'); }
     if (!LOCS[to].shelter && !LOCS[to].base && ch(0.08)) setTimeout(() => wounded(), 0);
@@ -729,6 +730,10 @@ function endPlayerTurn() {
     cb.en.forEach(e => { if (e.hp <= 0 && !e.dead) { e.dead = true; onKill(e); } });
     if (cb.en.every(e => e.hp <= 0)) return endCombat('win');
   }
+  if (typeof petTurn === 'function' && petTurn(cb)) {
+    cb.en.forEach(e => { if (e.hp <= 0 && !e.dead) { e.dead = true; onKill(e); } });
+    if (cb.en.every(e => e.hp <= 0)) return endCombat('win');
+  }
   enemyTurn();
 }
 function enemyTurn() {
@@ -760,6 +765,7 @@ function enemyHit(e, ranged, near) {
   dmg = Math.max(1, Math.round(dmg - armor()));
   if (!ranged && ch(mod('block'))) { dmg = Math.max(1, Math.round(dmg / 2)); cLog('🛡️ Блок!', 'good'); }
   let inj = ranged || (e.gear && IT(e.gear).c === 'gun') ? 'bullet' : pick(D.inj);
+  if (!ranged && typeof petHit === 'function' && petHit(e, dmg)) return;
   cLog(`💢 ${D.ic} ${D.n} ${ranged ? 'стреляет' : 'бьёт'}: −${dmg}`, 'bad'); SND(ranged ? 'shot' : 'hurt');
   const r = hitPlayer(dmg, ch(clamp(0.45 + mod('injChance'), 0.1, 0.9)) ? inj : 'bruise', null, D.n);
   if (r) cLog(r, 'bad');
@@ -979,7 +985,9 @@ function sleepHere(hours) {
   UI.render();
 }
 function petCat() {
+  if (G.w.catAway && !(G.pet && G.pet.type === 'cat')) return UI.toast('Кота нет на базе.');
   if (G.time - G.w.catAt < 6 * H) return UI.toast('Кот спит и не хочет, чтобы его трогали.');
+  G.w.catLove = (G.w.catLove || 0) + 1; if (G.w.catLove === 4) UI.log('🐈 Кот, похоже, к тебе привязался. Его можно взять с собой (База).', 'good');
   SND('purr'); G.w.catAt = G.time; G.ch.stress = Math.max(0, G.ch.stress - 20); advance(10);
   UI.log(pick(['🐈 Кот замурчал. Стало спокойнее.', '🐈 Кот принёс дохлую мышь. Видимо, это подарок.', '🐈 Кот потёрся о ногу и ушёл по своим делам.']), 'good');
   if (ch(0.15)) { invAdd(G.inv, 'fish', 1); UI.log('🐈 …и притащил рыбу. Хороший кот.', 'good'); }
