@@ -215,7 +215,7 @@ function tick(st, o) {
       } else if (c.antibioUntil > G.time) j.inf = Math.max(0, j.inf - 12 * t);
       if (j.inf >= 100) dmgTorso(3 * t, 'заражение крови');
       const canHeal = j.t === 'frac' ? j.splint : (j.band || j.bleed === 0);
-      if (canHeal && j.inf < 40) j.prog += t * (sleep ? 1.6 : 1) * (1 + skill('med') * 0.08) * mul('heal', 0.2);
+      if (canHeal && j.inf < 40) j.prog += t * (sleep ? (atBase() && typeof npcs === 'function' && npcs().some(n => n.role === 'medic') ? 2.4 : 1.6) : 1) * (1 + skill('med') * 0.08) * mul('heal', 0.2);
     }
     const before = c.inj.length;
     c.inj = c.inj.filter(j => j.prog < INJ[j.t].heal);
@@ -238,7 +238,7 @@ function tick(st, o) {
   c.wet = clamp(c.wet + (wet ? 30 * wet * t : -20 * t), 0, 100);
   if (f.cold) {
     let dc = 0;
-    if (outside) dc += (isNight() ? 6 : 0) + (c.wet > 40 ? 6 : 0) - warmth() * 1.5 - artSum('warm') * 1.5;
+    if (outside) dc += (isNight() ? 6 : 0) + (c.wet > 40 ? 6 : 0) + (G.weather.id === 'snow' ? 6 : 0) - warmth() * 1.5 - artSum('warm') * 1.5;
     else dc -= atBase() && G.w.struct.fire ? 18 : 8;
     if (campHere()) dc -= 14;
     if (dc > 0) dc *= mul('cold', 0.2);
@@ -259,7 +259,7 @@ function tick(st, o) {
   if (f.virus && c.virus && G.time - c.virus > 72 * H) { die('вирус — вы обратились'); return; }
   // --- погода
   if (G.time >= G.weather.until) {
-    const nw = wpick(WEATHER.map(x => [x.id, x.w]));
+    const nw = wpick(typeof seasonWeather === 'function' ? seasonWeather() : WEATHER.map(x => [x.id, x.w]));
     if (nw !== G.weather.id) { const x = WEATHER.find(q => q.id === nw); UI.log(`${x.ic} Погода: ${x.n.toLowerCase()}.`, 'sys'); }
     G.weather = { id: nw, until: G.time + R(4, 9) * H };
   }
@@ -268,7 +268,7 @@ function tick(st, o) {
   // --- производство базы
   const s = G.w.struct;
   if (s.rain && w.wet) { G.w.prod.rain += t; if (G.w.prod.rain >= 2) { G.w.prod.rain -= 2; invAdd(G.stash, 'water', 1); } }
-  if (s.garden) { G.w.prod.garden += t * mul('garden', 0.3); if (G.w.prod.garden >= 10) { G.w.prod.garden -= 10; invAdd(G.stash, 'veg', 1); } }
+  if (s.garden && !(typeof season === 'function' && season() === 1)) { G.w.prod.garden += t * mul('garden', 0.3); if (G.w.prod.garden >= 10) { G.w.prod.garden -= 10; invAdd(G.stash, 'veg', 1); } }
   // --- шум
   G.noise = Math.max(0, G.noise - 5 * (st / 10));
   // --- выброс
@@ -330,7 +330,7 @@ function hordeTick(o) {
     UI.event({ title: '🌕 Кровавая ночь', cls: 'bad', text: `Вдалеке слышен вой сотен глоток. Орда пошла на твою базу, а тебя там нет.\n\n${res}\n\nИ здесь до утра будет опаснее обычного.`, choices: [{ t: 'Держаться' }] });
   }
 }
-function defense() { const s = G.w.struct; return STRUCT.walls.def[s.walls] + STRUCT.traps.def[s.traps] + (s.fire ? 5 : 0); }
+function defense() { const s = G.w.struct; return STRUCT.walls.def[s.walls] + STRUCT.traps.def[s.traps] + (s.fire ? 5 : 0) + (typeof npcDef === 'function' ? npcDef() : 0) + (G.pet && G.pet.type === 'dog' && G.pet.hp > 0 && atBase() ? 6 : 0); }
 function wallsHit(n) {
   const s = G.w.struct; let msg = [];
   while (n > 0 && s.walls > 0) {
@@ -402,12 +402,13 @@ function travelTime(to) {
   if (isNight() && !(mod('nightEye') > 0)) m *= 1.3;
   m *= mul('travel', 0.4);
   if (legHurt()) m *= 1.5;
+  if (LOCS[to].boat && !boatReady()) m *= 1.5; // пешком по льду
   return Math.round(m);
 }
 function canTravel(to) {
   if (curW() > capW() * 1.5) return 'Слишком тяжело — выложи что-нибудь.';
   if (LOCS[to].ch2 && !CH2()) return 'Туда не добраться.';
-  if (LOCS[to].boat && !boatReady()) return 'Нужна лодка с кристальным двигателем (База → Постройки → Лодка).';
+  if (LOCS[to].boat && !boatReady() && !(typeof iceRoute === 'function' && iceRoute())) return 'Нужна лодка с кристальным двигателем (База → Постройки → Лодка).';
   if (LOCS[to].lock && !cnt(G.inv, LOCS[to].lock)) return `Нужен: ${IT(LOCS[to].lock).ic} ${IT(LOCS[to].lock).n}`;
   return '';
 }
@@ -467,6 +468,7 @@ function stranger(done) {
   const hostile = ch(0.5);
   UI.event({ title: '🧍 Незнакомец', text: 'Впереди на дороге стоит человек с рюкзаком. Он тоже тебя заметил и держит руку у пояса.', choices: [
     { t: '👋 Помахать рукой', fn: () => { if (hostile) { UI.log('Он выхватил оружие!', 'bad'); startCombat([mkEnemy('raider')], { onEnd: done, road: true, talk: true }); } else { const id = pick(['bandage', 'canned', 'water', 'a9', 'cigs']); invAdd(G.inv, id, IT(id).c === 'ammo' ? 6 : 1); G.ch.stress = Math.max(0, G.ch.stress - 15); UI.event({ title: '🤝 Мирная встреча', text: `Вы обменялись новостями. На прощание он дал тебе ${IT(id).ic} ${IT(id).n}. «Береги себя. И не ходи на болото».`, choices: [{ t: 'Идти дальше', fn: done }] }); } } },
+    ...((o) => o ? [{ t: o.t, fn: () => { if (!o.fn()) UI.log('Незнакомец пожал плечами и ушёл.'); done(); } }] : [])(!hostile && typeof npcOffer === 'function' && npcs().length < bunkCap() ? npcOffer(null, 'встречен в пути') : null),
     { t: '🌿 Спрятаться и переждать', fn: () => { advance(20); UI.log('Ты переждал в кустах. Незнакомец ушёл.'); done(); } },
     { t: '🔫 Напасть первым', fn: () => { G.ch.stress = clamp(G.ch.stress + 10, 0, 100); const e = mkEnemy('raider'); e.hp = Math.ceil(e.hp * 0.6); UI.log(hostile ? 'Похоже, он и правда собирался напасть.' : 'Он даже не успел понять, что происходит…', hostile ? '' : 'bad'); startCombat([e], { onEnd: done, road: true }); } },
   ] });
@@ -1176,7 +1178,7 @@ function route(from, to) {
   while (Q.size) {
     let u = null; for (const k of Q) if (u === null || dist[k] < dist[u]) u = k;
     if (dist[u] === Infinity) break; Q.delete(u); if (u === to) break;
-    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].ch2 && (!CH2() || !boatReady())) && !(LOCS[v].lock && v !== to && !cnt(G.inv, LOCS[v].lock)) && dist[u] + m < dist[v]) { dist[v] = dist[u] + m; prev[v] = u; }
+    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].ch2 && (!CH2() || !(boatReady() || (typeof iceRoute === 'function' && iceRoute())))) && !(LOCS[v].lock && v !== to && !cnt(G.inv, LOCS[v].lock)) && dist[u] + m < dist[v]) { dist[v] = dist[u] + m; prev[v] = u; }
   }
   if (dist[to] === Infinity) return null;
   const path = []; let c = to; while (c !== from) { path.unshift(c); c = prev[c]; }
@@ -1285,6 +1287,7 @@ function wounded() {
   UI.event({ title: '🩸 Раненый незнакомец', text: 'У стены сидит человек, зажимая рану на боку. «Эй… помоги. Я не опасен. Мне бы перевязаться…»', choices: [
     { t: hasB ? '🩹 Отдать бинт' : '🩹 Отдать бинт (нет)', fn: () => { if (!hasB) return UI.toast('Нечего дать.'); take(G.inv, cnt(G.inv, 'bandage') ? 'bandage' : 'dband', 1); const id = pick(['canned', 'a9', 'cigs', 'water', 'picks', 'watch']); invAdd(G.inv, id, IT(id).c === 'ammo' ? 8 : 1); G.ch.stress = Math.max(0, G.ch.stress - 10); UI.log(`🤝 «Спасибо. Держи — мне уже не пригодится». Он дал тебе ${IT(id).ic} ${IT(id).n}.`, 'good'); UI.render(); } },
     { t: hasA ? '💊 Отдать антибиотики' : '💊 Отдать антибиотики (нет)', fn: () => { if (!hasA) return UI.toast('Нечего дать.'); take(G.inv, 'antibio', 1); const id = pick(['bp_traps', 'bp_rain', 'bp_smoke', 'k_armory', 'antirad', 'bag2', 'medkit']); invAdd(G.inv, id, 1); G.ch.stress = Math.max(0, G.ch.stress - 15); UI.log(`🤝 «Ты спас мне жизнь. Вот, возьми самое ценное, что есть»: ${IT(id).ic} ${IT(id).n}.`, 'good'); UI.render(); } },
+    ...(typeof npcOffer === 'function' && npcs().length < bunkCap() && (hasB || hasA) ? [{ t: '🏘️ Перевязать и забрать на базу', fn: () => { take(G.inv, cnt(G.inv, 'bandage') ? 'bandage' : cnt(G.inv, 'dband') ? 'dband' : 'antibio', 1); inviteNpc(newNpc(), 'спасён тобой'); UI.render(); } }] : []),
     { t: '🚶 Пройти мимо', fn: () => { UI.log('Ты прошёл мимо. Его стоны ещё долго слышны за спиной.', 'dim'); G.ch.stress = clamp(G.ch.stress + 5, 0, 100); } },
     { t: '🔪 Обобрать', fn: () => { const ids = ['canned', 'water', 'a9', 'cash']; const id = pick(ids); invAdd(G.inv, id, IT(id).c === 'ammo' ? 6 : 1); G.ch.stress = clamp(G.ch.stress + 20, 0, 100); UI.log(`Ты забрал у него ${IT(id).ic} ${IT(id).n}. На душе мерзко.`, 'bad'); UI.render(); } },
   ] });

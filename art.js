@@ -170,6 +170,7 @@ const ART = (() => {
   function frameFlags(spec) {
     const h = G ? hour() : 19, w = G ? weather() : { id: 'clear' };
     return { hour: h, night: h >= 21 || h < 5, cloudy: ['cloud', 'rain', 'storm', 'fog'].includes(w.id), wet: w.wet || 0, fog: w.id === 'fog', storm: w.id === 'storm',
+      winter: G && typeof season === 'function' ? season() === 1 : false, snowing: G ? G.weather.id === 'snow' : false,
       blood: G ? isBloodNight() : false, emission: G ? G.em.warned : false, hz: 50 };
   }
   function paint(cv, spec, t) {
@@ -185,6 +186,7 @@ const ART = (() => {
       if (f.night) haze('#0a1030', 0.28);
       if (f.fog) fog(f, f.hz);
       if (f.wet) rain(t, f.storm, rng(7));
+      if (f.winter) { haze('#eef4ff', f.night ? 0.06 : 0.16); const sr = rng(11); for (let i = 0; i < (f.snowing ? 120 : 35); i++) { const x = (sr() * W + Math.sin((t + i) / 9) * 6) % W, y = (sr() * HH + t * (0.6 + i % 3 * 0.4)) % HH; P(x, y, '#ffffff'); } }
       if (f.storm && t > 0 && t % 41 === 40) haze('#ffffff', 0.45);
       if (f.blood) haze('#a01020', 0.18);
       if (f.emission) haze('#ff3a2a', 0.12 + 0.06 * Math.sin(t / 3));

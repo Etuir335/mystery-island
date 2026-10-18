@@ -39,7 +39,7 @@ const UI = (() => {
     if (!inShelter() && !G.traveling && (hour() >= 18 && hour() < 21)) { const sh = nearestShelter(); if (sh) ban += `<div class="banner" style="background:var(--warn)">🌇 Скоро ночь. Ближайшее укрытие: ${LOCS[sh.loc].ic} ${LOCS[sh.loc].n} (~${sh.mins} мин)</div>`; }
     const sq = G.coop ? squadStrip() : '';
     $('top').innerHTML = `
-      <div class="toprow"><span class="clock">${clock()}</span><b>День ${day()}</b><span>${w.ic} ${w.n}</span><span>${isNight() ? '🌙 ночь' : '☀️ день'}</span><span>${toBN === 0 ? '🌕 сегодня Кровавая ночь' : `🌕 через ${toBN} дн.`}</span><button class="sndbtn" onclick="${a(() => { SFX.toggle(); })}" aria-label="Звук">${SFX.on ? '🔊' : '🔇'}</button><span>💰 ${G.money}₽</span>${G.coop ? `<span class="${COOP.status === 'online' ? 'good' : 'warn'}">🤝 ${COOP.others().filter(p => p.online).length + 1} в игре${COOP.unread ? ` · 💬${COOP.unread}` : ''}</span>` : ''}</div>
+      <div class="toprow"><span class="clock">${clock()}</span><b>День ${day()}</b><span>${w.ic} ${w.n}</span><span>${SEASONS[season()].ic} ${SEASONS[season()].n}</span><span>${isNight() ? '🌙 ночь' : '☀️ день'}</span><span>${toBN === 0 ? '🌕 сегодня Кровавая ночь' : `🌕 через ${toBN} дн.`}</span><button class="sndbtn" onclick="${a(() => { SFX.toggle(); })}" aria-label="Звук">${SFX.on ? '🔊' : '🔇'}</button><span>💰 ${G.money}₽</span>${G.coop ? `<span class="${COOP.status === 'online' ? 'good' : 'warn'}">🤝 ${COOP.others().filter(p => p.online).length + 1} в игре${COOP.unread ? ` · 💬${COOP.unread}` : ''}</span>` : ''}</div>
       <div class="vitals">
         <div class="vit">❤️ ${hp}%${bar(hp)}</div><div class="vit">🍗 ${Math.round(c.food)}${bar(c.food)}</div>
         <div class="vit">💧 ${Math.round(c.drink)}${bar(c.drink)}</div><div class="vit">⚡ ${Math.round(c.energy)}${bar(c.energy)}</div>
@@ -355,11 +355,12 @@ const UI = (() => {
     const power = Math.round((25 + nextBN * 2.5) * F().horde);
     let h = `${ART.sceneTag({ loc: 'base', key: 'base', alt: 'Лодочная станция', camp: false })}${tutCard()}${logLast(3)}<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">${defense()}</b> · следующая Кровавая ночь — день ${nextBN}, натиск ≈ <b class="mono">${power}</b> за ночь (3 волны).${s.walls ? ` Укрепления: ${G.w.wallHp}%.` : ''}</p></div>`;
     h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${(G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn('🐈 Взять кота с собой', takeCat) : ''}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
+    h += EXTUI.basePanel();
     h += '<div class="sec"><h2>Постройки</h2><div class="list">';
     for (const id in STRUCT) {
       if (STRUCT[id].ch2 && !CH2()) continue;
       const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
-      const need = nx && nx.c ? Object.entries(nx.c).map(([k, v]) => `<span class="${allCnt(k) >= v ? '' : 'bad'}">${IT(k).ic}${IT(k).n} ${allCnt(k)}/${v}</span>`).join(', ') : '';
+      const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => `<span class="${allCnt(k) >= v ? '' : 'bad'}">${IT(k).ic}${IT(k).n} ${allCnt(k)}/${v}</span>`).join(', ') : '';
       h += `<div class="row ${why === 'bp' ? 'dim' : ''}"><span class="ic">${S.ic}</span><div class="grow"><span class="t">${S.n}: ${lv ? S.lv[lv].n : '<span class="muted">нет</span>'}</span>${nx ? `<span class="s">${why === 'bp' ? '📐 нужен чертёж' : `→ ${nx.n}: ${need}`}</span>` : '<span class="s">максимум</span>'}</div>${nx && why !== 'bp' ? btn(lv ? 'Улучшить' : 'Построить', () => build(id), 'sm pri', !!why) : ''}</div>`;
     }
     h += '</div></div>';

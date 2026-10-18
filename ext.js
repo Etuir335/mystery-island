@@ -173,3 +173,105 @@ function st_sel_clear() { if (UI._st) UI._st.sel = null; }
   const _migrate = migrate;
   migrate = function () { _migrate.apply(this, arguments); car(); if (typeof extMigrate === 'function') extMigrate(); };
 })();
+
+// =====================================================================
+//  ВЫЖИВШИЕ НА БАЗЕ
+// =====================================================================
+const NPC_ROLES = {
+  fisher:  { n: 'Рыбак', ic: '🎣', d: 'каждый день приносит рыбу' },
+  guard:   { n: 'Охранник', ic: '🛡️', d: '+12 к обороне базы' },
+  crafter: { n: 'Мастер', ic: '🔨', d: 'пилит доски из дров и латает стены' },
+  medic:   { n: 'Медик', ic: '⛑️', d: 'раны заживают быстрее, пока ты спишь на базе; кипятит повязки' },
+  forager: { n: 'Собиратель', ic: '🧺', d: 'приносит ягоды, грибы, травы и дрова' },
+  hunter:  { n: 'Охотник', ic: '🏹', d: 'иногда приносит мясо' },
+};
+const NPC_NAMES = ['Лёха', 'Марина', 'Дед Иван', 'Света', 'Костя', 'Нина', 'Юра', 'Оксана', 'Гоша', 'Таня', 'Вадим', 'Люба', 'Петрович', 'Аня', 'Слава', 'Зоя'];
+const bunkCap = () => [0, 2, 4][G.w.struct.bunks || 0] || 0;
+const npcs = () => (G.w.npcs = G.w.npcs || []);
+function newNpc(role) { return { id: 'n' + G.time + R(0, 999), name: pick(NPC_NAMES.filter(n => !npcs().some(x => x.name === n))) || 'Выживший', role: role || pick(Object.keys(NPC_ROLES)), morale: 70, days: 0 }; }
+function inviteNpc(n, src) {
+  if (npcs().length >= bunkCap()) { UI.toast(bunkCap() ? 'На базе нет свободных нар.' : 'Сначала построй нары на базе (Постройки).'); return false; }
+  npcs().push(n); FEED(`🏘️ позвал на базу: ${n.name} (${NPC_ROLES[n.role].n})`);
+  UI.log(`🏘️ ${n.name} (${NPC_ROLES[n.role].ic} ${NPC_ROLES[n.role].n}) идёт на твою базу${src ? ' — ' + src : ''}.`, 'good'); return true;
+}
+function dismissNpc(id) { const i = npcs().findIndex(x => x.id === id); if (i < 0) return; UI.log(`👋 ${npcs()[i].name} собрал вещи и ушёл.`); npcs().splice(i, 1); UI.render(); }
+const NPC_FOOD = n => G.stash.find(e => IT(e.id).c === 'food' && (IT(e.id).f || 0) >= 8 && !IT(e.id).smoke && freshness(e) < 1);
+const NPC_DRINK = () => G.stash.find(e => IT(e.id).c === 'drink' && (IT(e.id).d || 0) > 10 && !IT(e.id).salt);
+function npcDaily() {
+  const list = npcs(); if (!list.length) return;
+  const out = [];
+  for (const n of list.slice()) {
+    n.days++;
+    const f = NPC_FOOD(), d = NPC_DRINK();
+    if (f) take(G.stash, f.id, 1); if (d) { take(G.stash, d.id, 1); if (IT(d.id).btl) invAdd(G.stash, 'bottle', 1); }
+    if (f && d) n.morale = Math.min(100, n.morale + 5); else { n.morale -= f || d ? 15 : 30; out.push(`😟 ${n.name} голодает`); }
+    if (n.morale <= 0) { list.splice(list.indexOf(n), 1); out.push(`🚪 ${n.name} ушёл с базы — не было еды`); continue; }
+    const r = n.role, win = season() === 1;
+    if (r === 'fisher') { const k = win ? 1 : R(1, 3); invAdd(G.stash, 'fish', k); out.push(`🎣 ${n.name}: рыба ×${k}`); }
+    if (r === 'forager') { const got = []; for (let k = win ? 1 : R(2, 3); k > 0; k--) { const id = wpick(win ? [['wood', 3], ['stick', 1]] : [['berries', 3], ['mushroom', 3], ['herbs', 2], ['wood', 3]]); invAdd(G.stash, id, 1); got.push(IT(id).ic); } out.push(`🧺 ${n.name}: ${got.join('')}`); }
+    if (r === 'hunter' && ch(0.45)) { invAdd(G.stash, 'meat', 2); out.push(`🏹 ${n.name}: мясо ×2`); }
+    if (r === 'crafter') { if (cnt(G.stash, 'wood') >= 2) { take(G.stash, 'wood', 2); invAdd(G.stash, 'planks', 1); out.push(`🔨 ${n.name}: доска`); } if (G.w.struct.walls && G.w.wallHp < 100) G.w.wallHp = Math.min(100, G.w.wallHp + 10); }
+    if (r === 'medic' && cnt(G.stash, 'dband')) { take(G.stash, 'dband', 1); invAdd(G.stash, 'bandage', 1); out.push(`⛑️ ${n.name}: стерильный бинт`); }
+  }
+  if (out.length) UI.log('🏘️ База: ' + out.join(' · '), 'sys');
+}
+const npcDef = () => npcs().reduce((a, n) => a + (n.role === 'guard' ? 12 : 3), 0);
+// приглашения: в событиях «Незнакомец» и «Раненый» и отдельный выживший на карте
+function npcOffer(role, src) {
+  const n = newNpc(role);
+  return { t: `🏘️ Позвать на базу (${NPC_ROLES[n.role].ic} ${NPC_ROLES[n.role].n})`, fn: () => inviteNpc(n, src) };
+}
+
+// =====================================================================
+//  СЕЗОНЫ: по 10 дней — осень → зима → весна → лето
+// =====================================================================
+const SEASONS = [
+  { n: 'Осень', ic: '🍂', d: 'Грибная пора: в лесу больше находок, охота удачнее.' },
+  { n: 'Зима', ic: '❄️', d: 'Снег и мороз: больше ешь, дороги медленнее, в лесу пусто, огород не растёт. Море у берега замерзает.' },
+  { n: 'Весна', ic: '🌱', d: 'Дожди и ручьи: огород растёт быстрее.' },
+  { n: 'Лето', ic: '☀️', d: 'Много еды в лесу и на огороде, но сильнее хочется пить.' },
+];
+const SEASON_LEN = 10;
+const season = () => Math.floor((day() - 1) / SEASON_LEN) % 4;
+const seasonDay = () => (day() - 1) % SEASON_LEN + 1;
+function seasonMod(k) {
+  if (!G || !G.time) return 0;
+  const s = season();
+  if (s === 0) return { forage: 1, hunt: 0.1 }[k] || 0;
+  if (s === 1) return { hunger: 0.2, travel: 0.15, forage: -1, fish: -1, cold: 0.5, garden: -1 }[k] || 0;
+  if (s === 2) return { garden: 0.25 }[k] || 0;
+  if (s === 3) return { thirst: 0.3, forage: 1, garden: 0.5 }[k] || 0;
+  return 0;
+}
+function seasonWeather() {
+  const s = season();
+  return WEATHER.map(x => {
+    let w = x.w;
+    if (x.id === 'snow') w = s === 1 ? 4 : 0;
+    if (s === 1 && (x.id === 'rain' || x.id === 'storm')) w = 0;
+    if (s === 2 && x.id === 'rain') w += 2;
+    if (s === 3 && x.id === 'clear') w += 3;
+    if (s === 0 && x.id === 'fog') w += 1;
+    return [x.id, w];
+  }).filter(([, w]) => w > 0);
+}
+const iceRoute = () => season() === 1 && seasonDay() >= 3;
+function seasonNewDay() {
+  if (seasonDay() !== 1 || day() === 1) return;
+  const S = SEASONS[season()];
+  UI.event({ title: `${S.ic} Наступила ${S.n.toLowerCase()}`, text: S.d + (season() === 1 && CH2() ? '\n\nЧерез пару дней пролив замёрзнет — до Острова-8 можно будет дойти пешком по льду.' : ''), choices: [{ t: 'Ясно' }] });
+}
+
+// ---------- ежедневные хуки и миграция ----------
+function extNewDay() { npcDaily(); seasonNewDay(); if (typeof raidDaily === 'function') raidDaily(); if (typeof achCheck === 'function') achCheck(); }
+function extMigrate() { npcs(); if (G.w.struct.bunks == null) G.w.struct.bunks = 0; }
+
+// ---------- интерфейс: база (жильцы) ----------
+EXTUI.basePanel = function () {
+  const b = UI.btn, list = npcs(), cap = bunkCap();
+  let h = `<div class="sec"><div class="sechead"><h2>🏘️ Жильцы ${list.length}/${cap}</h2></div>`;
+  if (!cap) h += '<p class="muted">Построй нары (Постройки), чтобы приютить выживших. Их можно встретить в пути — незнакомцы и раненые иногда готовы пойти к тебе.</p>';
+  else if (!list.length) h += '<p class="muted">Пока никого. Позови незнакомца в пути или помоги раненому — и у тебя появятся помощники. Жильцы едят и пьют из общего склада раз в день.</p>';
+  h += `<div class="list">${list.map(n => { const R0 = NPC_ROLES[n.role]; return `<div class="row"><span class="ic">${R0.ic}</span><div class="grow"><span class="t">${xesc(n.name)} · ${R0.n}</span><span class="s">${R0.d}</span>${uiBar(n.morale, 100)}<span class="s">настроение ${Math.round(n.morale)} · живёт ${n.days} дн.</span></div>${b('Выгнать', () => dismissNpc(n.id), 'sm')}</div>`; }).join('')}</div></div>`;
+  return h;
+};

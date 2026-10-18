@@ -465,6 +465,7 @@ const STRUCT = {
   smoke:  { n: 'Коптильня', ic: '♨️', bp: 'smoke', lv: [{ n: 'Нет' }, { n: 'Коптильня', c: { scrap: 3, planks: 2 } }] },
   garden: { n: 'Огород', ic: '🥕', bp: 'garden', lv: [{ n: 'Нет' }, { n: 'Грядки', c: { planks: 3, seeds: 1 } }] },
   boat:   { n: 'Лодка', ic: '⛵', ch2: 1, lv: [{ n: 'Разбитая лодка у пристани' }, { n: 'Залатанный корпус', c: { planks: 8, nails: 20, rope: 4 } }, { n: 'Кристальный двигатель', c: { core: 1, cshard: 6, elec: 3, wire: 4 } }] },
+  bunks:  { n: 'Нары для жильцов', ic: '🛌', lv: [{ n: 'Нет' }, { n: 'Нары на двоих', c: { planks: 6, nails: 10, rag: 4 } }, { n: 'Пристройка на четверых', c: { planks: 10, nails: 20, scrap: 4 } }] },
   radio:  { n: 'Радиостанция', ic: '📻', lv: [{ n: 'Нет' }, { n: 'Радиостанция', c: { rpart: 3, wire: 2, battery: 2 } }] },
 };
 
@@ -563,4 +564,5 @@ const WEATHER = [
   { id: 'rain', n: 'Дождь', ic: '🌧️', w: 2, wet: 1 },
   { id: 'fog', n: 'Туман', ic: '🌫️', w: 2, stealth: 0.12 },
   { id: 'storm', n: 'Гроза', ic: '⛈️', w: 1, wet: 2 },
+  { id: 'snow', n: 'Снег', ic: '🌨️', w: 0, snow: 1 },
 ];
