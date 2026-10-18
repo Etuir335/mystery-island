@@ -1808,11 +1808,11 @@ function doHunt() {
   } else UI.log("🦌 Олень ушёл. Ты только устал.", "dim");
   UI.render();
 }
-function sleepHere(hours) {
+function sleepHere(hours, force) {
   const base = atBase(), bed = base && G.w.struct.bed > 0;
   const room = G.room != null ? roomSt(G.room) : null;
   if (!inShelter() && room && room.en.some((e) => e.hp > 0)) return UI.toast("Здесь враги — не уснуть.");
-  if (G.ch.energy > 85) return UI.toast("Ты не хочешь спать.");
+  if (G.ch.energy > 85 && !force) return UI.toast("Ты не хочешь спать.");
   let mins = hours ? hours * H : (() => {
     const h = hour();
     return (h >= 7 ? 31 - h : 7 - h) * H;

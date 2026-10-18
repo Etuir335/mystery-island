@@ -948,3 +948,22 @@ function sideRender() {
 }
 setInterval(sideRender, 1e3);
 window.addEventListener("resize", sideRender);
+function fullRest() {
+  if (!atBase()) return UI.toast("Полный отдых — только на базе.");
+  if (G.combat) return;
+  const c = G.ch, t0 = G.time, e0 = c.energy;
+  if (c.food < 92 || c.drink < 92) autoEat(false);
+  if (G.dead || G.combat) return;
+  if (c.energy < 99) sleepHere(12, true);
+  if (G.dead || G.combat) return;
+  if (c.food < 92 || c.drink < 92) autoEat(false);
+  const hrs = Math.round((G.time - t0) / 6) / 10;
+  UI.log("🛌 Отдохнул".concat(hrs ? " (".concat(hrs, " ч)") : "", ": выносливость ").concat(Math.round(e0), " → ").concat(Math.round(c.energy), ", сытость ").concat(Math.round(c.food), ", вода ").concat(Math.round(c.drink), "."), "good");
+  save();
+  UI.render();
+}
+const _cuiBase = CUI.basePanel;
+CUI.basePanel = function() {
+  const c = G.ch, need = c.energy < 99 || c.food < 92 || c.drink < 92;
+  return '<div class="sec"><div class="acts">'.concat(UI.btn("🛌 Полностью отдохнуть", fullRest, "pri", !need), '</div><p class="muted" style="font-size:12.5px;margin:4px 0 0">Поесть и попить досыта (экономно), выспаться до полной выносливости и снова подкрепиться.').concat(G.coop ? " Общее время пойдёт вперёд и у друга." : "", "</p></div>") + _cuiBase.apply(this, arguments);
+};
