@@ -5,6 +5,7 @@ const COOP = (() => {
   let subs = [], timer = null, pushing = false, again = false, rTimer = null;
   let fights = {}, joined = null, hitSeen = 0, pending = [], actsSeen = {}, fightPushT = null, hitN = 0;
   let feedL = [], chatLoaded = false, feedLoaded = false;
+  let kicked = {};
   let players = {}, chat = [], lastMe = "", lastMeAt = 0, lastPersonal = "", unread = 0;
   const sent = {};
   let stashBase = null, stashTx = false, stashLate = null;
@@ -317,10 +318,17 @@ const COOP = (() => {
         scheduleRender();
       }
     }, onErr));
+    subs.push(db.doc("coop/".concat(code, "/kicked/all")).onSnapshot((s) => {
+      kicked = s.exists && s.data() && s.data().uids || {};
+      for (const k in kicked) delete players[k];
+      if (kicked[uid]) return kickedOut();
+      scheduleRender();
+    }, onErr));
     subs.push(db.collection("coop/".concat(code, "/p")).onSnapshot((qs) => {
       const o = {};
       qs.docs.forEach((d) => {
-        if (d.exists) o[d.id] = d.data();
+        const v = d.exists && d.data();
+        if (v && typeof v === "object" && !kicked[d.id]) o[d.id] = v;
       });
       players = o;
       scheduleRender();
@@ -478,6 +486,11 @@ const COOP = (() => {
       if (!meta.exists) return FBM() ? "Мир с таким кодом не найден. Попроси друга прислать приглашение ещё раз." : "Мир с таким кодом не найден. Проверь код и что друг поделился с тобой этой страницей.";
       const mode = meta.data().mode, host = meta.data().host || null;
       try {
+        const kd = await db.doc("coop/".concat(c, "/kicked/all")).get();
+        if (kd.exists && kd.data() && (kd.data().uids || {})[uid]) return "Хозяин этого мира исключил тебя. Попроси его вернуть тебя или создай свой мир.";
+      } catch (e) {
+      }
+      try {
         await db.doc("coop/".concat(c, "/p/").concat(uid)).set({ probe: Date.now() });
       } catch (e) {
         if (e && e.code === "invalid_argument") return NOPERM();
@@ -574,6 +587,53 @@ const COOP = (() => {
     }
     save();
   }
+  function kickedOut() {
+    if (!code) return;
+    leave();
+    UI.event({ title: "🚫 Тебя исключили из мира", cls: "bad", text: "Хозяин общего мира убрал тебя из игры. Твой персонаж из этого мира больше недоступен." + (G ? "\n\nТы вернулся в свою одиночную игру." : ""), choices: [{ t: "Понятно" }] });
+    UI.render();
+  }
+  async function kick(id) {
+    if (!ready || !G.coop || G.coop.host !== uid || id === uid) return;
+    const nm = (players[id] || {}).name || "игрока";
+    const ref = db.doc("coop/".concat(code, "/kicked/all")), add = (cur) => ({ uids: Object.assign({}, cur && cur.uids || {}, { [id]: Date.now() }) });
+    try {
+      if (ref.tx) await ref.tx(add);
+      else {
+        const s = await ref.get();
+        await ref.set(add(s.exists ? s.data() : null));
+      }
+      await db.doc("coop/".concat(code, "/p/").concat(id)).set(null);
+      kicked[id] = Date.now();
+      delete players[id];
+      try {
+        feed("🚫 исключил из мира: ".concat(nm));
+      } catch (e) {
+      }
+    } catch (e) {
+      onErr(e);
+    }
+    UI.render();
+  }
+  async function unkick(id) {
+    if (!ready || !G.coop || G.coop.host !== uid) return;
+    const ref = db.doc("coop/".concat(code, "/kicked/all")), rm = (cur) => {
+      const u = Object.assign({}, cur && cur.uids || {});
+      delete u[id];
+      return { uids: u };
+    };
+    try {
+      if (ref.tx) await ref.tx(rm);
+      else {
+        const s = await ref.get();
+        await ref.set(rm(s.exists ? s.data() : null));
+      }
+      delete kicked[id];
+    } catch (e) {
+      onErr(e);
+    }
+    UI.render();
+  }
   const hasSolo = () => {
     try {
       return !!localStorage.getItem(SOLO_KEY);
@@ -655,7 +715,7 @@ const COOP = (() => {
       onErr(err);
     }
   }
-  const others = () => Object.entries(players).filter(([id]) => id !== uid).map(([id, p]) => Object.assign({ id, online: Date.now() - (p.at || 0) < ONLINE_MS }, p));
+  const others = () => Object.entries(players).filter(([id, p]) => id !== uid && p && !kicked[id]).map(([id, p]) => Object.assign({ id, online: Date.now() - (p.at || 0) < ONLINE_MS }, p));
   const here = () => others().filter((p) => p.online && p.alive && p.loc === G.loc && !G.traveling);
   function allyTurn(cb) {
     if (!ready || cb.opts.road) return false;
@@ -821,6 +881,11 @@ const COOP = (() => {
     isAuth,
     get host() {
       return G && G.coop ? G.coop.host : null;
+    },
+    kick,
+    unkick,
+    get kicked() {
+      return kicked;
     },
     hasSolo,
     probe,
