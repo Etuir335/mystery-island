@@ -59,6 +59,14 @@ const FB = (() => {
   const user = { id: async () => uid };
   // тот же вход, что и у артефакта: coop.js вызывает claude.use('db') / claude.use('user')
   window.claude = { use: async (what) => { await init(); return what === 'db' ? db : what === 'user' ? user : null; }, _fb: true };
-  return { init, get uid() { return uid; } };
+  // --- таблица выживших: у каждого игрока одна запись — его лучший забег (живой забег обновляется по ходу) ---
+  const lb = {
+    async submit(e) { await init(); const r = dbx.ref('d/lb/' + uid); const s = await r.get(); const cur = s.val();
+      if (cur && cur.run !== e.run && (cur.days > e.days || (cur.days === e.days && cur.kills >= e.kills))) return false;
+      await r.set(Object.assign({}, e, { at: Date.now() })); return true; },
+    async top(n = 20) { await init(); const s = await dbx.ref('d/lb').get(); const out = []; s.forEach(ch => { const v = ch.val(); if (v && typeof v.days === 'number') out.push(Object.assign({ id: ch.key }, v)); });
+      out.sort((a, b) => b.days - a.days || b.kills - a.kills || a.at - b.at); return out.slice(0, n); },
+  };
+  return { init, lb, get uid() { return uid; } };
 })();
 window.FB = FB;

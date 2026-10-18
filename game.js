@@ -139,7 +139,7 @@ function startKit() {
 }
 
 // ---------------- сохранение ----------------
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} if (G && G.coop && window.COOP) COOP.sync(); }
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} if (G && G.coop && window.COOP) COOP.sync(); if (G && typeof lbSubmit === 'function') lbSubmit(); }
 function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.v === 3) { G = s; migrate(); return true; } } catch (e) {} return false; }
 function migrate() { if (!G.w.events) G.w.events = []; if (G.w.rep.nomad == null) G.w.rep.nomad = 0; if (!G.tut) G.tut = { on: day() <= 2 && !G.w.struct.fire, done: {} }; if (!G.w.flags.mig_bottles) { G.w.flags.mig_bottles = 1; if (G.w.struct.distill == null) G.w.struct.distill = 0; if (!G.dead) { invAdd(G.inv, 'bottle', 2); G.log.push({ t: '🍶 Обновление: теперь воду можно набирать в бутылки. В рюкзаке 2 пустые бутылки.', c: 'good', d: day(), k: clock() }); } } }
 function wipe() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
@@ -331,6 +331,7 @@ function die(cause) {
   const f = F(), c = G.ch, days = Math.floor((G.time - c.born) / DAY);
   G.combat = null; G.interrupt = true; SND('death');
   G.w.deaths.push({ name: c.name, days, cause, kills: c.kills }); setAct('погиб'); FEED(`💀 погиб: ${cause}`);
+  try { lbSubmit(true, true); } catch (e) {}
   if (f.death === 'wake') {
     c.hp = 50; c.bleed = 0; c.food = Math.max(c.food, 40); c.drink = Math.max(c.drink, 40); c.rad = 0; c.stress = 50;
     G.time += 6 * H; G.loc = 'base'; G.room = null; G.traveling = false;
@@ -1294,4 +1295,15 @@ function dailyBonus() {
   save();
   UI.event({ title: `🎁 Ежедневная находка · день ${streak}`, text: `Утром у двери сарая кто-то оставил свёрток: ${R.t}.\n\n${streak % 7 ? `Заходи завтра — награда будет лучше (серия ${streak} из 7).` : 'Неделя без пропусков! Завтра серия начнётся заново.'}`, choices: [{ t: 'Забрать' }] });
   if (window.SFX) SFX.play('pickup');
+}
+
+// ---------- таблица выживших ----------
+let lbLast = 0;
+function lbEntry(dead) {
+  const c = G.ch; return { name: c.name, days: Math.max(0, Math.floor((G.time - c.born) / DAY)), kills: c.kills || 0, mode: G.mode, alive: !(dead || G.dead), coop: !!G.coop, run: `${G.w.gen || 1}:${c.born}:${c.name}` };
+}
+function lbSubmit(force, dead) {
+  if (!window.FB || !FB.lb || !G || !G.ch) return Promise.resolve();
+  if (!force && Date.now() - lbLast < 120000) return Promise.resolve();
+  lbLast = Date.now(); return FB.lb.submit(lbEntry(dead)).catch(() => {});
 }

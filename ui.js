@@ -364,6 +364,7 @@ const UI = (() => {
     const giver = g => g === 'main' ? '⭐ Главное' : TRADERS[g].ic + ' ' + TRADERS[g].n;
     let h = `<h1>📓 Журнал</h1><div class="sec"><h2>Задания</h2><div class="list">${act.map(([id]) => `<div class="row"><div class="grow"><span class="s">${giver(QUESTS[id].g)}</span><span class="t">${QUESTS[id].n}</span><span class="s">${esc(QUESTS[id].d)}</span><span class="s">Прогресс: ${questProgress(id)}</span></div></div>`).join('') || '<p class="muted">Нет активных заданий. Поговори с жителями острова.</p>'}</div>${done.length ? `<p class="muted">Выполнено: ${done.map(([id]) => QUESTS[id].n).join(', ')}</p>` : ''}</div>`;
     h += coopPanel();
+    h += lbPanel();
     h += `<div class="sec"><h2>Записки (${G.w.notes.length}/${Object.keys(NOTES).length})</h2><div class="list">${G.w.notes.slice().reverse().map(id => `<div class="note"><b>${esc(NOTES[id].t)}</b><br>${esc(NOTES[id].x)}</div>`).join('')}</div></div>`;
     h += `<div class="sec"><h2>События</h2><div class="list" style="gap:2px">${G.log.slice(-60).reverse().map(x => `<div class="lg ${x.c}" style="font-size:13px"><span class="mono muted">Д${x.d} ${x.k}</span> ${esc(x.t)}</div>`).join('')}</div></div>`;
     h += `<div class="sec"><h2>Звук</h2><div class="acts">${btn(SFX.on ? '🔊 Звук включён' : '🔇 Звук выключен', () => SFX.toggle(), 'sm')}${btn(SFX.music ? '🎵 Музыка: да' : '🎵 Музыка: нет', () => SFX.toggleMusic(), 'sm')}</div><label class="muted" style="display:flex;gap:8px;align-items:center;font-size:13px">Громкость <input type="range" id="vol" min="0" max="100" value="${Math.round(SFX.vol * 100)}" oninput="SFX.setVol(this.value/100)" style="flex:1"></label></div>`;
@@ -381,6 +382,23 @@ const UI = (() => {
     const link = inviteLink(G.coop.code), text = `🏝 Заходи ко мне на остров! Выживаем вместе в Mystery of the Island.`;
     try { if (window.TGA && TGA.ver('6.1')) { TGA.tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(text)); return; } } catch (e) {}
     try { navigator.clipboard.writeText(link).then(() => toast('Ссылка скопирована — отправь её другу'), () => toast(link)); } catch (e) { toast(link); }
+  }
+  // ---------------- ТАБЛИЦА ВЫЖИВШИХ ----------------
+  const lbs = { list: null, at: 0, busy: false, err: '' };
+  const MODE_IC = { tourist: '🏖️', survivor: '🎒', hardcore: '☠️' };
+  function lbLoad(force) {
+    if (!window.FB || !FB.lb || lbs.busy || (!force && Date.now() - lbs.at < 60000)) return;
+    lbs.busy = true;
+    lbSubmit(true).then(() => FB.lb.top(20)).then(l => { lbs.list = l; lbs.err = ''; }, () => { lbs.err = 'Нет связи с сервером.'; }).finally(() => { lbs.busy = false; lbs.at = Date.now(); if (st.tab === 'jour') render(); });
+  }
+  function lbPanel() {
+    if (!window.FB || !FB.lb) return '';
+    lbLoad();
+    const me = FB.uid;
+    const rows = (lbs.list || []).map((e, i) => `<div class="row ${e.id === me ? 'evt' : ''}"><span class="ic mono">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><div class="grow"><span class="t">${esc(e.name || 'Выживший')}${e.id === me ? ' (ты)' : ''}${e.alive ? '' : ' ☠️'}</span><span class="s">${MODE_IC[e.mode] || ''} ${MODES[e.mode] ? MODES[e.mode].n : ''}${e.coop ? ' · 🤝' : ''} · убито: ${e.kills || 0}</span></div><b class="mono">${e.days} дн.</b></div>`).join('');
+    return `<div class="sec"><div class="sechead"><h2>🏆 Таблица выживших</h2>${btn(lbs.busy ? '…' : '↻', () => lbLoad(true), 'sm')}</div>
+      <p class="muted" style="font-size:13px">Сколько дней прожил персонаж. У каждого игрока в таблице — лучший забег; живой забег обновляется по ходу игры.</p>
+      <div class="list">${lbs.list ? (rows || '<p class="muted">Пока никого — будь первым.</p>') : `<p class="muted">${lbs.err || 'Загружаю…'}</p>`}</div></div>`;
   }
   function coopPanel() {
     if (window.TGA && !window.claude) return `<div class="sec"><h2>🤝 Кооператив</h2><p class="muted">В Telegram-версии кооператив появится в следующем обновлении: друг будет заходить в твой мир по ссылке-приглашению.</p></div>`;
