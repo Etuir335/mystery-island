@@ -263,7 +263,7 @@ function seasonNewDay() {
 }
 
 // ---------- ежедневные хуки и миграция ----------
-function extNewDay() { npcDaily(); seasonNewDay(); if (typeof raidDaily === 'function') raidDaily(); if (typeof achCheck === 'function') achCheck(); }
+function extNewDay() { if (worldAuth()) { npcDaily(); if (typeof raidDaily === 'function') raidDaily(); } seasonNewDay(); if (typeof achCheck === 'function') achCheck(); }
 function extMigrate() { npcs(); if (G.w.struct.bunks == null) G.w.struct.bunks = 0; }
 
 // ---------- интерфейс: база (жильцы) ----------
@@ -443,6 +443,7 @@ function raidDaily() {
 }
 function raidTick() {
   const inc = G.w.raidIncoming; if (!inc || G.time < inc.at || G.combat || G.dead) return;
+  if (!worldAuth()) return; // налёт разыгрывает ведущий; друг на базе добавляет +15 к обороне
   G.w.raidIncoming = null; G.interrupt = true;
   const k = inc.camp, F0 = FACTIONS[k], c = camps()[k], st0 = raidStats();
   const power = 20 + F0.tier * 22 + c.raided * 6 + R(0, 15), def = defense();

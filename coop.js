@@ -42,7 +42,8 @@ const COOP = (() => {
     const w = G.w;
     const o = {
       base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, stash: G.stash, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null },
-      story: { mode: G.mode, flags: w.flags, quests: w.quests, qstart: w.qstart, rep: w.rep, notes: w.notes, counters: w.counters, corpses: w.corpses, events: w.events || [], ending: w.ending || null, deaths: w.deaths, gen: w.gen, ch2: w.ch2 || null },
+      story: { mode: G.mode, flags: w.flags, quests: w.quests, qstart: w.qstart, rep: w.rep, notes: w.notes, counters: w.counters, corpses: w.corpses, events: w.events || [], ending: w.ending || null, deaths: w.deaths, gen: w.gen, ch2: w.ch2 || null,
+        npcs: w.npcs || [], camps: w.camps || null, raidIncoming: w.raidIncoming || null, raidStats: w.raidStats || null, pvpOn: !!w.pvpOn },
       clock: { time: G.time, weather: G.weather, em: G.em, hordeDone: w.hordeDone },
     };
     for (const id of LOC_IDS) o['loc_' + id] = w.locs[id];
@@ -56,9 +57,10 @@ const COOP = (() => {
     if (sent[n] === js) return false;
     if (!force && sent[n] !== undefined && canon(parts()[n]) !== sent[n]) return false; // у нас несохранённые изменения — отправим свои
     if (n === 'base') { Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt, catLove: data.catLove || 0, catAway: !!data.catAway }); if (data.car) G.w.car = data.car; G.stash = data.stash || []; }
-    else if (n === 'story') { for (const k of ['flags', 'quests', 'qstart', 'rep', 'notes', 'counters', 'corpses', 'deaths', 'events']) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {}); G.w.ending = data.ending || null; G.w.gen = data.gen || 1; if (data.ch2 || !G.w.ch2) G.w.ch2 = data.ch2 || null; }
+    else if (n === 'story') { for (const k of ['flags', 'quests', 'qstart', 'rep', 'notes', 'counters', 'corpses', 'deaths', 'events']) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {}); G.w.ending = data.ending || null; G.w.gen = data.gen || 1; if (data.ch2 || !G.w.ch2) G.w.ch2 = data.ch2 || null;
+      G.w.npcs = data.npcs || []; if (data.camps) G.w.camps = data.camps; G.w.raidIncoming = data.raidIncoming || null; if (data.raidStats) G.w.raidStats = data.raidStats; G.w.pvpOn = !!data.pvpOn; }
     else if (n === 'clock') {
-      if (data.time > G.time + 1) { const d = data.time - G.time; G.time = data.time; if (d >= 30) UI.log(`⏩ Пока тебя не было, в общем мире прошло ${d >= 60 ? Math.round(d / 6) / 10 + ' ч' : d + ' мин'}.`, 'sys'); }
+      if (data.time > G.time + 1) { const d = data.time - G.time; G.time = data.time; if (d >= 30) { const txt = `⏩ Время общее: пока ты ${G.ch && G.ch.energy < 90 ? 'занимался своим' : 'был занят'}, у друга прошло ${d >= 60 ? Math.round(d / 6) / 10 + ' ч' : d + ' мин'} (сон, дорога или поиски).`; UI.log(txt, 'sys'); if (d >= 120) UI.toast(`⏩ +${Math.round(d / 6) / 10} ч общего времени`); } }
       if (!G.weather || (data.weather && data.weather.until > G.weather.until)) G.weather = data.weather;
       if (data.em && (!G.em || data.em.next > G.em.next)) G.em = data.em;
       G.w.hordeDone = Object.assign({}, G.w.hordeDone, data.hordeDone || {});
@@ -95,7 +97,7 @@ const COOP = (() => {
     const dmg = w && w.dmg ? (w.dmg[0] + w.dmg[1]) / 2 : 4;
     const c = G.ch;
     return { name: c.name, loc: G.traveling ? (G.travelTo || G.loc) : G.loc, from: G.traveling ? G.loc : null, room: roomName(), act: G.act || 'осматривается', combat: !!G.combat,
-      hp: healthPct(), food: Math.round(c.food), drink: Math.round(c.drink), energy: Math.round(c.energy), bleed: bleeding(), alive: !G.dead, dmg, wn: w ? w.n : 'кулаки', gen: G.w.gen, t: G.time, clock: clock(), day: day() };
+      hp: healthPct(), food: Math.round(c.food), drink: Math.round(c.drink), energy: Math.round(c.energy), bleed: bleeding(), alive: !G.dead, dmg, sk: skill('melee'), wn: w ? w.n : 'кулаки', pet: G.pet && G.pet.hp > 0 ? G.pet.type : null, gen: G.w.gen, t: G.time, clock: clock(), day: day() };
   }
   async function pushMe(force) {
     const d = meDoc(), js = canon(d);
@@ -146,7 +148,7 @@ const COOP = (() => {
     try {
       let c = genCode(); for (let k = 0; k < 3; k++) { const s = await db.doc(`coop/${c}`).get(); if (!s.exists) break; c = genCode(); }
       await db.doc(`coop/${c}`).set({ created: Date.now(), host: uid, mode: G.mode, v: 1 });
-      code = c; G.coop = { code: c };
+      code = c; G.coop = { code: c, host: uid };
       for (const k in sent) delete sent[k];
       ready = true; status = 'online';
       await push(); await pushMe(true); subscribe(); save();
@@ -161,13 +163,13 @@ const COOP = (() => {
     try {
       const meta = await db.doc(`coop/${c}`).get();
       if (!meta.exists) return FBM() ? 'Мир с таким кодом не найден. Попроси друга прислать приглашение ещё раз.' : 'Мир с таким кодом не найден. Проверь код и что друг поделился с тобой этой страницей.';
-      const mode = meta.data().mode;
+      const mode = meta.data().mode, host = meta.data().host || null;
       try { await db.doc(`coop/${c}/p/${uid}`).set({ probe: Date.now() }); } catch (e) { if (e && e.code === 'invalid_argument') return NOPERM(); throw e; }
       code = c;
       const ps = await db.doc(`data/users/${uid}/coop-${c}`).get();
       if (G && !G.coop && !G.dead) { try { localStorage.setItem(SOLO_KEY, JSON.stringify(G)); } catch (e) {} }
       newGame(mode, name, traits, prof);
-      G.coop = { code: c };
+      G.coop = { code: c, host };
       for (const k in sent) delete sent[k];
       await fetchAll();
       if (ps.exists) { const p = ps.data(); if (!p.dead) { Object.assign(G, { ch: p.ch, inv: p.inv || [], eq: p.eq, money: p.money || 0, loc: p.loc || 'base', sneak: !!p.sneak, campfire: p.campfire || null }); UI.log(`🤝 С возвращением в общий мир, ${G.ch.name}!`, 'good'); } }
@@ -182,6 +184,7 @@ const COOP = (() => {
     code = G.coop.code; status = 'connecting';
     if (!await probe()) { status = 'offline'; scheduleRender(); return; }
     try {
+      if (!G.coop.host) { try { const m = await db.doc(`coop/${code}`).get(); if (m.exists) G.coop.host = m.data().host || null; } catch (e) {} }
       for (const k in sent) delete sent[k];
       await fetchAll();
       ready = true; status = 'online';
@@ -235,13 +238,22 @@ const COOP = (() => {
     for (const p of al) {
       const tg = cb.en.filter(e => e.hp > 0); if (!tg.length) break;
       const e = tg[Math.floor(Math.random() * tg.length)], D = ENEMY[e.id];
-      if (Math.random() < 0.7) { const d = Math.max(1, Math.round((p.dmg || 4) * (0.8 + Math.random() * 0.4) - (D.arm || 0))); e.hp -= d; cb.log.push({ t: `🤝 ${p.name} (${p.wn || 'оружие'}) бьёт ${D.ic} ${D.n}: −${d}`, c: 'good' }); }
+      if (Math.random() < 0.65 + (p.sk || 0) * 0.04) { const d = Math.max(1, Math.round((p.dmg || 4) * (1 + (p.sk || 0) * 0.08) * (0.8 + Math.random() * 0.4) - (D.arm || 0))); e.hp -= d; cb.log.push({ t: `🤝 ${p.name} (${p.wn || 'оружие'}) бьёт ${D.ic} ${D.n}: −${d}`, c: 'good' }); }
       else cb.log.push({ t: `🤝 ${p.name} промахивается по ${D.n}.`, c: 'dim' });
       acted = true;
     }
     return acted;
   }
+  // кто ведёт мировые события: хозяин, если он в сети, иначе — онлайн-игрок с наименьшим id
+  function leader() {
+    if (!G || !G.coop || !ready || !uid) return uid;
+    const on = [uid, ...others().filter(p => p.online && p.alive !== false).map(p => p.id)];
+    const host = G.coop.host; if (host && on.includes(host)) return host;
+    return on.sort()[0];
+  }
+  const isAuth = () => !G || !G.coop || !ready || leader() === uid;
   return {
+    leader, isAuth, get host() { return G && G.coop ? G.coop.host : null; },
     hasSolo, probe, create, join, init, sync, leave, send, give, allyTurn, others, here, feed, ping, get feedList() { return feedL; },
     get code() { return code; }, get status() { return status; }, get chat() { return chat; }, get uid() { return uid; },
     get unread() { return unread; }, readAll() { unread = 0; },

@@ -28,6 +28,8 @@ const isNight = () => { const h = hour(); return h >= 21 || h < 6; };
 const isBloodNight = () => day() % 7 === 0 && (hour() >= 22) || (day() % 7 === 1 && day() > 1 && hour() < 4);
 const weather = () => WEATHER.find(w => w.id === G.weather.id);
 const inShelter = () => !!(L().shelter && !G.traveling);
+// в кооперативе мировые события и производство считает только «ведущий» игрок
+const worldAuth = () => !(G && G.coop && window.COOP) || COOP.isAuth();
 const CH2 = () => !!(typeof G !== 'undefined' && G && G.w && G.w.ch2);
 const boatReady = () => (G.w.struct.boat || 0) >= 2;
 const artPool = () => CH2() ? [['medusa', 3], ['fireball', 2], ['drop', 2], ['crystal', 3], ['cshard', 7]] : [['medusa', 4], ['fireball', 3], ['drop', 3], ['crystal', 2]];
@@ -267,8 +269,8 @@ function tick(st, o) {
   if (day() !== prevDay) newDay();
   // --- производство базы
   const s = G.w.struct;
-  if (s.rain && w.wet) { G.w.prod.rain += t; if (G.w.prod.rain >= 2) { G.w.prod.rain -= 2; invAdd(G.stash, 'water', 1); } }
-  if (s.garden && !(typeof season === 'function' && season() === 1)) { G.w.prod.garden += t * mul('garden', 0.3); if (G.w.prod.garden >= 10) { G.w.prod.garden -= 10; invAdd(G.stash, 'veg', 1); } }
+  if (worldAuth() && s.rain && w.wet) { G.w.prod.rain += t; if (G.w.prod.rain >= 2) { G.w.prod.rain -= 2; invAdd(G.stash, 'water', 1); } }
+  if (worldAuth() && s.garden && !(typeof season === 'function' && season() === 1)) { G.w.prod.garden += t * mul('garden', 0.3); if (G.w.prod.garden >= 10) { G.w.prod.garden -= 10; invAdd(G.stash, 'veg', 1); } }
   // --- шум
   G.noise = Math.max(0, G.noise - 5 * (st / 10));
   // --- выброс
@@ -280,6 +282,7 @@ function tick(st, o) {
 function artSum(k) { return G.eq.art.filter(Boolean).reduce((a, x) => a + (IT(x.id).art[k] || 0), 0); }
 function newDay() {
   UI.log(`☀️ День ${day()}.` + (day() % 7 === 0 ? ' 🌕 Сегодня Кровавая ночь!' : day() % 7 === 6 ? ' Завтра Кровавая ночь.' : ''), 'sys');
+  if (!worldAuth()) return;
   if (G.w.struct.walls) { G.w.wallHp = Math.max(1, G.w.wallHp - 4); }
   dailyEvent();
 }
@@ -313,7 +316,7 @@ function emissionTick(o) {
     else if (f.death === 'perma' && ch(0.6)) { die('Выброс'); return; }
     else { for (const p in PARTS) G.ch.parts[p] = Math.max(1, G.ch.parts[p] * 0.4); G.ch.rad += 60; G.ch.stress = 100; G.lastHurt = 'Выброс'; UI.event({ title: '⚡ Выброс застал тебя!', cls: 'bad', text: 'Волна прошла сквозь тело. Ты выжил — чудом. Здоровье сильно подорвано, +60 радиации.', choices: [{ t: 'Подняться' }] }); }
     // новые артефакты
-    for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => { if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick(artPool()); });
+    if (worldAuth()) for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => { if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick(artPool()); });
   }
 }
 const emissionSoon = () => G.em.warned;
@@ -326,13 +329,15 @@ function hordeTick(o) {
   G.w.hordeDone[d] = true; G.interrupt = true;
   const power = Math.round((25 + d * 2.5) * F().horde); SND('horde');
   if (atBase()) UI.horde(power);
+  else if (!worldAuth()) { UI.event({ title: '🌕 Кровавая ночь', cls: 'bad', text: `Орда пошла на вашу общую базу. Её встретят укрепления${G.coop ? ' и друг, если он на базе' : ''} — итог появится в общем мире.\n\nЗдесь до утра будет опаснее обычного.`, choices: [{ t: 'Ясно' }] }); }
   else {
     const res = resolveHordeAuto(power);
     UI.event({ title: '🌕 Кровавая ночь', cls: 'bad', text: `Вдалеке слышен вой сотен глоток. Орда пошла на твою базу, а тебя там нет.\n\n${res}\n\nИ здесь до утра будет опаснее обычного.`, choices: [{ t: 'Держаться' }] });
   }
 }
-function defense() { const s = G.w.struct; return STRUCT.walls.def[s.walls] + STRUCT.traps.def[s.traps] + (s.fire ? 5 : 0) + (typeof npcDef === 'function' ? npcDef() : 0) + (G.pet && G.pet.type === 'dog' && G.pet.hp > 0 && atBase() ? 6 : 0); }
+function defense() { const s = G.w.struct; return STRUCT.walls.def[s.walls] + STRUCT.traps.def[s.traps] + (s.fire ? 5 : 0) + (typeof npcDef === 'function' ? npcDef() : 0) + (G.pet && G.pet.type === 'dog' && G.pet.hp > 0 && atBase() ? 6 : 0) + (G.coop && window.COOP ? COOP.others().filter(p => p.online && p.alive !== false && p.loc === 'base' && !p.from).length * 15 : 0); }
 function wallsHit(n) {
+  if (!worldAuth()) return ''; // урон базе в кооперативе считает только ведущий
   const s = G.w.struct; let msg = [];
   while (n > 0 && s.walls > 0) {
     const k = Math.min(n, G.w.wallHp); G.w.wallHp -= k; n -= k;
@@ -646,6 +651,7 @@ function startCombat(en, opts = {}) {
   if (G.dead) return;
   G.combat = { en, opts, turn: 1, log: [] };
   setAct('⚔️ в бою: ' + [...new Set(en.filter(e => e.hp > 0).map(e => ENEMY[e.id].n))].join(', '));
+  if (G.coop && window.COOP && (en.length >= 3 || en.some(e => ENEMY[e.id].boss))) { const here = COOP.here(); if (here.length) cLog(`🤝 ${here.map(p => p.name).join(', ')} рядом — поможет в бою.`, 'good'); else FEED(`⚔️ в тяжёлом бою (${LOCS[G.loc].ic} ${LOCS[G.loc].n}) — нужна помощь!`); }
   const first = en.find(e => e.hp > 0); if (first) { const D = ENEMY[first.id]; SND(D.boss || first.id === 'swamper' ? 'roar' : (first.id === 'dog' || first.id === 'pdog') ? 'bark' : D.human ? 'click' : 'growl'); }
   UI.combat();
 }
@@ -973,6 +979,7 @@ function sleepHere(hours) {
   let mins = hours ? hours * H : (() => { const h = hour(); return ((h >= 7 ? 31 - h : 7 - h) * H); })();
   mins = Math.min(mins, 12 * H);
   UI.log(`😴 Ты ложишься спать${bed ? ' в кровать' : ''}…`, 'dim'); setAct('😴 спит');
+  if (G.coop) FEED(`😴 лёг спать на ~${Math.round(mins / 60)} ч — общее время пойдёт быстрее`);
   let slept = 0;
   while (slept < mins && !G.dead) {
     const step = Math.min(60, mins - slept);
