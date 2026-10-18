@@ -2425,6 +2425,10 @@ function tutMark(id) {
 }
 function tutState() {
   if (!G.tut || !G.tut.on) return null;
+  if (day() > 3) {
+    G.tut.on = false;
+    return null;
+  }
   TUT.forEach((s) => {
     if (s.chk && s.chk()) G.tut.done[s.id] = true;
   });

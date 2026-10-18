@@ -23,7 +23,7 @@ if (Promise && !Promise.allSettled) Promise.allSettled = function (ps) { return 
   window.__showErr = function (m) { try { var d = box(); if (!shown) { shown = true; d.textContent = 'Сделай скриншот и отправь разработчику:\n' + navigator.userAgent + '\n'; } d.textContent += m + '\n'; } catch (e) {} };
   try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } } catch (e) {}
   window.addEventListener('error', function (e) { var t = e.target; if (t && t !== window && t.tagName === 'SCRIPT' && !/gstatic|googleapis|telegram\.org/.test(t.src)) window.__showErr('Не загрузился файл: ' + String(t.src || t.href).split('/').pop().split('?')[0]); }, true);
-  window.addEventListener('error', function (e) { if (e.target && e.target !== window) return; window.__showErr('Ошибка: ' + (e.message || e) + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno); });
+  window.addEventListener('error', function (e) { if (e.target && e.target !== window) return; if (/^Script error\.?$/.test(String(e.message || '')) && !e.filename) { try { console.warn('cross-origin script error'); } catch (x) {} return; } window.__showErr('Ошибка: ' + (e.message || e) + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno); });
   window.addEventListener('unhandledrejection', function (e) { var r = e.reason; window.__showErr('Ошибка (promise): ' + (r && (r.stack || r.message) || r)); });
   setTimeout(function () { var mo = document.getElementById('modal'), ma = document.getElementById('main'); if (mo && ma && !mo.innerHTML.trim() && !ma.innerHTML.trim()) window.__showErr('Экран не отрисовался за 10 с. Модули: ' + ['ITEMS', 'newGame', 'extraMod', 'CUI', 'ART', 'SFX', 'COOP', 'TGA', 'FB', 'UI'].map(function (k) { var ok = false; try { ok = eval('typeof ' + k) !== 'undefined'; } catch (e) {} return k + (ok ? '✓' : '✗'); }).join(' ')); }, 10000);
 })();
@@ -1897,18 +1897,18 @@ html.art-off canvas.scene {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792364972"></script>
-<script src="game.js?v=1792364972"></script>
-<script src="ext.js?v=1792364972"></script>
-<script src="content.js?v=1792364972"></script>
-<script src="art.js?v=1792364972"></script>
-<script src="audio.js?v=1792364972"></script>
-<script src="coop.js?v=1792364972"></script>
-<script src="tg.js?v=1792364972"></script>
-<script src="fbconfig.js?v=1792364972"></script>
-<script src="fbcoop.js?v=1792364972"></script>
-<script src="sync.js?v=1792364972"></script>
-<script src="ui.js?v=1792364972"></script>
+<script src="data.js?v=1792365264"></script>
+<script src="game.js?v=1792365264"></script>
+<script src="ext.js?v=1792365264"></script>
+<script src="content.js?v=1792365264"></script>
+<script src="art.js?v=1792365264"></script>
+<script src="audio.js?v=1792365264"></script>
+<script src="coop.js?v=1792365264"></script>
+<script src="tg.js?v=1792365264"></script>
+<script src="fbconfig.js?v=1792365264"></script>
+<script src="fbcoop.js?v=1792365264"></script>
+<script src="sync.js?v=1792365264"></script>
+<script src="ui.js?v=1792365264"></script>
 
 </body>
 </html>
