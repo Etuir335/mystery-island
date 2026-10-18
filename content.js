@@ -2031,3 +2031,95 @@ extMigrate = function() {
   for (const k of ["clinic", "forge", "shop", "tower"]) if (G.w.struct[k] == null) G.w.struct[k] = 0;
   if (G.w.rep && G.w.rep.settle == null) G.w.rep.settle = 0;
 };
+Object.assign(ENEMY, {
+  major: { n: "Майор Крайнов", ic: "🎖️", spr: "soldier", hp: 190, dmg: [14, 22], sp: 1, acc: 0.72, arm: 6, human: 1, inj: ["bullet", "lacer"], xp: 80, boss: 1, noVirus: 1, gear: [["ak", 1]], drop: [["vest2", 1], ["c4", 2], ["bp_c4", 1], ["cash", 8]] }
+});
+Object.assign(QUESTS, {
+  c4_people: { g: "main", n: "Беженцы", d: "К острову пристают лодки с беженцами с материка. Дай им кров: нужно 3 жильца на базе (постройте нары, приглашайте выживших).", type: "flag", flag: "c4_npcs", rew: { money: 200 }, next: "c4_tower" },
+  c4_tower: { g: "main", n: "Глаза поселения", d: "Построй сторожевую вышку (База → Стройка) — с материка идут не только беженцы.", type: "flag", flag: "c4_towerb", rew: { xp: { craft: 10 } }, next: "c4_major" },
+  c4_major: { g: "main", n: "Майор Крайнов", d: "У блокпоста высадился отряд военных. Их командир хочет забрать остров и Аппарат себе. Атакуй лагерь (База → Обзор).", type: "flag", flag: "major_dead", rew: { money: 400 }, next: "c4_siege" },
+  c4_siege: { g: "main", n: "Вторая волна", d: "Без командира военные бросили остров — но на шум сбежались все твари округи. Прими последний бой у базы ночью (База → Обзор).", type: "flag", flag: "c4_held", rew: { money: 1e3 } }
+});
+const ch4Ready = () => G.w.flags.ch3_end === "stay" && !G.w.flags.ch4;
+function startCh4() {
+  if (!ch4Ready()) return;
+  G.w.flags.ch4 = true;
+  G.w.quests.c4_people = "active";
+  diaryAdd("📜 началась Глава 4 «Хранитель»");
+  FEED("📜 начал Главу 4 «Хранитель»");
+  UI.event({ title: "📜 Глава 4 · Хранитель", cls: "good", text: "«Северный» ушёл без тебя, но о маяке узнали на материке. К берегу одна за другой пристают лодки: беженцы, раненые, дети. За ними — те, кому нужен не приют, а Аппарат.\n\nОстров теперь твой. Защити его.", choices: [{ t: "Начать" }] });
+  save();
+  UI.render();
+}
+function ch4Check() {
+  if (!G.w.flags.ch4) return;
+  if (!G.w.flags.c4_npcs && npcs().length >= 3) G.w.flags.c4_npcs = true;
+  if (!G.w.flags.c4_towerb && G.w.struct.tower > 0) G.w.flags.c4_towerb = true;
+  checkQuests();
+}
+function attackMajor() {
+  if (G.w.quests.c4_major !== "active") return;
+  setAct("⚔️ штурмует лагерь военных");
+  advance(60);
+  if (G.dead) return;
+  const en = [mkEnemy("major"), mkEnemy("soldier"), mkEnemy("soldier"), mkEnemy("raider")];
+  en.forEach((e, i) => e.dist = i ? 1 : 2);
+  UI.log("🎖️ «Сдай остров, и останешься жив», — кричит Майор.", "bad");
+  startCombat(en, { road: true, onEnd: (r) => {
+    advance(60);
+    G.loc = "base";
+    G.traveling = false;
+    if (r === "win") {
+      checkQuests();
+      diaryAdd("🎖️ одолел Майора Крайнова");
+      UI.event({ title: "🎖️ Лагерь разбит", cls: "good", text: "Майор Крайнов повержен, солдаты бросают оружие и уходят к своим лодкам. Но грохот боя разбудил весь остров…", choices: [{ t: "Вернуться на базу" }] });
+    } else UI.event({ title: "🏚️ Отступление", cls: "bad", text: "Лагерь военных оказался крепче. Соберись и попробуй снова.", choices: [{ t: "OK" }] });
+    save();
+    UI.go("loc");
+  } });
+}
+function finalSiege() {
+  if (G.w.quests.c4_siege !== "active" || !atBase()) return;
+  if (!isNight()) return UI.toast("Твари придут ночью — возвращайся после 21:00.");
+  SND("horde");
+  const en = spawnList([["armored", 2, 2], ["hunterN", 2, 2], ["swamper", 1, 1], ["runner", 2, 2]]);
+  en.forEach((e, i) => e.dist = i < 3 ? 1 : 2);
+  startCombat(en, { road: true, onEnd: (r) => {
+    if (r === "win") {
+      G.w.flags.c4_held = true;
+      checkQuests();
+      ending4();
+    } else UI.event({ title: "🌑 Отбились не до конца", cls: "bad", text: "Пришлось укрыться в сарае до утра. Следующей ночью они вернутся — будь готов.", choices: [{ t: "OK" }] });
+    save();
+    UI.render();
+  } });
+}
+function ending4() {
+  diaryAdd("🏝️ остров стал домом — конец Главы 4");
+  FEED("🏝️ завершил Главу 4 «Хранитель»");
+  UI.event({ title: "🏝️ Хранитель острова", cls: "good", text: "Утро тихое. Над лодочной станцией поднимается дым десятка печей, на вышке дежурит ".concat(npcs()[0] ? npcs()[0].name : "жилец", ", дети кормят кота. Аппарат молчит.\n\nТы пришёл сюда, выброшенный морем. Теперь это твой дом, и у него есть хранитель.\n\nСпасибо, что прошёл «Mystery of the Island» до самого конца! Мир остаётся с тобой."), choices: [{ t: "Продолжить" }] });
+}
+const _extNewDayC4 = extNewDay;
+extNewDay = function() {
+  _extNewDayC4.apply(this, arguments);
+  if (worldAuth() && ch4Ready() && day() >= 2) startCh4();
+  ch4Check();
+};
+const _buildC4 = build;
+build = function(id) {
+  const r = _buildC4.apply(this, arguments);
+  ch4Check();
+  return r;
+};
+const _cuiBaseC4 = CUI.basePanel;
+CUI.basePanel = function() {
+  let h = "";
+  const b = UI.btn, q = G.w.quests;
+  if (q.c4_major === "active") h += '<div class="sec"><h2>🎖️ Лагерь военных</h2><p class="muted" style="font-size:13px">Майор Крайнов и его солдаты у блокпоста. Бой тяжёлый — возьми друга, патроны и аптечки.</p><div class="acts">'.concat(b("⚔️ Атаковать лагерь (1 ч пути)", attackMajor, "pri"), "</div></div>");
+  if (q.c4_siege === "active") h += '<div class="sec"><h2>🌑 Вторая волна</h2><p class="muted" style="font-size:13px">Твари придут ночью. Подготовь оборону и встречай их у стен.</p><div class="acts">'.concat(b("🛡️ Принять бой", finalSiege, "pri", !isNight()), "</div></div>");
+  return h + _cuiBaseC4.apply(this, arguments);
+};
+const _cuiJourC4 = CUI.jour;
+CUI.jour = function() {
+  return (ch4Ready() ? '<div class="sec"><h2>📜 Глава 4 «Хранитель»</h2><p class="muted">Ты остался на острове. Теперь его нужно защитить.</p><div class="acts">'.concat(UI.btn("Начать Главу 4", startCh4, "pri"), "</div></div>") : "") + _cuiJourC4.apply(this, arguments);
+};
