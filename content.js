@@ -622,6 +622,7 @@ const CUI = {
 };
 window.CUI = CUI;
 const sameItem = (list, e) => {
+  if (!e || !list) return null;
   if (list.indexOf(e) >= 0) return e;
   const k = JSON.stringify(Object.assign({}, e, { n: 0 }));
   return list.find((x) => JSON.stringify(Object.assign({}, x, { n: 0 })) === k) || list.find((x) => x.id === e.id && !x.dur && !e.dur);

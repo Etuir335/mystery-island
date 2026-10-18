@@ -429,11 +429,42 @@ const UI = /* @__PURE__ */ (() => {
         h += '<div class="eyebrow">'.concat(lastCat, "</div>");
       }
       const open = st.open === key;
-      h += '<div class="row" style="flex-wrap:wrap">'.concat(ART.tile(e.id), '<div class="grow" onclick="').concat(a(() => st.open = open ? null : key), '" style="cursor:pointer"><span class="t">').concat(esc(it.n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">').concat(itemSub(e), "</span></div>").concat(open ? '<div class="acts" style="width:100%">'.concat(itemActs(e, where), "</div>") : '<button class="btn sm" onclick="'.concat(a(() => st.open = key), '">⋯</button>'), "</div>");
+      h += '<div class="row" style="flex-wrap:wrap">'.concat(ART.tile(e.id), '<div class="grow" onclick="').concat(a(() => st.open = open ? null : key), '" style="cursor:pointer"><span class="t">').concat(esc(it.n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">').concat(itemSub(e), "</span></div>").concat(st.xfer && atBase() && !open ? where === "stash" ? btn("⬆️ Взять", () => fromStash(e), "sm pri") + (e.n > 1 ? btn("1", () => fromStash(e, 1), "sm") : "") : btn("⬇️ На склад", () => toStash(e), "sm pri") + (e.n > 1 ? btn("1", () => toStash(e, 1), "sm") : "") : "").concat(open ? '<div class="acts" style="width:100%">'.concat(itemActs(e, where), "</div>") : '<button class="btn sm" onclick="'.concat(a(() => st.open = key), '">⋯</button>'), "</div>");
     });
     return h || '<p class="muted">Пусто.</p>';
   }
   const canMake = (r) => Math.min(30, ...Object.entries(r.need).map(([k, v]) => Math.floor(allCnt(k) / v)));
+  function subBar(key, items, def) {
+    const cur2 = st[key] || def;
+    return '<div class="toggle subtabs">'.concat(items.map(([k, n, dis]) => '<button class="'.concat(cur2 === k ? "on" : "", '" ').concat(dis ? "disabled" : "", ' onclick="').concat(a(() => {
+      st[key] = k;
+      st.lastTab = null;
+    }), '">').concat(n, "</button>")).join(""), "</div>");
+  }
+  function quickBar() {
+    const w = curW(), cap = capW(), c = G.ch, b = [];
+    b.push('<span class="mono '.concat(w > cap ? "bad" : "muted", '">⚖️ ').concat(w.toFixed(1), "/").concat(cap, " кг</span>"));
+    if (atBase()) b.push(btn("📦 Сложить материалы", stashAllMats, "sm"));
+    return '<div class="quick">'.concat(b.join(""), "</div>");
+  }
+  function workshop() {
+    const rs = RECIPES.map((r) => ({ r, w: recipeState(r) })).filter((x) => x.w !== "bp").sort((x, y) => (x.w ? 1 : 0) - (y.w ? 1 : 0));
+    return '<div class="sec"><h2>Мастерская</h2><div class="list">'.concat(rs.map(({ r, w }) => '<div class="row '.concat(w ? "dim" : "", '"><div class="grow"><span class="t">').concat(esc(r.n), '</span><span class="s">').concat(Object.entries(r.need).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v)).join(", ")).concat(r.st ? " · нужен ".concat(STATION_N[r.st]) : "", " · ").concat(r.t, ' мин</span></div><div class="acts">').concat(btn("Сделать", () => craft(r), "sm", !!w)).concat(!w && canMake(r) > 1 ? btn("×".concat(canMake(r)), () => craftMax(r), "sm") : "", "</div></div>")).join(""), '</div><p class="muted" style="font-size:13px">Чертежи из лута открывают новые постройки и рецепты. Изучи чертёж в рюкзаке.</p></div>');
+  }
+  const INV_FL = { all: ["Всё", null], food: ["Еда", ["food", "drink"]], med: ["Медицина", ["med"]], war: ["Оружие", ["melee", "gun", "ammo", "wear", "mod"]], mat: ["Прочее", ["mat", "tool", "bp", "key", "quest", "val", "art"]] };
+  function filtered(list, key) {
+    const f = INV_FL[st[key] || "all"] || INV_FL.all;
+    const shown = f[1] ? list.filter((e) => f[1].includes(IT(e.id).c)) : list;
+    return '<div class="toggle filt">'.concat(Object.entries(INV_FL).map(([k, v]) => '<button class="'.concat((st[key] || "all") === k ? "on" : "", '" onclick="').concat(a(() => st[key] = k), '">').concat(v[0], "</button>")).join(""), "</div>") + (shown.length ? "" : '<p class="muted">Пусто.</p>') + '<div class="list">'.concat(itemList(shown, list === G.stash ? "stash" : "inv"), "</div>");
+  }
+  function stashDual() {
+    const side = st.sside || "stash";
+    st.xfer = true;
+    setTimeout(() => {
+      st.xfer = false;
+    }, 0);
+    return '<div class="toggle filt">'.concat([["stash", "📦 На складе (".concat(G.stash.length, ")")], ["bag", "🎒 В рюкзаке (".concat(G.inv.length, ")")]].map(([k, n]) => '<button class="'.concat(side === k ? "on" : "", '" onclick="').concat(a(() => st.sside = k), '">').concat(n, "</button>")).join(""), "</div>") + (side === "stash" ? '<div class="sec"><p class="muted" style="font-size:13px">«Взять» / «Взять 1» — в рюкзак.</p>'.concat(filtered(G.stash, "stf"), "</div>") : '<div class="sec"><p class="muted" style="font-size:13px">«На склад» / «На склад 1» — положить.</p>'.concat(filtered(G.inv, "invf"), "</div>"));
+  }
   function handCraft() {
     const fire = campHere() || atBase() && G.w.struct.fire > 0;
     const rs = RECIPES.filter((r) => (!r.st || r.st === "fire" && fire) && (!r.bp || G.w.bp[r.bp]) && (!r.ch2 || CH2()));
@@ -447,15 +478,25 @@ const UI = /* @__PURE__ */ (() => {
   function renderInv() {
     const w = curW(), cap = capW();
     const slot = (name, e, s, idx) => '<div class="row"><div class="grow"><span class="s">'.concat(name, '</span><span class="t">').concat(e ? "".concat(IT(e.id).ic, " ").concat(esc(IT(e.id).n)) : '<span class="muted">—</span>', "</span>").concat(e ? '<span class="s">'.concat(itemSub(e), "</span>") : "", "</div>").concat(e ? btn("Снять", () => unequip(s, idx), "sm") : "", "</div>");
-    let h = "".concat(tutCard()).concat(logLast(2), '<div class="sec"><div class="sechead"><h1>Вещи</h1><span class="mono ').concat(w > cap ? "bad" : "muted", '">').concat(w.toFixed(1), " / ").concat(cap, " кг</span></div>").concat(bar(w, cap * 1.5, true)).concat(w > cap ? '<p class="bad">Перегруз: ходишь медленнее'.concat(w > cap * 1.5 ? ", а с таким весом вообще не уйти" : "", ".</p>") : "", "</div>");
-    h += '<div class="sec"><h2>Снаряжение</h2><div class="eqgrid">'.concat(slot("Оружие", G.eq.weapon, "weapon")).concat(slot("Одежда", G.eq.body, "body")).concat(slot("Бронежилет", G.eq.vest, "vest")).concat(slot("Рюкзак", G.eq.bag, "bag")).concat(slot("Маска", G.eq.mask, "mask")).concat(slot("Пояс: артефакт 1", G.eq.art[0], "art", 0)).concat(slot("Пояс: артефакт 2", G.eq.art[1], "art", 1), "</div>");
-    if (G.eq.weapon && G.eq.weapon.dur != null) h += '<div class="acts">'.concat(btn("🩶 Подлатать оружие скотчем", repairWeapon, "sm", !allCnt("tape")), "</div>");
-    const FL = { all: ["Всё", null], food: ["Еда", ["food", "drink"]], med: ["Медицина", ["med"]], war: ["Оружие", ["melee", "gun", "ammo", "wear"]], mat: ["Прочее", ["mat", "tool", "bp", "key", "quest", "val", "art"]] };
-    const f = FL[st.invf || "all"] || FL.all;
-    const shown = f[1] ? G.inv.filter((e) => f[1].includes(IT(e.id).c)) : G.inv;
-    h += '</div><div class="sec"><h2>Рюкзак</h2><div class="toggle filt">'.concat(Object.entries(FL).map(([k, v]) => '<button class="'.concat((st.invf || "all") === k ? "on" : "", '" onclick="').concat(a(() => st.invf = k), '">').concat(v[0], "</button>")).join(""), '</div><div class="list">').concat(itemList(shown, "inv"), "</div></div>");
-    h += handCraft();
-    if (atBase()) h += '<div class="sec"><div class="sechead"><h2>Склад базы</h2>'.concat(btn("Сложить материалы", stashAllMats, "sm"), '</div><div class="list">').concat(itemList(G.stash, "stash"), "</div></div>");
+    if (st.scrollCraft) {
+      st.scrollCraft = false;
+      st.isub = "craft";
+    }
+    let sub = st.isub || "bag";
+    if (sub === "stash" && !atBase()) sub = st.isub = "bag";
+    let h = "".concat(tutCard()).concat(logLast(2), '<div class="sticky">').concat(subBar("isub", [["bag", "🎒 Рюкзак"], ["stash", "📦 Склад", !atBase()], ["craft", "🔨 Крафт"]], "bag")).concat(quickBar(), "</div>");
+    if (w > cap) h += '<p class="bad">Перегруз: ходишь медленнее'.concat(w > cap * 1.5 ? ", а с таким весом вообще не уйти" : "", ".</p>");
+    if (sub === "bag") {
+      h += '<div class="sec"><h2>Снаряжение</h2><div class="eqgrid">'.concat(slot("Оружие", G.eq.weapon, "weapon")).concat(slot("Одежда", G.eq.body, "body")).concat(slot("Бронежилет", G.eq.vest, "vest")).concat(slot("Рюкзак", G.eq.bag, "bag")).concat(slot("Маска", G.eq.mask, "mask")).concat(slot("Пояс: артефакт 1", G.eq.art[0], "art", 0)).concat(slot("Пояс: артефакт 2", G.eq.art[1], "art", 1), "</div>");
+      if (G.eq.weapon && G.eq.weapon.dur != null) h += '<div class="acts">'.concat(btn("🩶 Подлатать оружие скотчем", repairWeapon, "sm", !allCnt("tape")), "</div>");
+      h += '</div><div class="sec"><h2>Рюкзак</h2>'.concat(filtered(G.inv, "invf"), "</div>");
+    } else if (sub === "stash") {
+      h += stashDual();
+    } else {
+      h += handCraft();
+      if (atBase()) h += workshop();
+      else h += '<p class="muted">Верстак, коптильня и плита — на базе (вкладка «База → Мастерская»).</p>';
+    }
     return h;
   }
   function renderChar() {
@@ -513,21 +554,25 @@ const UI = /* @__PURE__ */ (() => {
     const d = day(), nextBN = d % 7 === 0 && hour() < 22 ? d : d + (7 - d % 7);
     const power = Math.round((25 + nextBN * 2.5) * F().horde);
     let h = "".concat(ART.sceneTag({ loc: "base", key: "base", alt: "Лодочная станция", camp: false })).concat(tutCard()).concat(logLast(3), '<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">').concat(defense(), "</b> · следующая Кровавая ночь — день ").concat(nextBN, ', натиск ≈ <b class="mono">').concat(power, "</b> за ночь (3 волны).").concat(s.walls ? " Укрепления: ".concat(G.w.wallHp, "%.") : "", "</p></div>");
-    h += '<div class="grid2">'.concat(btn("😴 Спать до утра".concat(s.bed ? " (кровать)" : ""), () => sleepHere())).concat(btn("😴 Вздремнуть 2 ч", () => sleepHere(2))).concat(btn("🐈 Погладить кота", petCat)).concat((G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn("🐈 Взять кота с собой", takeCat) : "").concat(btn("🔨 Подлатать стены (2 доски, 4 гвоздя)", repairWalls, "", !s.walls)).concat(s.radio ? btn("📻 Слушать эфир", radioMsg) : "", "</div>");
-    h += EXTUI.basePanel();
-    h += EXTUI.raidPanel();
-    if (typeof CUI !== "undefined") h += CUI.basePanel();
-    h += '<div class="sec"><h2>Постройки</h2><div class="list">';
-    for (const id in STRUCT) {
-      if (STRUCT[id].ch2 && !CH2()) continue;
-      const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
-      const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => '<span class="'.concat(allCnt(k) >= v ? "" : "bad", '">').concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v, "</span>")).join(", ") : "";
-      h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why) : "", "</div>");
+    const bsub = st.bsub || "main";
+    h = '<div class="sticky">'.concat(subBar("bsub", [["main", "🏚️ Обзор"], ["build", "🏗️ Стройка"], ["craft", "🔨 Крафт"], ["stash", "📦 Склад"], ["raid", "⚔️ Рейды"]], "main")).concat(quickBar(), "</div>") + (bsub === "main" ? h : logLast(2));
+    if (bsub === "main") {
+      h += '<div class="grid2">'.concat(btn("😴 Спать до утра".concat(s.bed ? " (кровать)" : ""), () => sleepHere())).concat(btn("😴 Вздремнуть 2 ч", () => sleepHere(2))).concat(btn("🐈 Погладить кота", petCat)).concat((G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn("🐈 Взять кота с собой", takeCat) : "").concat(btn("🔨 Подлатать стены (2 доски, 4 гвоздя)", repairWalls, "", !s.walls)).concat(s.radio ? btn("📻 Слушать эфир", radioMsg) : "", "</div>");
+      if (typeof CUI !== "undefined") h += CUI.basePanel();
+      h += EXTUI.basePanel();
+    } else if (bsub === "raid") h += EXTUI.raidPanel();
+    else if (bsub === "craft") h += workshop();
+    else if (bsub === "stash") h += stashDual();
+    else if (bsub === "build") {
+      h += '<div class="sec"><h2>Постройки</h2><div class="list">';
+      for (const id in STRUCT) {
+        if (STRUCT[id].ch2 && !CH2()) continue;
+        const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
+        const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => '<span class="'.concat(allCnt(k) >= v ? "" : "bad", '">').concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v, "</span>")).join(", ") : "";
+        h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why) : "", "</div>");
+      }
+      h += "</div></div>";
     }
-    h += "</div></div>";
-    const rs = RECIPES.map((r) => ({ r, w: recipeState(r) })).filter((x) => x.w !== "bp").sort((x, y) => (x.w ? 1 : 0) - (y.w ? 1 : 0));
-    h += '<div class="sec"><h2>Мастерская</h2><div class="list">'.concat(rs.map(({ r, w }) => '<div class="row '.concat(w ? "dim" : "", '"><div class="grow"><span class="t">').concat(esc(r.n), '</span><span class="s">').concat(Object.entries(r.need).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v)).join(", ")).concat(r.st ? " · нужен ".concat(STATION_N[r.st]) : "", " · ").concat(r.t, ' мин</span></div><div class="acts">').concat(btn("Сделать", () => craft(r), "sm", !!w)).concat(!w && canMake(r) > 1 ? btn("×".concat(canMake(r)), () => craftMax(r), "sm") : "", "</div></div>")).join(""), '</div><p class="muted" style="font-size:13px">Чертежи из лута открывают новые постройки и рецепты. Изучи чертёж в рюкзаке.</p></div>');
-    h += '<div class="sec"><div class="sechead"><h2>Склад</h2>'.concat(btn("Сложить материалы", stashAllMats, "sm"), '</div><div class="list">').concat(itemList(G.stash, "stash"), "</div></div>");
     return h;
   }
   function renderJour() {
