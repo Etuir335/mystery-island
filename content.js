@@ -750,33 +750,46 @@ function consumeEntry(e) {
 }
 function autoEat(allowBad) {
   const c = G.ch, eaten = [];
-  let skipped = /* @__PURE__ */ new Set();
+  const gain = (e, kind) => Math.max(0, kind === "drink" ? IT(e.id).d || 0 : IT(e.id).f || 0);
+  const urgent = (e) => IT(e.id).sp && F().spoil && freshness(e) >= 0.7 && freshness(e) < 1;
+  function pickFor(kind) {
+    const need = 100 - (kind === "drink" ? c.drink : c.food);
+    const ok = eatPool(kind).filter((e) => (allowBad || !foodState(e).bad) && gain(e, kind) > 0 && (urgent(e) || gain(e, kind) <= Math.max(need + 8, need * 2)));
+    ok.sort((a, b) => urgent(b) - urgent(a) || eatOrder(a, b) || gain(b, kind) - gain(a, kind));
+    return ok[0] || null;
+  }
   for (let k = 0; k < 40 && !G.dead; k++) {
-    const needF = c.food < 92, needD = c.drink < 92;
-    if (!needF && !needD) break;
-    const kind = needD && (c.drink <= c.food || !needF) ? "drink" : "food";
-    let cand = eatPool(kind).filter((e2) => allowBad || !foodState(e2).bad).sort(eatOrder);
-    if (!cand.length) {
-      const other = kind === "drink" ? "food" : "drink";
-      if (other === "food" ? needF : needD) {
-        cand = eatPool(other).filter((e2) => allowBad || !foodState(e2).bad).sort(eatOrder);
+    const order = c.drink <= c.food ? ["drink", "food"] : ["food", "drink"];
+    let e = null, kind = null;
+    for (const kd of order) {
+      if ((kd === "drink" ? c.drink : c.food) >= 92) continue;
+      e = pickFor(kd);
+      if (e) {
+        kind = kd;
+        break;
       }
     }
-    if (!cand.length) break;
-    const e = cand[0], it = IT(e.id), before = c.food + c.drink;
+    if (!e) break;
+    const it = IT(e.id), before = c.food + c.drink;
     consumeEntry(e);
     eaten.push(it.ic);
     if (c.food + c.drink <= before - 0.5 && !it.raw) break;
   }
-  const left = [];
-  if (c.food < 92) left.push("еда");
-  if (c.drink < 92) left.push("питьё");
-  const badLeft = (c.food < 92 ? eatPool("food") : []).concat(c.drink < 92 ? eatPool("drink") : []).filter((e) => foodState(e).bad);
+  const left = [], fitsNeed = (e, kd) => {
+    const nd = 100 - (kd === "drink" ? c.drink : c.food);
+    return gain(e, kd) > 0 && gain(e, kd) <= Math.max(nd + 8, nd * 2);
+  };
+  if (c.food < 92) left.push("food");
+  if (c.drink < 92) left.push("drink");
+  const goodBig = left.some((kd) => eatPool(kd).some((e) => !foodState(e).bad && !fitsNeed(e, kd)));
+  const badLeft = left.flatMap((kd) => eatPool(kd).filter((e) => foodState(e).bad && fitsNeed(e, kd)));
+  const hasGoodFit = left.some((kd) => eatPool(kd).some((e) => !foodState(e).bad && fitsNeed(e, kd)));
   if (eaten.length) UI.log("🍽️ Подкрепился: ".concat(eaten.join(" "), ". Сытость ").concat(Math.round(c.food), ", вода ").concat(Math.round(c.drink), "."), "good");
-  if (!allowBad && left.length && badLeft.length) {
+  if (!allowBad && left.length && badLeft.length && !hasGoodFit && !goodBig) {
     const names = [...new Set(badLeft.map((e) => "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(foodState(e).spoiled ? " (испорчено)" : IT(e.id).c === "drink" ? " (грязная)" : " (сырое)")))].slice(0, 5).join(", ");
     UI.event({ title: "🍽️ Нормальная еда кончилась", cls: "bad", text: "".concat(eaten.length ? "Всё нормальное съедено. " : "", "Осталось только рискованное: ").concat(names, ".\n\nСырое и испорченное может вызвать отравление или заражение. Есть всё равно?"), choices: [{ t: "⚠️ Всё равно съесть", fn: () => autoEat(true) }, { t: "Не надо" }] });
-  } else if (!eaten.length) UI.toast(left.length ? "Нечего ".concat(left.includes("еда") && left.includes("питьё") ? "есть и пить" : left.includes("еда") ? "есть" : "пить", ".") : "Ты и так сыт и напоен.");
+  } else if (goodBig && left.length) UI.toast("".concat(eaten.length ? "Почти сыт. " : "", "Оставшаяся ").concat(left.includes("food") ? "еда" : "вода", " слишком сытная — бережём на потом."));
+  else if (!eaten.length) UI.toast(left.length ? "Нечего ".concat(left.length > 1 ? "есть и пить" : left[0] === "food" ? "есть" : "пить", ".") : "Ты и так сыт и напоен.");
   save();
   UI.render();
 }
