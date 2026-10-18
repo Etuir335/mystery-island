@@ -2237,7 +2237,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   window.addEventListener("resize", uiApply);
 }
 const EMO_RE = /(?:[☀-➿⬀-⯿⌀-⏿■-◿〰〽]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF])(?:️|‍|\uD83C[\uDFFB-\uDFFF]|(?:\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF]|[☀-➿]))*/g;
-const EMO_KEEP = { "▾": 1, "▸": 1, "◂": 1, "▴": 1, "✕": 1, "✓": 1, "✔": 1, "★": 1, "☆": 1, "⋯": 1 };
+const EMO_KEEP = { "▲": 1, "▼": 1, "▾": 1, "▸": 1, "◂": 1, "▴": 1, "✕": 1, "✓": 1, "✔": 1, "★": 1, "☆": 1, "⋯": 1 };
 function noEmo(html) {
   if (UIP.emoji !== false || !html) return html;
   return String(html).split(/(<svg[\s\S]*?<\/svg>)/).map((part, i) => i % 2 ? part : part.replace(EMO_RE, (m) => EMO_KEEP[m] ? m : "").replace(/[️‍]/g, "")).join("");
@@ -2508,3 +2508,327 @@ function sideSettingsHtml() {
   const L2 = layGet(), hid = Object.keys(L2.hid);
   return '<div class="setrow"><div><b>Карточки по бокам</b><div class="s muted">Тащи карточку за шапку — переставить или перенести на другую сторону. ▾ — свернуть, ✕ — скрыть. Край панели тянется — меняется ширина.</div></div>\n    '.concat(hid.length ? '<div class="acts">'.concat(hid.map((id) => '<button class="btn sm" onclick=\'sideShow('.concat(JSON.stringify(id), ")'>Вернуть: ").concat(cesc(cardName(id)), "</button>")).join(""), "</div>") : "", '\n    <div class="acts"><button class="btn sm" onclick="sideReset()">Сбросить раскладку</button></div></div>');
 }
+function autoSmokeTick(o) {
+  const c = G.ch, lim = c.autoSmoke | 0;
+  if (!lim || G.combat || o && o.sleep || G.dead) return;
+  if (G.time - (c.lastSmoke || 0) < 90) return;
+  const withdraw = hasTrait("smoker") && G.time - (c.lastSmoke || 0) > 12 * H;
+  if (c.stress < lim && !withdraw) return;
+  const has = G.inv.find((e) => IT(e.id).smoke) || atBase() && G.stash.find((e) => IT(e.id).smoke);
+  if (!has) return;
+  useItem(has.id, true);
+  if (typeof sideRender === "function") {
+    SIDE.l = "";
+  }
+}
+const _tickSm = tick;
+tick = function(st, o) {
+  _tickSm.apply(this, arguments);
+  try {
+    if (G && !G.dead) {
+      autoSmokeTick(o);
+      workTick(st);
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+};
+window.setAutoSmoke = (v) => {
+  G.ch.autoSmoke = v;
+  save();
+  UI.render();
+};
+const _extChar = EXTUI.charPanel;
+EXTUI.charPanel = function() {
+  const v = G.ch.autoSmoke | 0, n = G.inv.filter((e) => IT(e.id).smoke).reduce((a, e) => a + e.n, 0);
+  return '<div class="sec"><h2>🚬 Автокурение</h2><div class="toggle">'.concat([[0, "Выкл"], [40, "Стресс 40+"], [60, "60+"], [80, "80+"]].map(([k, t]) => '<button class="'.concat(v === k ? "on" : "", '" onclick="setAutoSmoke(').concat(k, ')">').concat(t, "</button>")).join(""), '</div><p class="muted" style="font-size:13px">Закурит сам, когда стресс дойдёт до порога').concat(hasTrait("smoker") ? " или начнётся ломка" : "", ". Не в бою и не во сне. Сигарет в рюкзаке: ").concat(n).concat(atBase() ? ", на складе: " + G.stash.filter((e) => IT(e.id).smoke).reduce((a, e) => a + e.n, 0) : "", ".</p></div>") + _extChar.apply(this, arguments);
+};
+NPC_ROLES.cook = { n: "Повар", ic: "🍳", d: "готовит еду со склада по заказам: жарит, коптит, варит" };
+NPC_ROLES.crafter.d = "выполняет заказы: доски, вещи, постройки; латает стены";
+const WORKERS = { cook: 1, crafter: 1 };
+STATION_N.stove = "плита";
+function baseSt(st) {
+  const s = G.w.struct;
+  if (!st) return true;
+  if (st === "fire") return s.fire > 0;
+  if (st === "smoke") return s.smoke > 0;
+  if (st === "distill") return s.distill > 0 && s.fire > 0;
+  if (st === "bench") return s.bench > 0;
+  if (st === "bench2") return s.bench > 1;
+  if (st === "stove") return s.stove > 0;
+  return false;
+}
+const isCookR = (r) => Object.keys(r.out).some((k) => ["food", "drink"].includes(IT(k).c) && k !== "bottle");
+function wRecipes(role, all) {
+  return RECIPES.filter((r) => (role === "cook" ? isCookR(r) : !isCookR(r)) && !(r.ch2 && !CH2()) && !(r.bp && !G.w.bp[r.bp]) && (all || baseSt(r.st)));
+}
+const recById = (id) => RECIPES.find((r) => r.id === id);
+const mainOut = (r) => Object.keys(r.out).find((k) => k !== "bottle") || Object.keys(r.out)[0];
+const scnt = (id) => cnt(G.stash, id);
+function planStep(id, qty, role, depth, miss, seen) {
+  if (scnt(id) >= qty) return "ok";
+  if (depth > 4 || seen[id]) {
+    if (miss) miss[id] = Math.max(miss[id] || 0, qty - scnt(id));
+    return null;
+  }
+  const rs = wRecipes(role).filter((r) => r.out[id]).sort((a, b) => (b.st ? 1 : 0) - (a.st ? 1 : 0));
+  const s2 = Object.assign({}, seen, { [id]: 1 });
+  for (let i = 0; i < rs.length; i++) {
+    const r = rs[i], m = i === 0 ? miss : null;
+    let ready = true, sub = null;
+    for (const [k, v] of Object.entries(r.need)) {
+      const res = planStep(k, v, role, depth + 1, m, s2);
+      if (res === "ok") continue;
+      ready = false;
+      if (res && !sub) sub = res;
+    }
+    if (ready) return r;
+    if (sub) return sub;
+  }
+  if (!rs.length && miss) miss[id] = Math.max(miss[id] || 0, qty - scnt(id));
+  return null;
+}
+function planNeeds(need, role, miss) {
+  for (const [k, v] of Object.entries(need)) {
+    const r = planStep(k, v, role, 1, miss, {});
+    if (r !== "ok") return r;
+  }
+  return "ok";
+}
+function orderDone(o) {
+  if (o.t === "s") return (G.w.struct[o.id] || 0) >= o.lv || !STRUCT[o.id];
+  if (o.mode === "n") return (o.made || 0) >= o.n;
+  return false;
+}
+function orderLabel(o) {
+  if (o.t === "auto") return "Готовить всё сырое со склада";
+  if (o.t === "s") {
+    const S = STRUCT[o.id];
+    return S ? "".concat(S.ic, " Построить: ").concat(S.lv[o.lv] ? S.lv[o.lv].n : S.n) : "?";
+  }
+  const r = recById(o.id);
+  if (!r) return "?";
+  const it = IT(mainOut(r));
+  return "".concat(it.ic, " ").concat(r.n) + (o.mode === "inf" ? " · постоянно" : o.mode === "n" ? " · ".concat(o.made || 0, " из ").concat(o.n) : " · держать ".concat(o.n, " (есть ").concat(scnt(mainOut(r)), ")"));
+}
+function orderStep(o, role) {
+  const miss = {};
+  if (o.t === "auto") {
+    for (const e of G.stash) {
+      const it = IT(e.id);
+      if (!it.raw || !it.cook || it.sp && freshness(e) >= 1) continue;
+      const r2 = wRecipes("cook").find((r3) => r3.out[it.cook] && r3.need[e.id] && Object.keys(r3.need).length === 1 && scnt(e.id) >= r3.need[e.id]);
+      if (r2) return { r: r2, own: true };
+    }
+    return { wait: "нет сырого на складе" };
+  }
+  if (o.t === "s") {
+    const S = STRUCT[o.id], lv = G.w.struct[o.id] || 0, nx = S && S.lv[lv + 1];
+    if (!nx) return { wait: "уже построено" };
+    if (S.bp && !G.w.bp[S.bp]) return { wait: "нет чертежа" };
+    const cost = buildCost(nx.c), p2 = planNeeds(cost, role, miss);
+    if (p2 === "ok") return { b: o.id, cost, lv };
+    if (p2) return { r: p2 };
+    return { wait: missText(miss) };
+  }
+  const r = recById(o.id);
+  if (!r) return { wait: "—" };
+  if (!baseSt(r.st)) return { wait: "нужна станция: " + (STATION_N[r.st] || r.st) };
+  if (o.mode === "stock" && scnt(mainOut(r)) >= o.n) return { wait: "запас полный", idle: 1 };
+  const p = planNeeds(r.need, role, miss);
+  if (p === "ok") return { r, own: true };
+  if (p) return { r: p };
+  return { wait: missText(miss) };
+}
+const missText = (miss) => {
+  const e = Object.entries(miss);
+  return e.length ? "ждёт: " + e.map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ×").concat(v)).join(", ") : "нет материалов";
+};
+function workerStep(n) {
+  const q = n.q || [];
+  let firstWait = null;
+  for (const o of q) {
+    if (orderDone(o)) continue;
+    const s = orderStep(o, n.role);
+    if (s.r || s.b) return Object.assign(s, { o });
+    if (!firstWait && !s.idle) firstWait = s.wait;
+  }
+  return { wait: q.filter((o) => !orderDone(o)).length ? firstWait || "всё сделано" : "нет заказов" };
+}
+function workDo(n, s) {
+  const add = (k, v) => {
+    n.today = n.today || {};
+    n.today[k] = (n.today[k] || 0) + v;
+  };
+  if (s.b) {
+    for (const [k, v] of Object.entries(s.cost)) take(G.stash, k, v);
+    const S = STRUCT[s.b], nx = S.lv[s.lv + 1];
+    G.w.struct[s.b] = s.lv + 1;
+    if (s.b === "walls") G.w.wallHp = 100;
+    UI.log("🏗️ ".concat(n.name, " построил: ").concat(S.ic, " ").concat(nx.n, "."), "good");
+    FEED("🏗️ ".concat(n.name, " построил: ").concat(S.ic, " ").concat(nx.n));
+    if (s.b === "radio") {
+      G.w.flags.radio_built = true;
+    }
+    return;
+  }
+  const r = s.r;
+  for (const [k, v] of Object.entries(r.need)) take(G.stash, k, v);
+  for (const [k, v] of Object.entries(r.out)) {
+    invAdd(G.stash, k, v);
+    if (k !== "bottle") add(k, v);
+  }
+  if (s.own && s.o && s.o.mode === "n") s.o.made = (s.o.made || 0) + 1;
+}
+const stepCost = (s) => s.b ? 60 + s.lv * 30 : Math.max(5, s.r.t || 20);
+function workTick(st) {
+  if (!worldAuth() || !G.w.npcs || !G.w.npcs.length) return;
+  let changed = false;
+  for (const n of G.w.npcs) {
+    if (!WORKERS[n.role]) continue;
+    if (n.role === "cook" && !n.q) n.q = [{ t: "auto" }];
+    if (!n.q || !n.q.length) continue;
+    const rate = (n.morale < 30 ? 0.25 : 0.5) * (atBase() || G.coop ? 1 : 1);
+    n.wt = Math.min(240, (n.wt || 0) + st * rate);
+    for (let k = 0; k < 6; k++) {
+      const s = workerStep(n);
+      if (!(s.r || s.b)) {
+        n.now = s.wait;
+        break;
+      }
+      const c = stepCost(s);
+      n.now = s.b ? "строит: ".concat(STRUCT[s.b].n) : "делает: ".concat(s.r.n);
+      if (n.wt < c) break;
+      n.wt -= c;
+      workDo(n, s);
+      changed = true;
+    }
+    n.q = n.q.filter((o) => !orderDone(o));
+  }
+  if (changed && G.coop && window.COOP) COOP.sync();
+}
+const _npcDailyW = npcDaily;
+npcDaily = function() {
+  const old = {};
+  for (const n of npcs()) if (n.role === "crafter" && n.q && n.q.length) {
+    old[n.id] = cnt(G.stash, "wood");
+  }
+  const saved = [];
+  for (const n of npcs()) if (n.role === "crafter" && n.q && n.q.length) {
+    saved.push(n);
+    n.role = "_crafter";
+  }
+  _npcDailyW.apply(this, arguments);
+  for (const n of saved) {
+    n.role = "crafter";
+    if (G.w.struct.walls && G.w.wallHp < 100) G.w.wallHp = Math.min(100, G.w.wallHp + 10);
+  }
+  const out = [];
+  for (const n of npcs()) {
+    if (n.today && Object.keys(n.today).length) out.push("".concat(NPC_ROLES[n.role] ? NPC_ROLES[n.role].ic : "", " ").concat(n.name, ": ").concat(Object.entries(n.today).map(([k, v]) => IT(k).ic + "×" + v).join(" ")));
+    n.yday = n.today || {};
+    n.today = {};
+  }
+  if (out.length) UI.log("🏭 Работа поселения за день: " + out.join(" · "), "sys");
+};
+const npcBy = (id) => npcs().find((x) => x.id === id);
+function wEdit(fn) {
+  fn();
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+window.wMove = (id, i, d) => wEdit(() => {
+  const n = npcBy(id);
+  if (!n || !n.q) return;
+  const j = i + d;
+  if (j < 0 || j >= n.q.length) return;
+  const t = n.q[i];
+  n.q[i] = n.q[j];
+  n.q[j] = t;
+});
+window.wDel = (id, i) => wEdit(() => {
+  const n = npcBy(id);
+  if (n && n.q) n.q.splice(i, 1);
+});
+function wAdd(id, o) {
+  wEdit(() => {
+    const n = npcBy(id);
+    if (!n) return;
+    n.q = n.q || [];
+    n.q.push(o);
+  });
+  UI.toast("Заказ добавлен в очередь");
+}
+function roleMenu(id) {
+  const n = npcBy(id);
+  if (!n) return;
+  UI.event({ title: "".concat(n.name, ": занятие"), text: "Чем ему заниматься на базе?", choices: Object.entries(NPC_ROLES).map(([k, R0]) => ({ t: "".concat(R0.ic, " ").concat(R0.n).concat(n.role === k ? " (сейчас)" : "", " — ").concat(R0.d), fn: () => wEdit(() => {
+    n.role = k;
+    if (k === "cook" && !n.q) n.q = [{ t: "auto" }];
+  }) })).concat([{ t: "Отмена" }]) });
+}
+window.wRole = roleMenu;
+function modeMenu(id, r) {
+  const out = IT(mainOut(r));
+  UI.event({ title: "".concat(out.ic, " ").concat(r.n), text: "Сколько делать? Материалы: ".concat(Object.entries(r.need).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ×").concat(v)).join(", "), ".").concat(r.st ? " Нужна станция: ".concat(STATION_N[r.st] || r.st).concat(baseSt(r.st) ? " ✓" : " — ещё не построена", ".") : ""), choices: [
+    { t: "♾️ Постоянно — пока есть материалы", fn: () => wAdd(id, { t: "r", id: r.id, mode: "inf" }) },
+    ...[1, 5, 10].map((k) => ({ t: "🔢 Сделать ×".concat(k), fn: () => wAdd(id, { t: "r", id: r.id, mode: "n", n: k, made: 0 }) })),
+    ...[5, 10, 20].map((k) => ({ t: "📦 Держать на складе ".concat(k, " шт."), fn: () => wAdd(id, { t: "r", id: r.id, mode: "stock", n: k }) })),
+    { t: "Отмена" }
+  ] });
+}
+function orderMenu(id) {
+  const n = npcBy(id);
+  if (!n) return;
+  const rs = wRecipes(n.role, true);
+  const ch2 = rs.map((r) => ({ t: "".concat(IT(mainOut(r)).ic, " ").concat(r.n).concat(baseSt(r.st) ? "" : " (нужна: ".concat(STATION_N[r.st] || r.st, ")")), fn: () => setTimeout(() => modeMenu(id, r), 0) }));
+  if (n.role === "cook" && !(n.q || []).some((o) => o.t === "auto")) ch2.unshift({ t: "♻️ Готовить всё сырое со склада (чтобы не портилось)", fn: () => wAdd(id, { t: "auto" }) });
+  if (n.role === "crafter") ch2.unshift({ t: "🏗️ Постройку…", fn: () => setTimeout(() => structMenu(id), 0) });
+  UI.event({ title: "".concat(NPC_ROLES[n.role].ic, " Заказ для: ").concat(n.name), text: n.role === "cook" ? "Что готовить? Берёт со склада, кладёт на склад." : "Что делать? Если не хватает материала, который можно сделать (доски из дров и т.п.), он сначала сделает его.", choices: ch2.concat([{ t: "Отмена" }]) });
+}
+function structMenu(id) {
+  const ch2 = [];
+  for (const k in STRUCT) {
+    const S = STRUCT[k], lv = G.w.struct[k] || 0, nx = S.lv[lv + 1];
+    if (!nx || S.ch2 && !CH2() || S.bp && !G.w.bp[S.bp]) continue;
+    ch2.push({ t: "".concat(S.ic, " ").concat(nx.n, " — ").concat(Object.entries(buildCost(nx.c)).map(([i, v]) => "".concat(IT(i).ic).concat(v)).join(" ")), fn: () => wAdd(id, { t: "s", id: k, lv: lv + 1 }) });
+  }
+  UI.event({ title: "🏗️ Что построить?", text: "Мастер соберёт материалы со склада (и сделает недостающие доски и т.п.), потом построит.", choices: ch2.concat([{ t: "Отмена" }]) });
+}
+window.wOrder = orderMenu;
+function orderStructBtn(k) {
+  const m = npcs().find((n) => n.role === "crafter");
+  if (!m) return "";
+  const lv = G.w.struct[k] || 0, S = STRUCT[k];
+  if (!S.lv[lv + 1] || S.bp && !G.w.bp[S.bp]) return "";
+  if ((m.q || []).some((o) => o.t === "s" && o.id === k)) return '<span class="chip">заказано мастеру</span>';
+  return UI.btn("🔨 Заказать мастеру", () => wAdd(m.id, { t: "s", id: k, lv: lv + 1 }), "sm");
+}
+CUI.orderStruct = orderStructBtn;
+function workPanel() {
+  const list = npcs(), b = UI.btn;
+  if (!list.length) return EXTUI.basePanel();
+  let h = '<div class="sec"><h2>🏘️ Жильцы '.concat(list.length, "/").concat(bunkCap(), '</h2><p class="muted" style="font-size:13px">Жильцы едят и пьют со склада раз в день. Повар и мастер работают по очереди заказов: сверху — важнее. Берут со склада, кладут на склад. Работают примерно полдня в сутки').concat(G.coop ? "; в кооперативе — пока ведущий в игре" : "", '.</p><div class="list">');
+  for (const n of list) {
+    const R0 = NPC_ROLES[n.role] || { ic: "👤", n: n.role }, wk = WORKERS[n.role];
+    const q = n.q || [];
+    let body = "";
+    if (wk) {
+      const today = n.today && Object.keys(n.today).length ? Object.entries(n.today).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ×").concat(v)).join(", ") : "";
+      const ws = workerStep(n), nowT = ws.r || ws.b ? ws.b ? "строит: ".concat(STRUCT[ws.b].n) : "делает: ".concat(ws.r.n) : ws.wait;
+      body += '<div class="wnow '.concat(ws.r || ws.b ? "" : "warn", '">').concat(esc2(nowT), "</div>");
+      if (today) body += '<div class="s muted">Сегодня: '.concat(today, "</div>");
+      body += q.length ? '<div class="wq">'.concat(q.map((o, i) => {
+        const s = orderStep(o, n.role);
+        const ok = s.r || s.b;
+        return '<div class="wqi"><span class="wn">'.concat(i + 1, '</span><div class="grow"><span>').concat(orderLabel(o), '</span><span class="s ').concat(ok ? "good" : s.idle ? "muted" : "warn", '">').concat(ok ? s.own || s.b ? "в работе" : "сначала: " + s.r.n : esc2(s.wait), '</span></div><span class="wbtn"><button onclick="wMove(\'').concat(n.id, "',").concat(i, ',-1)" ').concat(i ? "" : "disabled", ' title="Выше">▲</button><button onclick="wMove(\'').concat(n.id, "',").concat(i, ',1)" ').concat(i < q.length - 1 ? "" : "disabled", ' title="Ниже">▼</button><button onclick="wDel(\'').concat(n.id, "',").concat(i, ')" title="Убрать">✕</button></span></div>');
+      }).join(""), "</div>") : "";
+      body += '<div class="acts">'.concat(b("➕ Заказ", () => orderMenu(n.id), "sm pri")).concat(b("Сменить занятие", () => roleMenu(n.id), "sm"), "</div>");
+    } else body += '<div class="s muted">'.concat(R0.d, '</div><div class="acts">').concat(b("Сменить занятие", () => roleMenu(n.id), "sm"), "</div>");
+    h += '<div class="row wrow"><span class="ic">'.concat(R0.ic, '</span><div class="grow"><div class="sechead"><span class="t">').concat(esc2(n.name), " · ").concat(R0.n, '</span><span class="mono muted" style="font-size:12px">настроение ').concat(Math.round(n.morale), "</span></div>").concat(uiBar(n.morale, 100)).concat(body, '<div class="acts" style="justify-content:flex-end">').concat(b("Выгнать", () => dismissNpc(n.id), "sm"), "</div></div></div>");
+  }
+  return h + "</div></div>";
+}
+const esc2 = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+CUI.work = workPanel;

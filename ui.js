@@ -646,11 +646,12 @@ const UI = /* @__PURE__ */ (() => {
     const power = Math.round((25 + nextBN * 2.5) * F().horde);
     let h = "".concat(ART.sceneTag({ loc: "base", key: "base", alt: "Лодочная станция", camp: false })).concat(tutCard()).concat(logLast(3), '<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">').concat(defense(), "</b> · следующая Кровавая ночь — день ").concat(nextBN, ', натиск ≈ <b class="mono">').concat(power, "</b> за ночь (3 волны).").concat(s.walls ? " Укрепления: ".concat(G.w.wallHp, "%.") : "", "</p></div>");
     const bsub = st.bsub || "main";
-    h = '<div class="sticky">'.concat(subBar("bsub", [["main", "🏚️ Обзор"], ["build", "🏗️ Стройка"], ["craft", "🔨 Крафт"], ["stash", "📦 Склад"], ["raid", "⚔️ Рейды"]], "main")).concat(quickBar(), "</div>") + (bsub === "main" ? h : logLast(2));
+    h = '<div class="sticky">'.concat(subBar("bsub", [["main", "🏚️ Обзор"], ["build", "🏗️ Стройка"], ["craft", "🔨 Крафт"], ["stash", "📦 Склад"], ["people", "🏘️ Люди"], ["raid", "⚔️ Рейды"]], "main")).concat(quickBar(), "</div>") + (bsub === "main" ? h : logLast(2));
     if (bsub === "main") {
       h += '<div class="grid2">'.concat(btn("😴 Спать до утра".concat(s.bed ? " (кровать)" : ""), () => sleepHere())).concat(btn("😴 Вздремнуть 2 ч", () => sleepHere(2))).concat(btn("🐈 Погладить кота", petCat)).concat((G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn("🐈 Взять кота с собой", takeCat) : "").concat(btn("🔨 Подлатать стены (2 доски, 4 гвоздя)", repairWalls, "", !s.walls)).concat(s.radio ? btn("📻 Слушать эфир", radioMsg) : "", "</div>");
       if (typeof CUI !== "undefined") h += CUI.basePanel();
-      h += EXTUI.basePanel();
+    } else if (bsub === "people") {
+      h += typeof CUI !== "undefined" && CUI.work ? CUI.work() : EXTUI.basePanel();
     } else if (bsub === "raid") h += EXTUI.raidPanel();
     else if (bsub === "craft") h += workshop();
     else if (bsub === "stash") h += stashDual() + (typeof CUI !== "undefined" && CUI.stashLog ? CUI.stashLog() : "");
@@ -660,7 +661,7 @@ const UI = /* @__PURE__ */ (() => {
         if (STRUCT[id].ch2 && !CH2()) continue;
         const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
         const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => '<span class="'.concat(allCnt(k) >= v ? "" : "bad", '">').concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v, "</span>")).join(", ") : "";
-        h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "npc" ? "🏘️ нужно жильцов: ".concat(S.npc) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why) : "", "</div>");
+        h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "npc" ? "🏘️ нужно жильцов: ".concat(S.npc) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? '<div class="acts" style="flex-direction:column;align-items:flex-end">'.concat(btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why)).concat(why === "res" && typeof CUI !== "undefined" && CUI.orderStruct ? CUI.orderStruct(id) : "", "</div>") : "", "</div>");
       }
       h += "</div></div>";
     }
