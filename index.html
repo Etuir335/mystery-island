@@ -1835,6 +1835,55 @@ html.art-off canvas.scene {
   opacity: .3;
   cursor: default;
 }
+.side .card {
+  position: relative;
+}
+.side .card.sized {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.side .card.sized > .cbody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.side .card.col > .cbody {
+  display: none;
+}
+.side .cres {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  cursor: ns-resize;
+  opacity: .3;
+  touch-action: none;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 45%,
+      var(--muted) 45%,
+      var(--muted) 55%,
+      transparent 55%,
+      transparent 68%,
+      var(--muted) 68%,
+      var(--muted) 78%,
+      transparent 78%);
+}
+.side .card:hover .cres,
+.side .card.resizing .cres {
+  opacity: 1;
+}
+.side .card.resizing {
+  -ms-user-select: none;
+  user-select: none;
+}
+.side .card:not(.sized) > .cbody {
+  max-height: 460px;
+  overflow-y: auto;
+}
 </style>
 
 </head>
@@ -1848,18 +1897,18 @@ html.art-off canvas.scene {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792364272"></script>
-<script src="game.js?v=1792364272"></script>
-<script src="ext.js?v=1792364272"></script>
-<script src="content.js?v=1792364272"></script>
-<script src="art.js?v=1792364272"></script>
-<script src="audio.js?v=1792364272"></script>
-<script src="coop.js?v=1792364272"></script>
-<script src="tg.js?v=1792364272"></script>
-<script src="fbconfig.js?v=1792364272"></script>
-<script src="fbcoop.js?v=1792364272"></script>
-<script src="sync.js?v=1792364272"></script>
-<script src="ui.js?v=1792364272"></script>
+<script src="data.js?v=1792364972"></script>
+<script src="game.js?v=1792364972"></script>
+<script src="ext.js?v=1792364972"></script>
+<script src="content.js?v=1792364972"></script>
+<script src="art.js?v=1792364972"></script>
+<script src="audio.js?v=1792364972"></script>
+<script src="coop.js?v=1792364972"></script>
+<script src="tg.js?v=1792364972"></script>
+<script src="fbconfig.js?v=1792364972"></script>
+<script src="fbcoop.js?v=1792364972"></script>
+<script src="sync.js?v=1792364972"></script>
+<script src="ui.js?v=1792364972"></script>
 
 </body>
 </html>

@@ -885,7 +885,7 @@ function sideWarnings() {
 function sideLeft() {
   const w = sideWarnings();
   let h = (typeof meCard === "function" && uiWide() ? meCard() : "") + '<div class="card"><h3>⚠️ Важно</h3>'.concat(w.length ? w.join("") : '<div class="ln mono">Всё спокойно</div>', "</div>");
-  const lg = (G.log || []).slice(-24).reverse();
+  const lg = (G.log || []).slice(-60).reverse();
   h += '<div class="card"><h3>📜 Последнее</h3>'.concat(lg.map((x) => '<div class="ln '.concat(x.c || "", '"><span class="mono">').concat(x.k || "", "</span> ").concat(cesc(x.t), "</div>")).join("") || '<div class="ln mono">пусто</div>', "</div>");
   return h;
 }
@@ -2333,6 +2333,7 @@ function layGet() {
   L2.R = L2.R || [];
   L2.col = L2.col || {};
   L2.hid = L2.hid || {};
+  L2.h = L2.h || {};
   return L2;
 }
 function laySave() {
@@ -2389,6 +2390,26 @@ function sideLayout(lHtml, rHtml) {
     el.setAttribute("ondragover", "sideOver(event)");
     el.setAttribute("ondrop", "sideDrop(event, ".concat(j, ")"));
     if (col) el.classList.add("col");
+    else if (L2.h[id]) {
+      el.classList.add("sized");
+      el.setAttribute("style", "height:".concat(L2.h[id], "px"));
+    }
+    {
+      const bd = document.createElement("div");
+      bd.className = "cbody";
+      [...el.childNodes].forEach((ch2) => {
+        if (ch2 !== h) bd.appendChild(ch2);
+      });
+      el.appendChild(bd);
+    }
+    if (!col) {
+      const g = document.createElement("span");
+      g.className = "cres";
+      g.title = "Потяни — изменить высоту (двойной клик — как было)";
+      g.setAttribute("onpointerdown", "sideRes(event, ".concat(j, ")"));
+      g.setAttribute("ondblclick", "sideResReset(".concat(j, ")"));
+      el.appendChild(g);
+    }
     const ctl = document.createElement("span");
     ctl.className = "cctl";
     ctl.innerHTML = '<span class="grip" title="Перетащи, чтобы переставить">⠿</span><button title="'.concat(col ? "Развернуть" : "Свернуть", '" onclick="sideCol(').concat(q, ')">').concat(col ? "▸" : "▾", '</button><button title="Скрыть (вернуть — в Журнал → Настройки)" onclick="sideHide(').concat(q, ')">✕</button>');
@@ -2438,6 +2459,10 @@ window.sideReset = () => {
   UI.render();
 };
 window.sideDrag = (ev, id) => {
+  if (SLAY.rs) {
+    ev.preventDefault();
+    return;
+  }
   SLAY.drag = id;
   try {
     ev.dataTransfer.setData("text/plain", id);
@@ -2506,7 +2531,7 @@ window.sideGrip = (ev, w) => {
 };
 function sideSettingsHtml() {
   const L2 = layGet(), hid = Object.keys(L2.hid);
-  return '<div class="setrow"><div><b>Карточки по бокам</b><div class="s muted">Тащи карточку за шапку — переставить или перенести на другую сторону. ▾ — свернуть, ✕ — скрыть. Край панели тянется — меняется ширина.</div></div>\n    '.concat(hid.length ? '<div class="acts">'.concat(hid.map((id) => '<button class="btn sm" onclick=\'sideShow('.concat(JSON.stringify(id), ")'>Вернуть: ").concat(cesc(cardName(id)), "</button>")).join(""), "</div>") : "", '\n    <div class="acts"><button class="btn sm" onclick="sideReset()">Сбросить раскладку</button></div></div>');
+  return '<div class="setrow"><div><b>Карточки по бокам</b><div class="s muted">Тащи карточку за шапку — переставить или перенести на другую сторону. ▾ — свернуть, ✕ — скрыть. Уголок внизу карточки — высота (двойной клик — как было). Край панели — ширина.</div></div>\n    '.concat(hid.length ? '<div class="acts">'.concat(hid.map((id) => '<button class="btn sm" onclick=\'sideShow('.concat(JSON.stringify(id), ")'>Вернуть: ").concat(cesc(cardName(id)), "</button>")).join(""), "</div>") : "", '\n    <div class="acts"><button class="btn sm" onclick="sideReset()">Сбросить раскладку</button></div></div>');
 }
 function autoSmokeTick(o) {
   const c = G.ch, lim = c.autoSmoke | 0;
@@ -2832,3 +2857,50 @@ function workPanel() {
 }
 const esc2 = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 CUI.work = workPanel;
+window.sideRes = (ev, id) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const now = Date.now();
+  if (SLAY.lastRes && SLAY.lastRes.id === id && now - SLAY.lastRes.t < 400) {
+    SLAY.lastRes = null;
+    return sideResReset(id);
+  }
+  SLAY.lastRes = { id, t: now };
+  const card = ev.target.closest(".card");
+  if (!card) return;
+  const L2 = layGet(), y0 = ev.clientY, h0 = card.getBoundingClientRect().height;
+  SLAY.rs = id;
+  SLAY.drag = "__rs";
+  card.setAttribute("draggable", "false");
+  card.classList.add("sized", "resizing");
+  const mv = (e) => {
+    const h = Math.max(48, Math.round(h0 + e.clientY - y0));
+    card.style.height = h + "px";
+    L2.h[id] = h;
+  };
+  let moved = false;
+  const mv0 = mv;
+  const up = () => {
+    window.removeEventListener("pointermove", mv1);
+    window.removeEventListener("pointerup", up);
+    SLAY.rs = null;
+    SLAY.drag = null;
+    if (moved) laySave();
+    else {
+      card.setAttribute("draggable", "true");
+      card.classList.remove("resizing");
+      if (!L2.h[id]) card.classList.remove("sized");
+    }
+  };
+  const mv1 = (e) => {
+    moved = true;
+    mv0(e);
+  };
+  window.addEventListener("pointermove", mv1);
+  window.addEventListener("pointerup", up);
+};
+window.sideResReset = (id) => {
+  const L2 = layGet();
+  delete L2.h[id];
+  laySave();
+};
