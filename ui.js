@@ -76,10 +76,16 @@ const UI = /* @__PURE__ */ (() => {
       const sh = nearestShelter();
       if (sh) ban += '<div class="banner" style="background:var(--warn)">🌇 Скоро ночь. Ближайшее укрытие: '.concat(LOCS[sh.loc].ic, " ").concat(LOCS[sh.loc].n, " (~").concat(sh.mins, " мин)</div>");
     }
+    if (typeof uiWide === "function" && uiWide()) {
+      $("top").innerHTML = (typeof noEmo === "function" ? noEmo : ((x) => x))(ban);
+      $("top").classList.toggle("empty", !ban);
+      return;
+    }
+    $("top").classList.remove("empty");
     const sq = G.coop ? squadStrip() : "";
-    $("top").innerHTML = '\n      <div class="toprow"><span class="clock">'.concat(clock(), "</span><b>День ").concat(day(), "</b><span>").concat(w.ic, " ").concat(w.n, "</span><span>").concat(SEASONS[season()].ic, " ").concat(SEASONS[season()].n, "</span><span>").concat(isNight() ? "🌙 ночь" : "☀️ день", "</span><span>").concat(toBN === 0 ? "🌕 сегодня Кровавая ночь" : "🌕 через ".concat(toBN, " дн."), '</span><button class="sndbtn" onclick="').concat(a(() => {
+    $("top").innerHTML = (typeof noEmo === "function" ? noEmo : ((x) => x))('\n      <div class="toprow"><span class="clock">'.concat(clock(), "</span><b>День ").concat(day(), "</b><span>").concat(w.ic, " ").concat(w.n, '</span><span class="opt">').concat(SEASONS[season()].ic, " ").concat(SEASONS[season()].n, '</span><span class="opt">').concat(isNight() ? "🌙 ночь" : "☀️ день", "</span><span>").concat(toBN === 0 ? "🌕 сегодня Кровавая ночь" : '🌕<i class="nel">Кровавая ночь</i> через '.concat(toBN, " дн."), '</span><button class="sndbtn" onclick="').concat(a(() => {
       SFX.toggle();
-    }), '" aria-label="Звук">').concat(SFX.on ? "🔊" : "🔇", "</button><span>💰 ").concat(G.money, "₽</span>").concat(G.coop ? '<span class="'.concat(COOP.status === "online" ? "good" : "warn", '">🤝 ').concat(COOP.others().filter((p) => p.online).length + 1, " в игре").concat(COOP.unread ? " · 💬".concat(COOP.unread) : "", "</span>") : "", '</div>\n      <div class="vitals">\n        <div class="vit">❤️ ').concat(hp, "%").concat(bar(hp), '</div><div class="vit">🍗 ').concat(Math.round(c.food)).concat(bar(c.food), '</div>\n        <div class="vit">💧 ').concat(Math.round(c.drink)).concat(bar(c.drink), '</div><div class="vit">⚡ ').concat(Math.round(c.energy)).concat(bar(c.energy), "</div>\n      </div>\n      ").concat(md ? '<div class="moods">'.concat(md, "</div>") : "").concat(typeof CUI !== "undefined" ? CUI.top() : "").concat(sq).concat(ban);
+    }), '" aria-label="Звук">').concat(SFX.on ? "🔊" : "🔇", '<i class="nel">').concat(SFX.on ? "звук" : "без звука", "</i></button><span>💰 ").concat(G.money, "₽</span>").concat(G.coop ? '<span class="'.concat(COOP.status === "online" ? "good" : "warn", '">🤝 ').concat(COOP.others().filter((p) => p.online).length + 1, " в игре").concat(COOP.unread ? " · 💬".concat(COOP.unread) : "", "</span>") : "", '</div>\n      <div class="vitals">\n        <div class="vit">❤️<i class="nel">Здоровье</i> ').concat(hp, "%").concat(bar(hp), '</div><div class="vit">🍗<i class="nel">Еда</i> ').concat(Math.round(c.food)).concat(bar(c.food), '</div>\n        <div class="vit">💧<i class="nel">Вода</i> ').concat(Math.round(c.drink)).concat(bar(c.drink), '</div><div class="vit">⚡<i class="nel">Силы</i> ').concat(Math.round(c.energy)).concat(bar(c.energy), "</div>\n      </div>\n      ").concat(md ? '<div class="moods">'.concat(md, "</div>") : "").concat(typeof CUI !== "undefined" ? CUI.top() : "").concat(sq).concat(ban));
   }
   function stIcon(p) {
     return !p.online ? "💤" : p.alive === false ? "☠️" : p.combat ? "⚔️" : (p.act || "").startsWith("😴") ? "😴" : p.from ? "🚶" : "📍";
@@ -118,6 +124,10 @@ const UI = /* @__PURE__ */ (() => {
     }), '"><span>').concat(ic, "</span>").concat(n, "</button>")).join("");
   }
   function logLast(n = 4) {
+    if (typeof UIP !== "undefined") {
+      if (!UIP.log) return "";
+      n = Math.min(n, UIP.log);
+    }
     const L2 = G.log.slice(-n);
     return L2.length ? '<div id="loglast">'.concat(L2.map((x) => '<div class="lg '.concat(x.c, '">').concat(esc(x.t), "</div>")).join(""), "</div>") : "";
   }
@@ -197,19 +207,19 @@ const UI = /* @__PURE__ */ (() => {
     const rt = G.route && G.route.length ? '<div class="row evt"><span class="ic">🧭</span><div class="grow"><span class="t">Маршрут: '.concat(LOCS[G.routeDest] ? LOCS[G.routeDest].n : "", '</span><span class="s">дальше → ').concat(LOCS[G.route[0]].ic, " ").concat(LOCS[G.route[0]].n, " (~").concat(travelTime(G.route[0]), " мин) · осталось переходов: ").concat(G.route.length, '</span></div><div class="acts">').concat(btn("Продолжить", continueRoute, "pri sm")).concat(btn("✕", cancelRoute, "sm"), "</div></div>") : "";
     let h = "".concat(ART.sceneTag({ loc: G.loc, key: G.loc, alt: l.n, camp: campHere() })).concat(rt).concat(tutCard()).concat(logLast(), '<div class="sec"><div class="eyebrow">').concat(l.zone ? "☢ аномальная зона ".concat(l.zone, " · ") : "").concat(l.shelter ? "укрытие · " : "", "опасность: ").concat(DANGER[l.dg], "</div><h1>").concat(l.ic, " ").concat(esc(l.n), '</h1><p class="muted">').concat(esc(l.d), "</p></div>");
     h += '<div class="sechead"><div class="toggle"><button class="'.concat(!G.sneak ? "on" : "", '" onclick="').concat(a(() => G.sneak = false), '">🚶 Обычно</button><button class="').concat(G.sneak ? "on" : "", '" onclick="').concat(a(() => G.sneak = true), '">🐾 Крадучись</button></div><span class="mono muted">🔊 шум ').concat(Math.round(G.noise), "</span></div>");
-    const acts = [];
+    const acts = [], res = [];
     if (l.base) acts.push(btn("🏚️ Открыть базу", () => {
       st.tab = "base";
     }, "pri"));
     if (l.water) {
       const b = cnt(G.inv, "bottle");
       const noD = l.water === "sea" && !(l.base && G.w.struct.distill);
-      acts.push(btn("".concat({ sea: "🌊 Набрать морской воды", well: "🪣 Вода из колодца", stream: "💧 Вода из ручья" }[l.water], " (🍶").concat(b, ")").concat(noD ? " — нужен опреснитель" : ""), collectWater, "", !b || noD));
+      res.push(btn("".concat({ sea: "🌊 Набрать морской воды", well: "🪣 Вода из колодца", stream: "💧 Вода из ручья" }[l.water], " (🍶").concat(b, ")").concat(noD ? " — нужен опреснитель" : ""), collectWater, "", !b || noD));
     }
-    if (l.fish) acts.push(btn("🎣 Рыбачить (1 ч)", doFish, "", !cnt(G.inv, "rod")));
-    if (l.forage) acts.push(btn("🌿 Собирать (40 мин)", doForage));
-    if (l.hunt) acts.push(btn("🦌 Охотиться (1.5 ч)", doHunt));
-    if (l.forage) acts.push(btn("🪓 Рубить дрова", doChop, "", !(G.eq.weapon && IT(G.eq.weapon.id).chop)));
+    if (l.fish) res.push(btn("🎣 Рыбачить (1 ч)", doFish, "", !cnt(G.inv, "rod")));
+    if (l.forage) res.push(btn("🌿 Собирать (40 мин)", doForage));
+    if (l.hunt) res.push(btn("🦌 Охотиться (1.5 ч)", doHunt));
+    if (l.forage) res.push(btn("🪓 Рубить дрова", doChop, "", !(G.eq.weapon && IT(G.eq.weapon.id).chop)));
     if (l.shelter && !l.base) acts.push(btn("😴 Переночевать", () => sleepHere()));
     if (l.shelter) acts.push(btn("⏳ Переждать 1 ч", () => waitHere(1)));
     if (!l.base) acts.push(campHere() ? btn("🔥 Костёр (".concat(G.campfire.until - G.time, " мин) — готовить"), () => {
@@ -220,7 +230,9 @@ const UI = /* @__PURE__ */ (() => {
       st.tab = "inv";
       st.scrollCraft = true;
     }));
-    if (acts.length) h += '<div class="acts">'.concat(acts.join(""), "</div>");
+    if (res.length) h += '<div class="grp"><div class="grph">Ресурсы</div><div class="acts">'.concat(res.join(""), "</div></div>");
+    if (acts.length) h += '<div class="grp"><div class="grph">Лагерь</div><div class="acts">'.concat(acts.join(""), "</div></div>");
+    const here0 = h.length;
     h += EXTUI.locRows();
     if (typeof CUI !== "undefined" && CUI.ground) h += CUI.ground();
     for (const ev of eventsAt(G.loc)) {
@@ -244,7 +256,8 @@ const UI = /* @__PURE__ */ (() => {
     G.w.corpses.forEach((c, i) => {
       if (c.loc === G.loc) h += '<div class="row hot"><span class="ic">🪦</span><div class="grow"><span class="t">Тело: '.concat(esc(c.name), '</span><span class="s">').concat(c.items.length, " вещей</span></div>").concat(btn("Забрать всё", () => lootCorpse(i), "pri sm"), "</div>");
     });
-    h += '<div class="sec"><h2>Места</h2><div class="list">';
+    if (h.length > here0) h = h.slice(0, here0) + '<div class="grp"><div class="grph">Здесь сейчас</div>' + h.slice(here0) + "</div>";
+    h += '<div class="sec"><h2>Помещения</h2><div class="list">';
     l.rooms.forEach((r, i) => {
       const s = ls.rooms[i];
       const chips = [];
@@ -424,14 +437,27 @@ const UI = /* @__PURE__ */ (() => {
     return out.join("");
   }
   function itemList(list, where) {
-    const sorted = list.slice().sort((x, y) => CAT_ORDER.indexOf(IT(x.id).c) - CAT_ORDER.indexOf(IT(y.id).c) || IT(x.id).n.localeCompare(IT(y.id).n));
+    const so = st.isort || "cat", W = (e) => (IT(e.id).w || 0) * (e.n || 1), V = (e) => (IT(e.id).v || 0) * (e.n || 1);
+    const byName = (x, y) => IT(x.id).n.localeCompare(IT(y.id).n);
+    const sorted = list.slice().sort(so === "w" ? (x, y) => W(y) - W(x) || byName(x, y) : so === "v" ? (x, y) => V(y) - V(x) || byName(x, y) : so === "n" ? byName : (x, y) => CAT_ORDER.indexOf(IT(x.id).c) - CAT_ORDER.indexOf(IT(y.id).c) || byName(x, y));
+    const fold = st.fold || (st.fold = {}), grp = {};
+    if (so === "cat") sorted.forEach((e) => {
+      const c = CAT_N[IT(e.id).c];
+      grp[c] = grp[c] || { n: 0, w: 0 };
+      grp[c].n++;
+      grp[c].w += W(e);
+    });
     let h = "", lastCat = "";
     sorted.forEach((e) => {
       const it = IT(e.id), key = where + list.indexOf(e);
-      if (CAT_N[it.c] !== lastCat) {
+      if (so === "cat" && CAT_N[it.c] !== lastCat) {
         lastCat = CAT_N[it.c];
-        h += '<div class="eyebrow">'.concat(lastCat, "</div>");
+        const fk = where + ":" + lastCat;
+        h += '<div class="eyebrow fold '.concat(fold[fk] ? "closed" : "", '" onclick="').concat(a(() => {
+          fold[fk] = !fold[fk];
+        }), '">').concat(lastCat, '<span class="n">').concat(grp[lastCat].n, " · ").concat(grp[lastCat].w.toFixed(1), " кг</span></div>");
       }
+      if (so === "cat" && fold[where + ":" + lastCat]) return;
       const open = st.open === key;
       h += '<div class="row" style="flex-wrap:wrap">'.concat(ART.tile(e.id), '<div class="grow" onclick="').concat(a(() => st.open = open ? null : key), '" style="cursor:pointer"><span class="t">').concat(esc(it.n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">').concat(itemSub(e), "</span></div>").concat(st.xfer && atBase() && !open ? where === "stash" ? btn("⬆️ Взять", () => fromStash(e), "sm pri") + (e.n > 1 ? btn("1", () => fromStash(e, 1), "sm") : "") : btn("⬇️ На склад", () => toStash(e), "sm pri") + (e.n > 1 ? btn("1", () => toStash(e, 1), "sm") : "") : "").concat(open ? '<div class="acts" style="width:100%">'.concat(itemActs(e, where), "</div>") : '<button class="btn sm" onclick="'.concat(a(() => st.open = key), '">⋯</button>'), "</div>");
     });
@@ -461,7 +487,17 @@ const UI = /* @__PURE__ */ (() => {
     const q = String(st[key + "q"] || "").trim().toLowerCase();
     let shown = f[1] ? list.filter((e) => f[1].includes(IT(e.id).c)) : list;
     if (q) shown = shown.filter((e) => IT(e.id).n.toLowerCase().includes(q));
-    return (list.length > 6 ? '<input type="search" id="q_'.concat(key, '" placeholder="🔎 найти…" value="').concat(esc(st[key + "q"] || ""), '" oninput="UI._st[\'').concat(key, 'q\']=this.value; UI.render()" style="width:100%;margin-bottom:6px">') : "") + '<div class="toggle filt">'.concat(Object.entries(INV_FL).map(([k, v]) => '<button class="'.concat((st[key] || "all") === k ? "on" : "", '" onclick="').concat(a(() => st[key] = k), '">').concat(v[0], "</button>")).join(""), "</div>") + (shown.length ? "" : '<p class="muted">Пусто.</p>') + '<div class="list">'.concat(itemList(shown, list === G.stash ? "stash" : "inv"), "</div>");
+    return (list.length > 6 ? '<input type="search" id="q_'.concat(key, '" placeholder="🔎 найти…" value="').concat(esc(st[key + "q"] || ""), '" oninput="UI._st[\'').concat(key, 'q\']=this.value; UI.render()" style="width:100%;margin-bottom:6px">') : "") + '<div class="toggle filt">'.concat(Object.entries(INV_FL).map(([k, v]) => '<button class="'.concat((st[key] || "all") === k ? "on" : "", '" onclick="').concat(a(() => st[key] = k), '">').concat(v[0], "</button>")).join(""), "</div>") + (list.length > 3 ? '<div class="sortrow"><span class="mono muted">Сортировка:</span>'.concat([["cat", "по типу"], ["w", "по весу"], ["v", "по цене"], ["n", "по имени"]].map(([k, n]) => '<button class="lnk '.concat((st.isort || "cat") === k ? "on" : "", '" onclick="').concat(a(() => {
+      st.isort = k;
+    }), '">').concat(n, "</button>")).join("")).concat((st.isort || "cat") === "cat" ? '<button class="lnk" onclick="'.concat(a(() => {
+      const f2 = st.fold || (st.fold = {});
+      const w = list === G.stash ? "stash" : "inv";
+      const cats = [...new Set(shown.map((e) => CAT_N[IT(e.id).c]))];
+      const all = cats.every((c) => f2[w + ":" + c]);
+      cats.forEach((c) => {
+        f2[w + ":" + c] = !all;
+      });
+    }), '">свернуть/развернуть всё</button>') : "", "</div>") : "") + (shown.length ? "" : '<p class="muted">Пусто.</p>') + '<div class="list">'.concat(itemList(shown, list === G.stash ? "stash" : "inv"), "</div>");
   }
   function stashDual() {
     const side = st.sside || "stash";
@@ -481,6 +517,37 @@ const UI = /* @__PURE__ */ (() => {
     const camp = campHere() ? '<span class="chip good">🔥 костёр: ещё '.concat(G.campfire.until - G.time, " мин</span>") : !L().base ? btn("🔥 Развести костёр (2 дров)", makeCamp, "sm", !cnt(G.inv, "lighter") || cnt(G.inv, "wood") < 2) : "";
     return '<div class="sec" id="craftsec"><div class="sechead"><h2>Крафт в руках</h2>'.concat(camp, '</div><p class="muted" style="font-size:13px">Простые вещи можно делать где угодно. ').concat(fire ? "Огонь рядом — можно жарить и кипятить." : "Чтобы жарить и кипятить вне базы, разведи костёр.", ' Сложное — на верстаке базы.</p><div class="list">').concat(rows, "</div></div>");
   }
+  const EQS = [
+    ["mask", "Маска", "😷", null],
+    ["body", "Одежда", "🧥", null],
+    ["vest", "Бронежилет", "🦺", null],
+    ["weapon", "Оружие", "🗡️", null],
+    ["bag", "Рюкзак", "🎒", null],
+    ["art0", "Артефакт 1", "💠", 0],
+    ["art1", "Артефакт 2", "💠", 1]
+  ];
+  const eqGet = (k) => k === "art0" ? G.eq.art[0] : k === "art1" ? G.eq.art[1] : G.eq[k];
+  const durPct = (e) => e && e.dur != null && IT(e.id).dur ? Math.max(0, Math.round(e.dur / IT(e.id).dur * 100)) : null;
+  function eqSlot(k, n, ic) {
+    const e = eqGet(k), d = durPct(e), sel2 = (st.eqSel || "weapon") === k;
+    const cls = d != null && d <= 15 ? "crit" : d != null && d <= 35 ? "low" : "";
+    return '<button class="eqs '.concat(sel2 ? "sel" : "", " ").concat(cls, " ").concat(e ? "" : "empty", " s-").concat(k, '" onclick="').concat(a(() => {
+      st.eqSel = k;
+    }), '" title="').concat(n, '">\n      <span class="eqi">').concat(e ? ART.tile(e.id) : '<span class="ph">'.concat(ic, "</span>"), '</span>\n      <span class="eqn">').concat(e ? esc(IT(e.id).n) : n, "</span>\n      ").concat(d != null ? '<span class="dur"><i style="width:'.concat(d, '%"></i></span>') : "").concat(cls ? '<span class="dw">!</span>' : "", "</button>");
+  }
+  function paperDoll() {
+    const sel2 = st.eqSel || "weapon", S = EQS.find((x) => x[0] === sel2) || EQS[3], e = eqGet(sel2), d = durPct(e);
+    const warn = EQS.map(([k]) => [k, eqGet(k), durPct(eqGet(k))]).filter(([, e2, d2]) => e2 && d2 != null && d2 <= 35);
+    const fig = '<svg class="fig" viewBox="0 0 100 210" aria-hidden="true"><circle cx="50" cy="22" r="15"/><path d="M28 44 Q50 36 72 44 L80 110 Q76 114 72 110 L68 70 L66 120 L70 200 Q62 206 56 200 L50 130 L44 200 Q38 206 30 200 L34 120 L32 70 L28 110 Q24 114 20 110 Z"/></svg>';
+    const sl = (id) => eqSlot(...EQS.find((x) => x[0] === id));
+    let det = "";
+    if (e) {
+      const it = IT(e.id), acts = [btn("Снять", () => unequip(S[3] != null ? "art" : sel2, S[3] != null ? S[3] : void 0), "sm")];
+      if (sel2 === "weapon" && e.dur != null) acts.push(btn("🩶 Подлатать скотчем", repairWeapon, "sm", !allCnt("tape")));
+      det = '<div class="eqdet"><div class="sechead"><span class="t"><b>'.concat(esc(it.n), '</b></span><span class="mono muted">').concat(S[1], "</span></div>\n        ").concat(d != null ? '<div class="durbig '.concat(d <= 15 ? "crit" : d <= 35 ? "low" : "", '"><span>Прочность ').concat(d, '%</span><span class="dur"><i style="width:').concat(d, '%"></i></span></div>') : "", '\n        <div class="s muted">').concat(itemSub(e), '</div><div class="acts">').concat(acts.join(""), "</div></div>");
+    } else det = '<div class="eqdet"><span class="muted">'.concat(S[1], ": пусто. Надеть можно из рюкзака — кнопка «Надеть».</span></div>");
+    return '<div class="sec"><h2>Снаряжение</h2>\n      '.concat(warn.length ? '<div class="eqwarn">⚠️ Скоро сломается: '.concat(warn.map(([k, e2, d2]) => "<b>".concat(esc(IT(e2.id).n), "</b> ").concat(d2, "%")).join(", "), ". Почини заранее — в бою будет поздно.</div>") : "", '\n      <div class="doll"><div class="dcol">').concat(sl("mask")).concat(sl("body")).concat(sl("vest"), '</div><div class="dmid">').concat(fig, '</div><div class="dcol">').concat(sl("weapon")).concat(sl("bag")).concat(sl("art0")).concat(sl("art1"), "</div></div>\n      ").concat(det, "</div>");
+  }
   function renderInv() {
     const w = curW(), cap = capW();
     const slot = (name, e, s, idx) => '<div class="row"><div class="grow"><span class="s">'.concat(name, '</span><span class="t">').concat(e ? "".concat(IT(e.id).ic, " ").concat(esc(IT(e.id).n)) : '<span class="muted">—</span>', "</span>").concat(e ? '<span class="s">'.concat(itemSub(e), "</span>") : "", "</div>").concat(e ? btn("Снять", () => unequip(s, idx), "sm") : "", "</div>");
@@ -493,9 +560,8 @@ const UI = /* @__PURE__ */ (() => {
     let h = "".concat(tutCard()).concat(logLast(2), '<div class="sticky">').concat(subBar("isub", [["bag", "🎒 Рюкзак"], ["stash", "📦 Склад", !atBase()], ["craft", "🔨 Крафт"]], "bag")).concat(quickBar(), "</div>");
     if (w > cap) h += '<p class="bad">Перегруз: ходишь медленнее'.concat(w > cap * 1.5 ? ", а с таким весом вообще не уйти" : "", ".</p>");
     if (sub === "bag") {
-      h += '<div class="sec"><h2>Снаряжение</h2><div class="eqgrid">'.concat(slot("Оружие", G.eq.weapon, "weapon")).concat(slot("Одежда", G.eq.body, "body")).concat(slot("Бронежилет", G.eq.vest, "vest")).concat(slot("Рюкзак", G.eq.bag, "bag")).concat(slot("Маска", G.eq.mask, "mask")).concat(slot("Пояс: артефакт 1", G.eq.art[0], "art", 0)).concat(slot("Пояс: артефакт 2", G.eq.art[1], "art", 1), "</div>");
-      if (G.eq.weapon && G.eq.weapon.dur != null) h += '<div class="acts">'.concat(btn("🩶 Подлатать оружие скотчем", repairWeapon, "sm", !allCnt("tape")), "</div>");
-      h += '</div><div class="sec"><h2>Рюкзак</h2>'.concat(filtered(G.inv, "invf"), "</div>");
+      h += paperDoll();
+      h += '<div class="sec"><h2>Рюкзак</h2>'.concat(filtered(G.inv, "invf"), "</div>");
     } else if (sub === "stash") {
       h += stashDual();
     } else {
@@ -511,30 +577,49 @@ const UI = /* @__PURE__ */ (() => {
     if (f.parts) {
       const kinds = [["bandage", "dband"], ["antisep", "alcohol"], ["splint"]];
       const have = (k) => kinds[k].find((id) => cnt(G.inv, id));
-      h += '<div class="sec"><h2>Здоровье '.concat(healthPct(), '%</h2><div class="list">');
-      for (const p in PARTS) {
-        const inj = c.inj.filter((j) => j.part === p);
-        h += '<div class="row" style="flex-wrap:wrap"><div class="grow"><span class="t">'.concat(PARTS[p].n, ' <span class="mono muted">').concat(Math.round(c.parts[p]), "/").concat(PARTS[p].max, "</span></span>").concat(bar(c.parts[p], PARTS[p].max), "</div>");
-        if (inj.length) h += '<div class="list" style="width:100%">'.concat(inj.map((j) => {
-          const tags = [j.bleed > 0 && !j.band ? '<span class="chip bad">🩸 кровит</span>' : "", j.band ? '<span class="chip '.concat(j.dirty ? "warn" : "good", '">перевязано').concat(j.dirty ? " (грязно)" : "", "</span>") : "", j.dis ? '<span class="chip good">обработано</span>' : "", j.inf >= 15 ? '<span class="chip '.concat(j.inf >= 60 ? "bad" : "warn", '">воспаление ').concat(Math.round(j.inf), "%</span>") : "", j.t === "frac" ? '<span class="chip '.concat(j.splint ? "good" : "bad", '">').concat(j.splint ? "в шине" : "нужна шина", "</span>") : ""].join("");
-          const b = [];
-          if (!j.band && j.t !== "frac" && j.t !== "bruise") {
-            const id = have(0);
-            b.push(btn("🩹 Перевязать", () => useItem(id, false, j), "sm", !id));
-          }
-          if (!j.dis && f.infection && j.t !== "frac" && j.t !== "bruise") {
-            const id = have(1);
-            b.push(btn("🧴 Обработать", () => useItem(id, false, j), "sm", !id));
-          }
-          if (j.t === "frac" && !j.splint) {
-            const id = have(2);
-            b.push(btn("🦯 Шина", () => useItem(id, false, j), "sm", !id));
-          }
-          return '<div class="row" style="flex-wrap:wrap;background:var(--panel2)"><div class="grow"><span class="t">'.concat(INJ[j.t].n, '</span><span class="acts">').concat(tags, '<span class="chip">заживает ').concat(Math.min(99, Math.round(j.prog / INJ[j.t].heal * 100)), '%</span></span></div><div class="acts">').concat(b.join(""), "</div></div>");
-        }).join(""), "</div>");
-        h += "</div>";
-      }
-      h += "</div></div>";
+      const injRow = (j) => {
+        const tags = [j.bleed > 0 && !j.band ? '<span class="chip bad">🩸 кровит</span>' : "", j.band ? '<span class="chip '.concat(j.dirty ? "warn" : "good", '">перевязано').concat(j.dirty ? " (грязно)" : "", "</span>") : "", j.dis ? '<span class="chip good">обработано</span>' : "", j.inf >= 15 ? '<span class="chip '.concat(j.inf >= 60 ? "bad" : "warn", '">воспаление ').concat(Math.round(j.inf), "%</span>") : "", j.t === "frac" ? '<span class="chip '.concat(j.splint ? "good" : "bad", '">').concat(j.splint ? "в шине" : "нужна шина", "</span>") : ""].join("");
+        const b = [];
+        if (!j.band && j.t !== "frac" && j.t !== "bruise") {
+          const id = have(0);
+          b.push(btn("🩹 Перевязать", () => useItem(id, false, j), "sm", !id));
+        }
+        if (!j.dis && f.infection && j.t !== "frac" && j.t !== "bruise") {
+          const id = have(1);
+          b.push(btn("🧴 Обработать", () => useItem(id, false, j), "sm", !id));
+        }
+        if (j.t === "frac" && !j.splint) {
+          const id = have(2);
+          b.push(btn("🦯 Шина", () => useItem(id, false, j), "sm", !id));
+        }
+        return '<div class="row" style="flex-wrap:wrap;background:var(--panel2)"><div class="grow"><span class="t">'.concat(INJ[j.t].n, '</span><span class="acts">').concat(tags, '<span class="chip">заживает ').concat(Math.min(99, Math.round(j.prog / INJ[j.t].heal * 100)), '%</span></span></div><div class="acts">').concat(b.join(""), "</div></div>");
+      };
+      const fr = (p) => c.parts[p] / PARTS[p].max, injOf = (p) => c.inj.filter((j) => j.part === p);
+      const col = (p) => {
+        const r = fr(p), I = injOf(p);
+        if (I.some((j) => j.bleed > 0 && !j.band) || r < 0.4) return "bad";
+        if (r < 0.8 || I.length) return "warn";
+        return "ok";
+      };
+      const SHP = { head: '<circle cx="60" cy="24" r="17"/>', torso: '<rect x="40" y="45" width="40" height="72" rx="9"/>', larm: '<rect x="20" y="47" width="16" height="70" rx="8"/>', rarm: '<rect x="84" y="47" width="16" height="70" rx="8"/>', lleg: '<rect x="41" y="121" width="18" height="100" rx="8"/>', rleg: '<rect x="61" y="121" width="18" height="100" rx="8"/>' };
+      const CTR = { head: [60, 24], torso: [60, 80], larm: [28, 82], rarm: [92, 82], lleg: [50, 170], rleg: [70, 170] };
+      if (st.part && !PARTS[st.part]) st.part = null;
+      const selP = st.part || Object.keys(PARTS).find((p) => injOf(p).length) || null;
+      const svg = '<svg class="anat" viewBox="0 0 120 230">'.concat(Object.keys(PARTS).map((p) => {
+        const I = injOf(p), [x, y] = CTR[p];
+        return '<g class="bp '.concat(col(p), " ").concat(selP === p ? "sel" : "", '" onclick="').concat(a(() => {
+          st.part = p;
+        }), '">').concat(SHP[p]).concat(I.length ? '<circle class="mk" cx="'.concat(x, '" cy="').concat(y, '" r="7"/><text x="').concat(x, '" y="').concat(y + 3.5, '">').concat(I.length, "</text>") : "", "</g>");
+      }).join(""), "</svg>");
+      const chipsP = Object.keys(PARTS).map((p) => '<button class="pchip '.concat(col(p), " ").concat(selP === p ? "on" : "", '" onclick="').concat(a(() => {
+        st.part = p;
+      }), '">').concat(PARTS[p].n, " <b>").concat(Math.round(fr(p) * 100), "%</b>").concat(injOf(p).length ? " · ".concat(injOf(p).length) : "", "</button>")).join("");
+      let det = "";
+      if (selP) {
+        const I = injOf(selP);
+        det = '<div class="eqdet"><div class="sechead"><b>'.concat(PARTS[selP].n, '</b><span class="mono muted">').concat(Math.round(c.parts[selP]), "/").concat(PARTS[selP].max, "</span></div>").concat(bar(c.parts[selP], PARTS[selP].max)).concat(I.length ? '<div class="list">'.concat(I.map(injRow).join(""), "</div>") : '<span class="muted">Ран нет.</span>', "</div>");
+      } else det = '<div class="eqdet"><span class="good">Ран нет — всё цело.</span></div>';
+      h += '<div class="sec"><h2>Здоровье '.concat(healthPct(), '%</h2><div class="anatwrap">').concat(svg, '<div class="pchips">').concat(chipsP, "</div></div>").concat(det, "</div>");
     } else h += '<div class="sec"><h2>Здоровье '.concat(Math.round(c.hp), "%</h2>").concat(bar(c.hp)).concat(c.bleed ? '<div class="acts"><span class="chip bad">🩸 кровотечение</span>'.concat(btn("🩹 Перевязать", () => useItem(cnt(G.inv, "bandage") ? "bandage" : "dband"), "sm", !cnt(G.inv, "bandage") && !cnt(G.inv, "dband")), "</div>") : "", "</div>");
     const stats = [["🍗 Сытость", c.food], ["💧 Вода", c.drink], ["⚡ Силы", c.energy], ["😰 Стресс", c.stress, 1]];
     if (f.rad) stats.push(["☢️ Радиация", c.rad / 2, 1, Math.round(c.rad)]);
@@ -547,11 +632,11 @@ const UI = /* @__PURE__ */ (() => {
     h += '<div class="sec"><h2>Навыки</h2><div class="grid2">'.concat(Object.keys(SKILLS).map((k) => {
       const lv = skill(k), raw = SKILL_XP.findIndex((x, i) => i > 0 && c.xp[k] < x);
       const lo = SKILL_XP[Math.max(0, (raw < 0 ? SKILL_XP.length : raw) - 1)], hi = raw < 0 ? lo : SKILL_XP[raw];
-      return '<div class="vit" style="font-size:12.5px">'.concat(SKILLS[k].ic, " ").concat(SKILLS[k].n, ' <b class="mono">').concat(lv, "</b>").concat(bar(raw < 0 ? 1 : c.xp[k] - lo, raw < 0 ? 1 : hi - lo), "</div>");
+      const pc = raw < 0 ? 100 : Math.max(0, Math.min(99, Math.floor((c.xp[k] - lo) / Math.max(1, hi - lo) * 100)));
+      return '<div class="vit" style="font-size:12.5px">'.concat(SKILLS[k].ic, " ").concat(SKILLS[k].n, ' <b class="mono">ур. ').concat(lv, '</b> <span class="mono muted">').concat(raw < 0 ? "макс." : pc + "% до " + (lv + 1), "</span>").concat(bar(raw < 0 ? 1 : c.xp[k] - lo, raw < 0 ? 1 : hi - lo), "</div>");
     }).join(""), '</div><p class="muted" style="font-size:13px">Навыки растут от дела: дерёшься — растёт ближний бой, обыскиваешь — поиск.</p></div>');
     h += '<div class="sec"><div class="sechead"><h2>Правила сложности</h2>'.concat(btn(st.showRules ? "Скрыть" : "Показать", () => st.showRules = !st.showRules, "sm"), "</div>").concat(st.showRules ? '<ul class="muted" style="margin:0;padding-left:18px">'.concat(MODES[G.mode].rules.map((r) => "<li>".concat(esc(r), "</li>")).join(""), "</ul>") : "", "</div>");
     h += EXTUI.charPanel();
-    h += EXTUI.achPanel();
     return h;
   }
   function renderBase() {
@@ -585,7 +670,7 @@ const UI = /* @__PURE__ */ (() => {
     const q = Object.entries(G.w.quests);
     const act = q.filter(([, v]) => v === "active"), done = q.filter(([, v]) => v === "done");
     const giver = (g) => g === "main" ? "⭐ Главное" : TRADERS[g].ic + " " + TRADERS[g].n;
-    let h = '<h1>📓 Журнал</h1><div class="sec"><h2>Задания</h2><div class="list">'.concat(act.map(([id]) => '<div class="row"><div class="grow"><span class="s">'.concat(giver(QUESTS[id].g), '</span><span class="t">').concat(QUESTS[id].n, '</span><span class="s">').concat(esc(QUESTS[id].d), '</span><span class="s">Прогресс: ').concat(questProgress(id), "</span></div></div>")).join("") || '<p class="muted">Нет активных заданий. Поговори с жителями острова.</p>', "</div>").concat(done.length ? '<p class="muted">Выполнено: '.concat(done.map(([id]) => QUESTS[id].n).join(", "), "</p>") : "", "</div>");
+    let h = '<div class="sec"><h2>Задания</h2><div class="list">'.concat(act.map(([id]) => '<div class="row"><div class="grow"><span class="s">'.concat(giver(QUESTS[id].g), '</span><span class="t">').concat(QUESTS[id].n, '</span><span class="s">').concat(esc(QUESTS[id].d), '</span><span class="s">Прогресс: ').concat(questProgress(id), "</span></div></div>")).join("") || '<p class="muted">Нет активных заданий. Поговори с жителями острова.</p>', "</div>").concat(done.length ? '<p class="muted">Выполнено: '.concat(done.map(([id]) => QUESTS[id].n).join(", "), "</p>") : "", "</div>");
     if (G.w.ending === "master" && !G.w.ch2) h += '<div class="sec"><h2>🔮 Глава 2 «Мастер»</h2><p class="muted">Ты забрал ядро Аппарата. Остров ждёт своего Мастера: сильнее враги, чаще Выбросы, кристаллы, лодка и путь к синему шпилю за проливом.</p><div class="acts">'.concat(btn("Начать Главу 2", startCh2, "pri"), "</div></div>");
     if (typeof CUI !== "undefined") h += CUI.jour();
     h += coopPanel();
@@ -604,7 +689,33 @@ const UI = /* @__PURE__ */ (() => {
       st.confirmNew = false;
       startScreen();
     }, "bad")).concat(btn("Отмена", () => st.confirmNew = false), "</div>") : btn("Новая игра", () => st.confirmNew = true), '<p class="muted" style="font-size:13px">Игра сохраняется сама после каждого действия — в этом браузере.</p></div>');
-    return h;
+    h += EXTUI.achPanel();
+    if (typeof uiSettingsHtml === "function") h = uiSettingsHtml() + h;
+    return jourTabs(h, act.length);
+  }
+  const JT = [["quests", "📌 Задания"], ["diary", "📔 Дневник"], ["squad", "🤝 Отряд"], ["ach", "🏅 Итоги"], ["set", "⚙️ Настройки"]];
+  function jourCat(t) {
+    t = t.toLowerCase();
+    if (/дневник|записки|^\W*события|справочник/.test(t)) return "diary";
+    if (/кооператив|таблица|выживших|отряд/.test(t)) return "squad";
+    if (/достижения|статистика/.test(t)) return "ach";
+    if (/интерфейс|тема|звук|подсказки|своя сложность|сохранения|резервные|^\W*игра$/.test(t)) return "set";
+    return "quests";
+  }
+  function jourTabs(h, nAct) {
+    const cur2 = st.jsub || "quests";
+    if (typeof document === "undefined") return h;
+    const box = document.createElement("div");
+    box.innerHTML = h;
+    const out = { quests: [], diary: [], squad: [], ach: [], set: [] };
+    [...box.children].forEach((el) => {
+      const hd = el.querySelector("h2,h1");
+      const c = jourCat(hd ? hd.textContent.trim() : "");
+      out[c].push(el.outerHTML);
+    });
+    const items = JT.filter(([k]) => k !== "squad" || out.squad.length).map(([k, n]) => [k, k === "quests" && nAct ? "".concat(n, " · ").concat(nAct) : n]);
+    const sel2 = out[cur2] && (cur2 !== "squad" || out.squad.length) ? cur2 : "quests";
+    return '<div class="sticky">'.concat(subBar("jsub", items, "quests"), "</div>") + (out[sel2].join("") || '<p class="muted">Пусто.</p>');
   }
   const ST_N = { off: "выключен", connecting: "подключение…", online: "в сети", offline: "нет связи — изменения не синхронизируются", readonly: "только чтение — нет прав на запись" };
   function ago(at) {
@@ -709,7 +820,7 @@ const UI = /* @__PURE__ */ (() => {
     const keep = changed ? 0 : mn.scrollTop;
     st.lastTab = st.tab;
     const ae = document.activeElement, keepId = ae && ae.id && ae.tagName === "INPUT" ? ae.id : null, keepVal = keepId ? ae.value : null, chatVal = $("chatin") ? $("chatin").value : "";
-    mn.innerHTML = scr;
+    mn.innerHTML = (typeof noEmo === "function" ? noEmo : ((x) => x))(scr);
     mn.scrollTop = keep;
     if (changed) {
       mn.classList.remove("fadein");
@@ -728,6 +839,12 @@ const UI = /* @__PURE__ */ (() => {
     }
     ART.paintAll($("main"));
     if (window.SFX) SFX.refresh();
+    if (typeof sideRender === "function") {
+      try {
+        sideRender();
+      } catch (e) {
+      }
+    }
     if (st.scrollCraft) {
       st.scrollCraft = false;
       const c = $("craftsec");
@@ -766,7 +883,7 @@ const UI = /* @__PURE__ */ (() => {
         render();
       }
     }), '">').concat(esc(c.t), "</button>")).join("");
-    $("modal").innerHTML = '<div class="overlay"><div class="sheet '.concat(cur.cls || "", ' anim" role="dialog" aria-modal="true"><h2>').concat(esc(cur.title), '</h2><div class="txt">').concat(esc(cur.text || ""), '</div><div class="choices">').concat(ch2, "</div></div></div>");
+    $("modal").innerHTML = (typeof noEmo === "function" ? noEmo : ((x) => x))('<div class="overlay"><div class="sheet '.concat(cur.cls || "", ' anim" role="dialog" aria-modal="true"><h2>').concat(esc(cur.title), '</h2><div class="txt">').concat(esc(cur.text || ""), '</div><div class="choices">').concat(ch2, "</div></div></div>"));
   }
   function combat() {
     const cb = G.combat;

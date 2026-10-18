@@ -884,7 +884,7 @@ function sideWarnings() {
 }
 function sideLeft() {
   const w = sideWarnings();
-  let h = '<div class="card"><h3>⚠️ Важно</h3>'.concat(w.length ? w.join("") : '<div class="ln mono">Всё спокойно</div>', "</div>");
+  let h = (typeof meCard === "function" && uiWide() ? meCard() : "") + '<div class="card"><h3>⚠️ Важно</h3>'.concat(w.length ? w.join("") : '<div class="ln mono">Всё спокойно</div>', "</div>");
   const lg = (G.log || []).slice(-24).reverse();
   h += '<div class="card"><h3>📜 Последнее</h3>'.concat(lg.map((x) => '<div class="ln '.concat(x.c || "", '"><span class="mono">').concat(x.k || "", "</span> ").concat(cesc(x.t), "</div>")).join("") || '<div class="ln mono">пусто</div>', "</div>");
   return h;
@@ -925,7 +925,7 @@ function sideRight() {
   return h;
 }
 function sideRender() {
-  if (!(window.innerWidth >= 1130)) return;
+  if (!uiWide() || SLAY.drag) return;
   const L0 = document.getElementById("sideL"), R0 = document.getElementById("sideR");
   if (!L0 || !R0) return;
   let l = "", r = "";
@@ -938,14 +938,13 @@ function sideRender() {
     l = "";
     r = "";
   }
-  if (l !== SIDE.l) {
-    L0.innerHTML = l;
-    SIDE.l = l;
-  }
-  if (r !== SIDE.r) {
-    R0.innerHTML = r;
-    SIDE.r = r;
-  }
+  const key = l + "" + r + "" + JSON.stringify(UIP.lay || {});
+  if (key === SIDE.l) return;
+  SIDE.l = key;
+  const [hl, hr] = sideLayout(l, r);
+  sideBox(L0, "l").innerHTML = noEmo(hl);
+  sideBox(R0, "r").innerHTML = noEmo(hr);
+  sideWidth();
 }
 if (typeof document !== "undefined" && typeof setInterval === "function") {
   setInterval(sideRender, 1e3);
@@ -1148,10 +1147,11 @@ function closeSummary() {
   }
 }
 window.closeSummary = closeSummary;
+window.openSummary = openSummary;
 const _cuiTop2 = CUI.top;
 CUI.top = function() {
   let h = _cuiTop2.apply(this, arguments);
-  if (window.innerWidth >= 1130) return h;
+  if (uiWide()) return h;
   const sb = UI.btn("🧭 Сводка", openSummary, "sm");
   return /<\/div>$/.test(h) && h.includes("досыта") ? h.replace(/<\/div>$/, sb + "</div>") : h + '<div class="acts" style="margin-top:4px">'.concat(sb, "</div>");
 };
@@ -2195,3 +2195,316 @@ CUI.jour = function() {
   const t = themePref();
   return _cuiJourT.apply(this, arguments) + '<div class="sec"><h2>🌓 Тема</h2><div class="toggle">'.concat([["auto", "Авто"], ["dark", "Тёмная"], ["light", "Светлая"]].map(([k, n]) => '<button class="'.concat(t === k ? "on" : "", '" onclick="setTheme(\'').concat(k, "')\">").concat(n, "</button>")).join(""), "</div></div>");
 };
+const UIP = (() => {
+  let p = {};
+  try {
+    p = JSON.parse(localStorage.getItem("moti3_ui") || "{}");
+  } catch (e) {
+  }
+  return Object.assign({ emoji: true, dens: "normal", log: 2, sides: true, art: "big" }, p);
+})();
+function uiWide() {
+  return typeof window !== "undefined" && window.innerWidth >= 1130 && UIP.sides !== false;
+}
+function uiApply() {
+  if (typeof document === "undefined") return;
+  const r = document.documentElement.classList;
+  r.toggle("wide", uiWide());
+  r.toggle("noemoji", UIP.emoji === false);
+  r.toggle("dens-simple", UIP.dens === "simple");
+  r.toggle("dens-detailed", UIP.dens === "detailed");
+  r.toggle("nolog", UIP.log === 0);
+  r.toggle("art-small", UIP.art === "small");
+  r.toggle("art-off", UIP.art === "off");
+}
+function setUi(k, v) {
+  UIP[k] = v;
+  try {
+    localStorage.setItem("moti3_ui", JSON.stringify(UIP));
+  } catch (e) {
+  }
+  uiApply();
+  SIDE.l = SIDE.r = "";
+  try {
+    sideRender();
+  } catch (e) {
+  }
+  UI.render();
+}
+window.setUi = setUi;
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  uiApply();
+  window.addEventListener("resize", uiApply);
+}
+const EMO_RE = /(?:[☀-➿⬀-⯿⌀-⏿■-◿〰〽]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF])(?:️|‍|\uD83C[\uDFFB-\uDFFF]|(?:\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF]|[☀-➿]))*/g;
+const EMO_KEEP = { "▾": 1, "▸": 1, "◂": 1, "▴": 1, "✕": 1, "✓": 1, "✔": 1, "★": 1, "☆": 1, "⋯": 1 };
+function noEmo(html) {
+  if (UIP.emoji !== false || !html) return html;
+  return String(html).split(/(<svg[\s\S]*?<\/svg>)/).map((part, i) => i % 2 ? part : part.replace(EMO_RE, (m) => EMO_KEEP[m] ? m : "").replace(/[️‍]/g, "")).join("");
+}
+window.noEmo = noEmo;
+window.sideDo = function(k, arg) {
+  try {
+    if (G.combat && k !== "snd" && k !== "sum") return;
+    if (k === "fix") quickFix(arg);
+    else if (k === "eat") autoEat(false);
+    else if (k === "snd") SFX.toggle();
+    else if (k === "tab") {
+      UI._st.tab = arg;
+      UI._st.open = null;
+      if (arg !== "loc") UI._st.trader = null;
+    }
+  } catch (e) {
+  }
+  SIDE.l = "";
+  UI.render();
+  sideRender();
+};
+function meCard() {
+  const c = G.ch, w = weather(), hp = healthPct(), toBN = BNP() - (day() - 1) % BNP() - 1;
+  const bar = (v, cls) => '<div class="mbar '.concat(cls || "", '"><i style="width:').concat(Math.max(0, Math.min(100, v)), '%" class="').concat(v < 25 ? "bad" : v < 50 ? "warn" : "", '"></i></div>');
+  const vit = (ic, n, v) => '<div class="mv"><span>'.concat(ic, " ").concat(n, "</span><b>").concat(Math.round(v), "</b>").concat(bar(v), "</div>");
+  const FIX = { "Голод": "eat", "Жажда": "drink", "Кровотечение": "bleed", "Боль": "pain", "Усталость": "sleep" };
+  let md = "";
+  try {
+    md = moodles().map((x) => FIX[x.n] ? '<button class="mood l'.concat(x.l, ' fix" title="').concat(cesc(x.d || ""), "\" onclick=\"sideDo('fix','").concat(FIX[x.n], "')\">").concat(x.ic, " ").concat(cesc(x.n), " ›</button>") : '<span class="mood l'.concat(x.l, '" title="').concat(cesc(x.d || ""), '">').concat(x.ic, " ").concat(cesc(x.n), "</span>")).join("");
+  } catch (e) {
+  }
+  let tog = "";
+  try {
+    if (together()) tog = '<span class="mood l0 chip together">🤝 вместе сильнее</span>';
+  } catch (e) {
+  }
+  const eat = (c.food < 85 || c.drink < 85) && !G.combat ? '<button class="btn sm" onclick="sideDo(\'eat\')">🍽️ Поесть и попить досыта</button>' : "";
+  const on = G.coop && window.COOP ? COOP.others().filter((p) => p.online).length + 1 : 0;
+  return '<div class="card me">\n    <div class="mehead"><span class="clock">'.concat(clock(), "</span><div><b>День ").concat(day(), '</b><div class="mono">').concat(w.ic, " ").concat(cesc(w.n), " · ").concat(SEASONS[season()].ic, " ").concat(SEASONS[season()].n, '</div></div><button class="sndbtn" onclick="sideDo(\'snd\')">').concat(SFX.on ? "🔊" : "🔇", '<i class="nel">').concat(SFX.on ? "звук" : "тихо", '</i></button></div>\n    <div class="merow"><span>💰 <b>').concat(G.money, "₽</b></span><span>").concat(toBN === 0 ? '🌕 <b class="bad">сегодня Кровавая ночь</b>' : '🌕<i class="nel">Кровавая ночь</i> через '.concat(toBN, " дн."), "</span>").concat(on ? "<span>🤝 ".concat(on, " в игре").concat(COOP.unread ? " · 💬".concat(COOP.unread) : "", "</span>") : "", '</div>\n    <div class="mvits">').concat(vit("❤️", "Здоровье", hp)).concat(vit("🍗", "Сытость", c.food)).concat(vit("💧", "Вода", c.drink)).concat(vit("⚡", "Силы", c.energy), "</div>\n    ").concat(md || tog ? '<div class="moods">'.concat(tog).concat(md, "</div>") : "").concat(eat ? '<div class="acts">'.concat(eat, "</div>") : "", "\n  </div>");
+}
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  let wasWide = uiWide();
+  window.addEventListener("resize", () => {
+    const w = uiWide();
+    if (w !== wasWide) {
+      wasWide = w;
+      SIDE.l = SIDE.r = "";
+      try {
+        UI.render();
+      } catch (e) {
+      }
+    }
+  });
+}
+function uiSettingsHtml() {
+  const opt = (k, list) => '<div class="toggle">'.concat(list.map(([v, n]) => '<button class="'.concat(UIP[k] === v ? "on" : "", "\" onclick='setUi(").concat(JSON.stringify(k), ", ").concat(JSON.stringify(v), ")'>").concat(n, "</button>")).join(""), "</div>");
+  const row = (t, d, ctl) => '<div class="setrow"><div><b>'.concat(t, "</b>").concat(d ? '<div class="s muted">'.concat(d, "</div>") : "", "</div>").concat(ctl, "</div>");
+  const wideOk = typeof window !== "undefined" && window.innerWidth >= 1130;
+  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n  </div></div>");
+}
+if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+  const strip = (root) => {
+    if (UIP.emoji !== false || !root) return;
+    if (root.nodeType === 3) {
+      const v = root.nodeValue, n = noEmo(v);
+      if (n !== v) root.nodeValue = n;
+      return;
+    }
+    if (root.nodeType !== 1 || root.closest && root.closest("svg")) return;
+    const w = document.createTreeWalker(root, 4, null, false);
+    let t;
+    while (t = w.nextNode()) {
+      if (t.parentNode && t.parentNode.closest && t.parentNode.closest("svg")) continue;
+      const v = t.nodeValue, n = noEmo(v);
+      if (n !== v) t.nodeValue = n;
+    }
+  };
+  const start = () => {
+    const mo = new MutationObserver((ms) => {
+      if (UIP.emoji !== false) return;
+      for (const m of ms) for (const n of m.addedNodes) if (!(n.id === "main" || n.parentNode && n.parentNode.id === "main")) strip(n);
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.body) start();
+  else document.addEventListener("DOMContentLoaded", start);
+}
+const SLAY = { drag: null };
+function layGet() {
+  const L2 = UIP.lay || (UIP.lay = {});
+  L2.L = L2.L || [];
+  L2.R = L2.R || [];
+  L2.col = L2.col || {};
+  L2.hid = L2.hid || {};
+  return L2;
+}
+function laySave() {
+  try {
+    localStorage.setItem("moti3_ui", JSON.stringify(UIP));
+  } catch (e) {
+  }
+  SIDE.l = SIDE.r = "";
+  sideRender();
+}
+function cardId(el) {
+  if (el.classList.contains("me")) return "me";
+  const h = el.querySelector("h3");
+  let t = h ? h.textContent : "";
+  t = t.replace(EMO_RE, "").replace(/[️‍]/g, "").replace(/[·:].*$/, "").trim().toLowerCase();
+  return t || "card";
+}
+function cardName(id) {
+  return id === "me" ? "Персонаж" : id.charAt(0).toUpperCase() + id.slice(1);
+}
+function sideLayout(lHtml, rHtml) {
+  const L2 = layGet(), all = {}, origin = {};
+  const take2 = (html, side) => {
+    const box = document.createElement("div");
+    box.innerHTML = html;
+    [...box.children].forEach((el) => {
+      if (!el.classList.contains("card")) return;
+      let id = cardId(el);
+      while (all[id]) id += "+";
+      all[id] = el;
+      origin[id] = side;
+    });
+  };
+  take2(lHtml, "L");
+  take2(rHtml, "R");
+  const placed = {}, cols = { L: [], R: [] };
+  for (const sd of ["L", "R"]) for (const id of L2[sd]) if (all[id] && !placed[id]) {
+    cols[sd].push(id);
+    placed[id] = 1;
+  }
+  for (const id in all) if (!placed[id]) cols[origin[id]].push(id);
+  const out = (sd) => cols[sd].filter((id) => !L2.hid[id]).map((id) => {
+    const el = all[id], col = !!L2.col[id], j = JSON.stringify(id), q = j.replace(/"/g, "&quot;");
+    let h = el.querySelector("h3");
+    if (!h) {
+      h = document.createElement("h3");
+      h.textContent = cardName(id);
+      el.insertBefore(h, el.firstChild);
+    }
+    el.setAttribute("data-cid", id);
+    el.setAttribute("draggable", "true");
+    el.setAttribute("ondragstart", "sideDrag(event, ".concat(j, ")"));
+    el.setAttribute("ondragend", "sideDragEnd()");
+    el.setAttribute("ondragover", "sideOver(event)");
+    el.setAttribute("ondrop", "sideDrop(event, ".concat(j, ")"));
+    if (col) el.classList.add("col");
+    const ctl = document.createElement("span");
+    ctl.className = "cctl";
+    ctl.innerHTML = '<span class="grip" title="Перетащи, чтобы переставить">⠿</span><button title="'.concat(col ? "Развернуть" : "Свернуть", '" onclick="sideCol(').concat(q, ')">').concat(col ? "▸" : "▾", '</button><button title="Скрыть (вернуть — в Журнал → Настройки)" onclick="sideHide(').concat(q, ')">✕</button>');
+    h.classList.add("chead");
+    h.appendChild(ctl);
+    h.setAttribute("ondblclick", "sideCol(".concat(j, ")"));
+    return el.outerHTML;
+  }).join("") + '<div class="sdrop" ondragover="sideOver(event)" ondrop="sideDrop(event, null, \''.concat(sd, "')\"></div>");
+  return [out("L"), out("R")];
+}
+function sideBox(P, w) {
+  let b = P.querySelector(".sidein");
+  if (!b) {
+    P.innerHTML = '<div class="sidein"></div><div class="sgrip" title="Потяни, чтобы изменить ширину" onpointerdown="sideGrip(event, \''.concat(w, "')\"></div>");
+    b = P.querySelector(".sidein");
+  }
+  return b;
+}
+function sideWidth() {
+  const L2 = layGet(), max = Math.max(200, (window.innerWidth - 720) / 2 - 24), r = document.documentElement.style;
+  if (L2.wl) r.setProperty("--swl", Math.min(max, Math.max(200, L2.wl)) + "px");
+  else r.removeProperty("--swl");
+  if (L2.wr) r.setProperty("--swr", Math.min(max, Math.max(200, L2.wr)) + "px");
+  else r.removeProperty("--swr");
+}
+window.sideCol = (id) => {
+  const L2 = layGet();
+  L2.col[id] = !L2.col[id];
+  if (!L2.col[id]) delete L2.col[id];
+  laySave();
+};
+window.sideHide = (id) => {
+  const L2 = layGet();
+  L2.hid[id] = 1;
+  laySave();
+  UI.toast("Карточка скрыта. Вернуть — Журнал → Настройки.");
+};
+window.sideShow = (id) => {
+  const L2 = layGet();
+  delete L2.hid[id];
+  laySave();
+  UI.render();
+};
+window.sideReset = () => {
+  UIP.lay = {};
+  laySave();
+  UI.render();
+};
+window.sideDrag = (ev, id) => {
+  SLAY.drag = id;
+  try {
+    ev.dataTransfer.setData("text/plain", id);
+    ev.dataTransfer.effectAllowed = "move";
+  } catch (e) {
+  }
+  setTimeout(() => {
+    const el = document.querySelector('[data-cid="'.concat(typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, ""), '"]'));
+    if (el) el.classList.add("dragging");
+  }, 0);
+};
+window.sideDragEnd = () => {
+  SLAY.drag = null;
+  document.querySelectorAll(".side .dragging, .side .over").forEach((x) => x.classList.remove("dragging", "over"));
+  SIDE.l = "";
+  sideRender();
+};
+window.sideOver = (ev) => {
+  if (!SLAY.drag) return;
+  ev.preventDefault();
+  document.querySelectorAll(".side .over").forEach((x) => x.classList.remove("over"));
+  const t = ev.currentTarget;
+  if (t) t.classList.add("over");
+};
+window.sideDrop = (ev, target, sideHint) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const id = SLAY.drag;
+  SLAY.drag = null;
+  if (!id || id === target) return sideDragEnd();
+  const L2 = layGet(), cur = { L: [...document.querySelectorAll("#sideL [data-cid]")].map((x) => x.getAttribute("data-cid")), R: [...document.querySelectorAll("#sideR [data-cid]")].map((x) => x.getAttribute("data-cid")) };
+  for (const sd2 of ["L", "R"]) cur[sd2] = cur[sd2].filter((x) => x !== id);
+  let sd = sideHint, pos = -1;
+  if (target) {
+    sd = cur.L.includes(target) ? "L" : "R";
+    pos = cur[sd].indexOf(target);
+    const el = ev.currentTarget, r = el.getBoundingClientRect();
+    if (ev.clientY > r.top + r.height / 2) pos++;
+  }
+  if (pos < 0) cur[sd].push(id);
+  else cur[sd].splice(pos, 0, id);
+  for (const s2 of ["L", "R"]) for (const h of L2[s2]) if (L2.hid[h] && !cur.L.includes(h) && !cur.R.includes(h)) cur[s2].push(h);
+  L2.L = cur.L;
+  L2.R = cur.R;
+  sideDragEnd();
+  laySave();
+};
+window.sideGrip = (ev, w) => {
+  ev.preventDefault();
+  const L2 = layGet(), P = document.getElementById(w === "l" ? "sideL" : "sideR"), x0 = ev.clientX, w0 = P.getBoundingClientRect().width;
+  const mv = (e) => {
+    const d = w === "l" ? x0 - e.clientX : e.clientX - x0;
+    L2[w === "l" ? "wl" : "wr"] = Math.round(w0 + d);
+    sideWidth();
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", mv);
+    window.removeEventListener("pointerup", up);
+    try {
+      localStorage.setItem("moti3_ui", JSON.stringify(UIP));
+    } catch (e) {
+    }
+  };
+  window.addEventListener("pointermove", mv);
+  window.addEventListener("pointerup", up);
+};
+function sideSettingsHtml() {
+  const L2 = layGet(), hid = Object.keys(L2.hid);
+  return '<div class="setrow"><div><b>Карточки по бокам</b><div class="s muted">Тащи карточку за шапку — переставить или перенести на другую сторону. ▾ — свернуть, ✕ — скрыть. Край панели тянется — меняется ширина.</div></div>\n    '.concat(hid.length ? '<div class="acts">'.concat(hid.map((id) => '<button class="btn sm" onclick=\'sideShow('.concat(JSON.stringify(id), ")'>Вернуть: ").concat(cesc(cardName(id)), "</button>")).join(""), "</div>") : "", '\n    <div class="acts"><button class="btn sm" onclick="sideReset()">Сбросить раскладку</button></div></div>');
+}

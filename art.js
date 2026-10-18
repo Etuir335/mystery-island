@@ -1063,7 +1063,7 @@ const ART = /* @__PURE__ */ (() => {
     return mapCache[ck] = cv.toDataURL();
   }
   const CAT_BG = { food: "#6a8a3a", drink: "#3a7a9a", med: "#a83a3a", melee: "#7a6a5a", gun: "#4a4a52", ammo: "#7a6a2a", wear: "#5a5a7a", art: "#7a4ab0", tool: "#5a6a6a", mat: "#7a5a3a", val: "#b08a2a", key: "#a8862a", quest: "#2a7a6a", bp: "#3a5a8a" };
-  const tile = (id) => '<span class="tile" style="--tc:'.concat(CAT_BG[ITEMS[id].c] || "#666", '">').concat(ITEMS[id].ic, "</span>");
+  const tile = (id) => '<span class="tile" data-l="'.concat(String(ITEMS[id].n || "?").charAt(0), '" style="--tc:').concat(CAT_BG[ITEMS[id].c] || "#666", '">').concat(ITEMS[id].ic, "</span>");
   return { paintAll, sceneTag, enemy, enemyImg, mapBg, tile, W, H: HH };
 })();
 window.ART = ART;
