@@ -28,6 +28,9 @@ const isNight = () => { const h = hour(); return h >= 21 || h < 6; };
 const isBloodNight = () => day() % 7 === 0 && (hour() >= 22) || (day() % 7 === 1 && day() > 1 && hour() < 4);
 const weather = () => WEATHER.find(w => w.id === G.weather.id);
 const inShelter = () => !!(L().shelter && !G.traveling);
+const CH2 = () => !!(typeof G !== 'undefined' && G && G.w && G.w.ch2);
+const boatReady = () => (G.w.struct.boat || 0) >= 2;
+const artPool = () => CH2() ? [['medusa', 3], ['fireball', 2], ['drop', 2], ['crystal', 3], ['cshard', 7]] : [['medusa', 4], ['fireball', 3], ['drop', 3], ['crystal', 2]];
 const atBase = () => G.loc === 'base' && !G.traveling;
 
 // ---------------- инвентарь ----------------
@@ -105,7 +108,7 @@ function moodles() {
 function newWorld() {
   const locs = {};
   for (const id in LOCS) locs[id] = { seen: id === 'base', rooms: LOCS[id].rooms.map(() => ({ cont: {}, en: [], enAt: -1e9, an: null, art: null, ground: [], aware: true, fixed: false })), kills: 0 };
-  return { locs, struct: { bed: 0, fire: 0, bench: 0, walls: 0, traps: 0, rain: 0, smoke: 0, garden: 0, radio: 0, distill: 0 }, wallHp: 0,
+  return { locs, struct: { bed: 0, fire: 0, bench: 0, walls: 0, traps: 0, rain: 0, smoke: 0, garden: 0, radio: 0, distill: 0, boat: 0 }, wallHp: 0,
     bp: {}, flags: {}, quests: {}, qstart: {}, rep: { semen: 0, serg: 0, levin: 0, nomad: 0 }, notes: [], counters: { anomFound: 0 }, corpses: [],
     prod: { rain: 0, garden: 0 }, catAt: -1e9, gen: 1, hordeDone: {}, ending: null, deaths: [], events: [] };
 }
@@ -141,7 +144,7 @@ function startKit() {
 // ---------------- сохранение ----------------
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} if (G && G.coop && window.COOP) COOP.sync(); if (G && typeof lbSubmit === 'function') lbSubmit(); }
 function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.v === 3) { G = s; migrate(); return true; } } catch (e) {} return false; }
-function migrate() { if (!G.w.events) G.w.events = []; if (G.w.rep.nomad == null) G.w.rep.nomad = 0; if (!G.tut) G.tut = { on: day() <= 2 && !G.w.struct.fire, done: {} }; if (!G.w.flags.mig_bottles) { G.w.flags.mig_bottles = 1; if (G.w.struct.distill == null) G.w.struct.distill = 0; if (!G.dead) { invAdd(G.inv, 'bottle', 2); G.log.push({ t: '🍶 Обновление: теперь воду можно набирать в бутылки. В рюкзаке 2 пустые бутылки.', c: 'good', d: day(), k: clock() }); } } }
+function migrate() { for (const id in LOCS) if (!G.w.locs[id]) G.w.locs[id] = { seen: false, rooms: LOCS[id].rooms.map(() => ({ cont: {}, en: [], enAt: -1e9, an: null, art: null, ground: [], aware: true, fixed: false })), kills: 0 }; if (G.w.struct.boat == null) G.w.struct.boat = 0; if (!G.w.events) G.w.events = []; if (G.w.rep.nomad == null) G.w.rep.nomad = 0; if (!G.tut) G.tut = { on: day() <= 2 && !G.w.struct.fire, done: {} }; if (!G.w.flags.mig_bottles) { G.w.flags.mig_bottles = 1; if (G.w.struct.distill == null) G.w.struct.distill = 0; if (!G.dead) { invAdd(G.inv, 'bottle', 2); G.log.push({ t: '🍶 Обновление: теперь воду можно набирать в бутылки. В рюкзаке 2 пустые бутылки.', c: 'good', d: day(), k: clock() }); } } }
 function wipe() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
 
 // =====================================================================
@@ -279,14 +282,14 @@ function emissionTick(o) {
     UI.event({ title: '🔴 Приближается Выброс!', cls: 'bad', text: `Небо наливается багровым, воет ветер. До Выброса около ${Math.max(10, e.next - G.time)} минут.\n\nУкрытия: база, Рыбацкая деревня, Маяк, Метеостанция.` + (inShelter() ? '\n\n✅ Ты в укрытии.' : '\n\n⚠️ Ты под открытым небом — беги в укрытие!'), choices: [{ t: 'Понял' }] });
   }
   if (G.time >= e.next) {
-    e.next = G.time + DAY * R(3, 5) + R(0, 12) * H; e.warned = false; G.interrupt = true;
+    e.next = G.time + DAY * (CH2() && !(G.w.ch2 && G.w.ch2.end === 'seal') ? R(2, 4) : R(3, 5)) + R(0, 12) * H; e.warned = false; G.interrupt = true;
     const f = F();
     if (inShelter()) UI.event({ title: '⚡ Выброс', text: 'Земля дрожит, стены гудят. Ты пережидаешь Выброс в укрытии. Когда всё стихает, в аномалиях наверняка появились новые артефакты.', choices: [{ t: 'Выйти' }] });
     else if (f.death === 'wake') { G.time += 4 * H; G.ch.hp = Math.min(G.ch.hp, 40); UI.event({ title: '⚡ Выброс застал тебя!', cls: 'bad', text: 'Тебя сбило с ног волной. Очнулся через 4 часа — живой, но разбитый.', choices: [{ t: 'Подняться' }] }); }
     else if (f.death === 'perma' && ch(0.6)) { die('Выброс'); return; }
     else { for (const p in PARTS) G.ch.parts[p] = Math.max(1, G.ch.parts[p] * 0.4); G.ch.rad += 60; G.ch.stress = 100; G.lastHurt = 'Выброс'; UI.event({ title: '⚡ Выброс застал тебя!', cls: 'bad', text: 'Волна прошла сквозь тело. Ты выжил — чудом. Здоровье сильно подорвано, +60 радиации.', choices: [{ t: 'Подняться' }] }); }
     // новые артефакты
-    for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => { if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick([['medusa', 4], ['fireball', 3], ['drop', 3], ['crystal', 2]]); });
+    for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => { if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick(artPool()); });
   }
 }
 const emissionSoon = () => G.em.warned;
@@ -378,6 +381,8 @@ function travelTime(to) {
 }
 function canTravel(to) {
   if (curW() > capW() * 1.5) return 'Слишком тяжело — выложи что-нибудь.';
+  if (LOCS[to].ch2 && !CH2()) return 'Туда не добраться.';
+  if (LOCS[to].boat && !boatReady()) return 'Нужна лодка с кристальным двигателем (База → Постройки → Лодка).';
   if (LOCS[to].lock && !cnt(G.inv, LOCS[to].lock)) return `Нужен: ${IT(LOCS[to].lock).ic} ${IT(LOCS[to].lock).n}`;
   return '';
 }
@@ -399,6 +404,7 @@ function travel(to) {
     advance(mins - half);
     if (G.dead) return;
     G.traveling = false; G.loc = to; G.w.locs[to].seen = true; if (to === 'forest') tutMark('forest');
+    if (to === 'reef' && !G.w.flags.reef_seen) { G.w.flags.reef_seen = true; FEED('⛵ доплыл до Острова-8'); checkQuests(); }
     for (const l in LOCS[to].links) if (F().hints) G.w.locs[l].seen = G.w.locs[l].seen || F().hints > 0;
     UI.log(`📍 Ты добрался: ${LOCS[to].ic} ${LOCS[to].n} (${mins} мин).`); setAct('осматривается');
     corpseHint();
@@ -446,7 +452,7 @@ const roomDef = (i, loc) => LOCS[loc || G.loc].rooms[i];
 const roomSt = (i, loc) => G.w.locs[loc || G.loc].rooms[i];
 function mkEnemy(id) {
   const d = ENEMY[id], m = F().enemies;
-  const e = { id, hp: Math.round(d.hp * (d.boss ? 1 : m)), dist: d.sp > 1 ? 1 : R(1, 2), stun: 0 };
+  const e = { id, hp: Math.round(d.hp * (d.boss ? 1 : m * (CH2() ? 1.25 : 1))), dist: d.sp > 1 ? 1 : R(1, 2), stun: 0 };
   e.max = e.hp;
   if (d.gear) e.gear = wpick(d.gear);
   return e;
@@ -478,9 +484,10 @@ function enterRoom(i) {
     if (isNight() && !d.safe && ch(0.3) && !LOCS[G.loc].base) s.en.push(mkEnemy('runner'));
     if (isBloodNight() && !d.safe) s.en.push(mkEnemy('runner'), mkEnemy('zombie'));
     if (fogEvent() && !d.safe && ch(0.5)) s.en.push(mkEnemy(L().zone >= 2 ? 'pdog' : 'runner'));
+    if (CH2() && !d.safe && !LOCS[G.loc].base && !(G.w.ch2 && G.w.ch2.end === 'seal') && ch(d.anom || L().zone ? 0.4 : 0.12)) s.en.push(mkEnemy('crys'));
   }
   // аномалии
-  if (d.anom && !s.an) { s.an = []; for (let k = 0; k < d.anom; k++) s.an.push({ t: pick(Object.keys(ANOM)), found: false }); if (ch(0.5)) s.art = wpick([['medusa', 4], ['fireball', 3], ['drop', 3], ['crystal', 2]]); }
+  if (d.anom && !s.an) { s.an = []; for (let k = 0; k < d.anom; k++) s.an.push({ t: pick(Object.keys(ANOM)), found: false }); if (ch(CH2() ? 0.7 : 0.5)) s.art = wpick(artPool()); }
   if (s.an && cnt(G.inv, 'detector')) s.an.forEach(a => { if (!a.found) { a.found = true; } });
   // финальный зал без стража
   if (d.en && s.en.length) {
@@ -596,7 +603,7 @@ function grabArtifact() {
   const hid = s.an.filter(a => !a.found);
   for (const a of hid) if (ch(0.35)) { triggerAnom(a); a.found = true; G.w.counters.anomFound++; if (G.dead) return; break; }
   if (G.dead) return;
-  invAdd(G.inv, s.art, 1); FEED(`✨ достал артефакт: ${IT(s.art).ic} ${IT(s.art).n}`); UI.log(`✨ Ты достал артефакт: ${IT(s.art).ic} ${IT(s.art).n}!`, 'good'); xp('surv', 6); s.art = null;
+  invAdd(G.inv, s.art, s.art === 'cshard' ? R(2, 3) : 1); FEED(`✨ достал артефакт: ${IT(s.art).ic} ${IT(s.art).n}`); UI.log(`✨ Ты достал артефакт: ${IT(s.art).ic} ${IT(s.art).n}!`, 'good'); xp('surv', 6); s.art = null;
   UI.render();
 }
 
@@ -718,7 +725,7 @@ function enemyHit(e, ranged, near) {
   const D = ENEMY[e.id];
   let acc = D.acc - armor() * 0.02 + (near >= 2 && !D.human ? 0.08 : 0);
   if (!ch(acc)) { cLog(`${D.ic} ${D.n} промахивается.`, 'dim'); return; }
-  let dmg = R(D.dmg[0], D.dmg[1]) * (D.boss ? 1 : F().enemies);
+  let dmg = R(D.dmg[0], D.dmg[1]) * (D.boss ? 1 : F().enemies * (CH2() ? 1.2 : 1));
   if (e.gear) { const g = IT(e.gear); if (g.dmg) dmg = R(g.dmg[0], g.dmg[1]) * 0.8; }
   dmg = Math.max(1, Math.round(dmg - armor()));
   let inj = ranged || (e.gear && IT(e.gear).c === 'gun') ? 'bullet' : pick(D.inj);
@@ -749,7 +756,7 @@ function onKill(e) {
   const D = ENEMY[e.id]; G.ch.kills++; xp(D.human ? 'shoot' : 'melee', 1);
   G.w.locs[G.combat.opts.road ? G.travelTo || G.loc : G.loc].kills++;
   if (D.human) G.ch.stress = clamp(G.ch.stress + 12, 0, 100);
-  if (D.boss) G.w.flags.guard_dead = true;
+  if (D.boss) { G.w.flags[e.id === 'keeper' ? 'keeper_dead' : 'guard_dead'] = true; FEED(`⚔️ победил босса: ${D.ic} ${D.n}`); }
   cLog(`☠️ ${D.ic} ${D.n} повержен.`, 'good');
   // лут на землю
   const ground = [];
@@ -953,6 +960,7 @@ function petCat() {
 function canBuild(id) {
   const S = STRUCT[id], lv = G.w.struct[id] || 0, nx = S.lv[lv + 1];
   if (!nx) return 'max';
+  if (S.ch2 && !CH2()) return 'ch2';
   if (S.bp && !G.w.bp[S.bp]) return 'bp';
   return hasAll(nx.c || {}) ? '' : 'res';
 }
@@ -966,6 +974,7 @@ function build(id) {
   UI.log(`🏗️ Построено: ${S.ic} ${nx.n}.`, 'good');
   if (G.w.struct.fire && G.w.struct.bed && !G.w.flags.camp_ready) { G.w.flags.camp_ready = true; }
   if (id === 'radio') { G.w.flags.radio_built = true; radioMsg(); }
+  if (id === 'boat' && lv + 1 >= 2) { G.w.flags.boat_ready = true; UI.event({ title: '⛵ Лодка готова', cls: 'good', text: 'Ядро встало в двигатель, осколки загудели. Лодка дрожит у пристани, будто сама рвётся в пролив.\n\nНа карте открылся путь к Острову-8 (от базы, 2 часа по воде).', choices: [{ t: 'Отлично' }] }); }
   checkQuests(); UI.render();
 }
 function radioMsg() {
@@ -1002,6 +1011,7 @@ function stationOk(st) {
 }
 const STATION_N = { distill: 'опреснитель и очаг', fire: 'очаг', smoke: 'коптильня', bench: 'верстак', bench2: 'мастерская' };
 function recipeState(r) {
+  if (r.ch2 && !CH2()) return 'bp';
   if (r.bp && !G.w.bp[r.bp]) return 'bp';
   if (!stationOk(r.st)) return 'st';
   return hasAll(r.need) ? '' : 'res';
@@ -1124,7 +1134,7 @@ function route(from, to) {
   while (Q.size) {
     let u = null; for (const k of Q) if (u === null || dist[k] < dist[u]) u = k;
     if (dist[u] === Infinity) break; Q.delete(u); if (u === to) break;
-    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].lock && v !== to && !cnt(G.inv, LOCS[v].lock)) && dist[u] + m < dist[v]) { dist[v] = dist[u] + m; prev[v] = u; }
+    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].ch2 && (!CH2() || !boatReady())) && !(LOCS[v].lock && v !== to && !cnt(G.inv, LOCS[v].lock)) && dist[u] + m < dist[v]) { dist[v] = dist[u] + m; prev[v] = u; }
   }
   if (dist[to] === Infinity) return null;
   const path = []; let c = to; while (c !== from) { path.unshift(c); c = prev[c]; }
@@ -1306,4 +1316,24 @@ function lbSubmit(force, dead) {
   if (!window.FB || !FB.lb || !G || !G.ch) return Promise.resolve();
   if (!force && Date.now() - lbLast < 120000) return Promise.resolve();
   lbLast = Date.now(); return FB.lb.submit(lbEntry(dead)).catch(() => {});
+}
+
+// ---------- Глава 2 «Мастер» ----------
+function startCh2() {
+  if (!G || G.w.ch2) return;
+  G.w.ch2 = { at: G.time, end: null };
+  G.w.quests.c2_shards = 'active';
+  G.em.next = Math.min(G.em.next, G.time + DAY); G.em.warned = false;
+  addNote('n_ch2'); FEED('🔮 начал Главу 2 «Мастер»'); SND('zap');
+  UI.event({ title: '🔮 Глава 2 · Мастер', cls: 'bad', text: 'Ядро в рюкзаке бьётся, как второе сердце. Остров отвечает ему: враги стали сильнее и злее, Выбросы — чаще, а в аномалиях проросли кристаллы.\n\nНо теперь их можно добыть. Из осколков делают оружие, броню — и двигатель, который увезёт тебя к синему шпилю за проливом.\n\nНовое задание: «Пробуждение».', choices: [{ t: 'Начать' }] });
+  save(); UI.render();
+}
+function ending2(choice) {
+  if (!G.w.ch2 || G.w.ch2.end) return;
+  G.w.ch2.end = choice; G.w.flags.ch2_done = true;
+  if (choice === 'seal') { G.em.next = G.time + 9999 * DAY; G.em.warned = false; }
+  if (choice === 'rule') invAdd(G.inv, 'cheart', 1);
+  FEED(choice === 'seal' ? '🌙 усыпил остров' : '💠 стал Мастером острова');
+  const c = G.ch; save();
+  UI.ending2(choice, { name: c.name, days: Math.floor((G.time - c.born) / DAY), kills: c.kills });
 }

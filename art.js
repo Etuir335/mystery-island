@@ -144,6 +144,7 @@ const ART = (() => {
       for (let i = 0; i < 7; i++) deadTree(10 + i * 27 + r() * 10, hz + 14 + r() * 12, 18 + r() * 14, '#2a221a');
       R(120, hz + 20, 50, 10, '#6a3a22'); R(126, hz + 14, 20, 6, '#5a2e1a'); R(150, hz + 8, 3, 12, '#4a2a18');
       sparks(t, r, '#b7ff8a'); haze('#7aa83a', 0.12); },
+    reef(f, t, r) { SCENES.beach(f, t, r); const hz = f.hz; R(150, hz - 34, 5, 34, '#3a4a5a'); R(151, hz - 40, 3, 6, '#7ad8ff'); for (let i = 0; i < 4; i++) line(152, hz - 40, 152 + Math.cos(t / 6 + i * 1.6) * 14, hz - 40 + Math.sin(t / 6 + i * 1.6) * 8, 'rgba(122,216,255,0.55)'); sparks(t, r, '#9ae0ff'); },
     nii(f, t, r) { const hz = f.hz; ground(hz + 4, '#4a4a46', '#58584f');
       R(30, hz - 40, 130, 46, '#8c8a84'); for (let y = hz - 34; y < hz; y += 9) for (let x = 38; x < 155; x += 12) R(x, y, 7, 5, (x * y) % 7 === 0 && f.night ? '#6ac8ff' : '#2a2e34'); R(30, hz - 44, 130, 4, '#6a6864'); R(84, hz - 6, 22, 12, '#2a2e34');
       const pul = 0.25 + 0.15 * Math.sin(t / 4); g.globalAlpha = pul; R(91, 0, 8, hz - 40, '#7ad8ff'); disc(95, hz - 44, 10, '#7ad8ff'); g.globalAlpha = 1;
@@ -230,6 +231,12 @@ const ART = (() => {
     swamper: { p: { a: '#3a4a2a', b: '#ffdd3a', c: '#8a3a3a', d: '#2a3820', e: '#5a6a3a' }, m: [
       '................', '.....aaaaaa.....', '....aaaaaaaa....', '...aabaaaabaa...', '...aaaaaaaaaa...', '...aaccccccaa...', '..eaacaccacaae..', '.eaaaaaaaaaaaae.',
       'ea.aaadaadaaa.ae', 'e..aaaaaaaaaa..e', 'e..aadaaaadaa..e', '...aaaaaaaaaa...', '...aaa....aaa...', '..aaa......aaa..', '.dd..........dd.', '................'] },
+    crys: { p: { a: '#4aa8d8', b: '#e8fbff', c: '#2a6a9a', d: '#7ad8ff' }, m: [
+      '.......d........', '......dad.......', '.....daaad......', '....daabaad.....', '.....aaaaa......', '...c.aabaa.c....', '..ca.aaaaa.ac...', '.caa.aaaaa.aac..',
+      '..c..caaac..c...', '.....caaac......', '....ccaaacc.....', '....ca...ac.....', '...cca...acc....', '...ca.....ac....', '..dd.......dd...', '................'] },
+    keeper: { p: { a: '#2a5a8a', b: '#9ae8ff', c: '#1a3a5a', d: '#4aa8d8', e: '#ffffff' }, m: [
+      '...d...dd...d...', '...dd.dbbd.dd...', '....ddabbadd....', '....aaaaaaaa....', '....abeaaeba....', '....aaaaaaaa....', '.dccaaabbaaaccd.', 'dcaaaabeebaaaacd',
+      'ca..aabeebaa..ac', 'ca..aaabbaaa..ac', 'dd..aaaaaaaa..dd', '....adaaaada....', '....aaa..aaa....', '...daaa..aaad...', '...cccc..cccc...', '................'] },
     guard: { p: { a: '#6a6a74', b: '#7ad8ff', c: '#4a4a54', d: '#8a8a94', e: '#e8fbff' }, m: [
       '.....aaaaaa.....', '....aaaaaaaa....', '....abbaabba....', '....aaaaaaaa....', '..cccaaaaaaccc..', '.ccaaaaaaaaaacc.', 'ccaaaabbbbaaaacc', 'ca..aabeebaa..ac',
       'ca..aabeebaa..ac', 'da..aaabbaaa..ad', 'dd..aaaaaaaa..dd', '....aaaccaaa....', '....aaa..aaa....', '...aaaa..aaaa...', '...cccc..cccc...', '................'] },
@@ -244,9 +251,9 @@ const ART = (() => {
   const enemyImg = (id, cls = '') => `<img class="spr ${cls}" src="${enemy(id)}" alt="${ENEMY[id] ? ENEMY[id].n : ''}" width="32" height="32">`;
 
   // ---------- фон карты ----------
-  let mapCache = null;
-  function mapBg(islandPath) {
-    if (mapCache) return mapCache;
+  const mapCache = {};
+  function mapBg(islandPath, reef) {
+    const ck = reef ? 'r' : 'n'; if (mapCache[ck]) return mapCache[ck];
     const S = 2, cv = document.createElement('canvas'); cv.width = 100 * S; cv.height = 100 * S; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
     const r = rng(42);
     x.fillStyle = '#2d5f78'; x.fillRect(0, 0, cv.width, cv.height);
@@ -263,9 +270,10 @@ const ART = (() => {
     x.restore();
     // дороги
     x.save(); x.scale(S, S); x.strokeStyle = 'rgba(120,96,60,0.55)'; x.lineWidth = 1;
-    const done = new Set(); for (const a in LOCS) for (const b in LOCS[a].links) { const k = [a, b].sort().join(); if (done.has(k)) continue; done.add(k); x.beginPath(); x.moveTo(LOCS[a].x, LOCS[a].y); const mx = (LOCS[a].x + LOCS[b].x) / 2 + (r() - 0.5) * 6, my = (LOCS[a].y + LOCS[b].y) / 2 + (r() - 0.5) * 6; x.quadraticCurveTo(mx, my, LOCS[b].x, LOCS[b].y); x.stroke(); }
+    const done = new Set(); for (const a in LOCS) for (const b in LOCS[a].links) { if (LOCS[a].ch2 || LOCS[b].ch2) continue; const k = [a, b].sort().join(); if (done.has(k)) continue; done.add(k); x.beginPath(); x.moveTo(LOCS[a].x, LOCS[a].y); const mx = (LOCS[a].x + LOCS[b].x) / 2 + (r() - 0.5) * 6, my = (LOCS[a].y + LOCS[b].y) / 2 + (r() - 0.5) * 6; x.quadraticCurveTo(mx, my, LOCS[b].x, LOCS[b].y); x.stroke(); }
     x.restore();
-    return mapCache = cv.toDataURL();
+    if (reef) { x.save(); x.scale(S, S); const L8 = LOCS.reef; x.fillStyle = '#d8c48a'; x.beginPath(); x.ellipse(L8.x, L8.y, 6, 4.2, -0.3, 0, 6.3); x.fill(); x.fillStyle = '#5a6a5a'; x.beginPath(); x.ellipse(L8.x, L8.y, 4.6, 3, -0.3, 0, 6.3); x.fill(); x.fillStyle = '#7ad8ff'; x.fillRect(L8.x + 2, L8.y - 4, 1, 4); x.restore(); }
+    return mapCache[ck] = cv.toDataURL();
   }
   // плитка предмета
   const CAT_BG = { food: '#6a8a3a', drink: '#3a7a9a', med: '#a83a3a', melee: '#7a6a5a', gun: '#4a4a52', ammo: '#7a6a2a', wear: '#5a5a7a', art: '#7a4ab0', tool: '#5a6a6a', mat: '#7a5a3a', val: '#b08a2a', key: '#a8862a', quest: '#2a7a6a', bp: '#3a5a8a' };

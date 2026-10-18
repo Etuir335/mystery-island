@@ -145,6 +145,7 @@ const ITEMS = {
   axe:      { n: 'Топор', ic: '🪓', c: 'melee', w: 1.8, v: 55, dmg: [11, 17], dur: 100, noise: 6, chop: 1 },
   machete:  { n: 'Мачете', ic: '🗡️', c: 'melee', w: 0.9, v: 70, dmg: [12, 16], dur: 90, noise: 3 },
   spear:    { n: 'Копьё', ic: '🔱', c: 'melee', w: 1.5, v: 25, dmg: [10, 15], dur: 50, noise: 3, reach: 1 },
+  cblade:   { n: 'Кристальный клинок', ic: '🔷', c: 'melee', w: 0.8, v: 260, dmg: [17, 23], dur: 140, noise: 2 },
   nailbat:  { n: 'Дубина с гвоздями', ic: '🏑', c: 'melee', w: 1.6, v: 30, dmg: [11, 16], dur: 45, noise: 6, push: 1 },
   // Огнестрел
   pm:       { n: 'Пистолет ПМ', ic: '🔫', c: 'gun', w: 0.8, v: 180, dmg: [14, 20], ammo: 'a9', noise: 30, acc: 0.7 },
@@ -157,6 +158,7 @@ const ITEMS = {
   jacket:   { n: 'Куртка', ic: '🧥', c: 'wear', w: 1.2, v: 30, slot: 'body', warm: 2, arm: 1 },
   parka:    { n: 'Пуховик', ic: '🧥', c: 'wear', w: 1.8, v: 60, slot: 'body', warm: 4, arm: 1 },
   mjacket:  { n: 'Военная куртка', ic: '🥼', c: 'wear', w: 1.6, v: 80, slot: 'body', warm: 3, arm: 2 },
+  cvest:    { n: 'Кристальная броня', ic: '🛡️', c: 'wear', w: 5, v: 700, slot: 'vest', arm: 8, warm: 1 },
   vest:     { n: 'Бронежилет', ic: '🦺', c: 'wear', w: 7, v: 350, slot: 'vest', arm: 5 },
   gasmask:  { n: 'Противогаз', ic: '😷', c: 'wear', w: 1, v: 120, slot: 'mask', radp: 0.5 },
   bag1:     { n: 'Школьный рюкзак', ic: '🎒', c: 'wear', w: 0.6, v: 20, slot: 'bag', cap: 6 },
@@ -191,6 +193,8 @@ const ITEMS = {
   crystal:  { n: 'Кристалл', ic: '💎', c: 'art', w: 0.5, v: 350, art: { cap: 6, rad: 1 }, d: 'Тот самый кристалл. Рюкзак будто легче (+6 кг). Фонит.' },
   fireball: { n: 'Огненный шар', ic: '🔥', c: 'art', w: 0.5, v: 280, art: { warm: 3, rad: 1 }, d: 'Тёплый на ощупь. Греет в холод.' },
   drop:     { n: 'Капля', ic: '💧', c: 'art', w: 0.5, v: 320, art: { rad: -2 }, d: 'Выводит радиацию.' },
+  cshard:   { n: 'Осколок кристалла', ic: '🔹', c: 'mat', w: 0.1, v: 40, d: 'Холодный, светится изнутри. Появились после того, как ты забрал ядро.' },
+  cheart:   { n: 'Сердце острова', ic: '💠', c: 'art', w: 1, v: 8000, art: { heal: 3, cap: 8, warm: 2, rad: -3 }, d: 'Огромный кристалл, бьющийся как сердце. Сила Мастера острова.' },
   crown:    { n: 'Золотая корона', ic: '👑', c: 'art', w: 1, v: 5000, art: { heal: 3, cap: 10, warm: 3, rad: -2 }, d: 'Легенда острова. Говорят, её создал сам Аппарат.' },
   // Ключи и сюжет
   k_armory: { n: 'Ключ от оружейной', ic: '🔑', c: 'key', w: 0, v: 50 },
@@ -248,6 +252,8 @@ const ENEMY = {
   pdog:    { n: 'Псевдопёс', ic: '🐺', hp: 38, dmg: [8, 13], sp: 2, acc: 0.65, inj: ['bite', 'lacer'], noVirus: 1, xp: 10, drop: [['meat', 2]] },
   swamper: { n: 'Болотник', ic: '👹', hp: 65, dmg: [12, 18], sp: 2, acc: 0.6, arm: 2, inj: ['lacer', 'frac', 'bruise'], noVirus: 1, xp: 18, cloak: 1 },
   sci:     { n: 'Заражённый учёный', ic: '🥼', hp: 32, dmg: [6, 10], sp: 1, acc: 0.55, inj: ['scratch', 'bite'], loot: 'labdesk', xp: 6 },
+  crys:    { n: 'Кристаллид', ic: '💠', hp: 55, dmg: [9, 14], sp: 1, acc: 0.6, arm: 4, inj: ['lacer', 'burn'], noVirus: 1, xp: 14, drop: [['cshard', 2]] },
+  keeper:  { n: 'Хранитель Кристаллов', ic: '🔷', hp: 260, dmg: [16, 26], sp: 1, acc: 0.62, arm: 6, inj: ['frac', 'lacer', 'burn'], noVirus: 1, xp: 120, boss: 1, drop: [['cshard', 8]] },
   guard:   { n: 'Страж Аппарата', ic: '🗿', hp: 160, dmg: [14, 22], sp: 1, acc: 0.6, arm: 5, inj: ['frac', 'lacer', 'burn'], noVirus: 1, xp: 60, boss: 1, drop: [['crown', 1]] },
 };
 
@@ -264,7 +270,7 @@ const ANOM = {
 const LOCS = {
   base: { n: 'Лодочная станция', ic: '🏚️', x: 30, y: 72, dg: 0, shelter: 1, base: 1,
     d: 'Старый лодочный сарай у воды. Твоя база. Где-то тут живёт кот.',
-    links: { beach: 40, village: 50, forest: 45 }, fish: 1, water: 'sea',
+    links: { beach: 40, village: 50, forest: 45, reef: 120 }, fish: 1, water: 'sea',
     rooms: [{ n: 'Пристань', cont: ['shore', 'toolbox'], once: 1 }] },
   beach: { n: 'Дикий пляж', ic: '🏖️', x: 13, y: 56, dg: 1,
     d: 'Песок, обломки и ящики, которые выносит прибой. Утопленники бродят у воды.',
@@ -355,6 +361,16 @@ const LOCS = {
       { n: 'Аномальный коридор', cont: ['body'], en: [['swamper', 0, 1]], anom: 5 },
       { n: 'Зал Аппарата', cont: [], en: [['guard', 1, 1]], final: 1, dark: 1 },
     ] },
+  // Глава 2: доступен только по морю, на лодке с кристальным двигателем
+  reef: { n: 'Остров-8', ic: '🏝️', x: 10, y: 94, dg: 3, zone: 2, ch2: 1, boat: 1,
+    d: 'Скалистый островок за проливом. Отсюда в небо бьёт синий шпиль — второй Аппарат, о котором молчали все записи.',
+    links: { base: 120 }, fish: 1, water: 'sea',
+    rooms: [
+      { n: 'Причал-призрак', cont: ['shore', 'body', 'backpack'], en: [['drowned', 1, 2]] },
+      { n: 'Кристальный грот', cont: ['stash'], en: [['crys', 1, 2]], anom: 3 },
+      { n: 'Лаборатория «Б»', cont: ['labdesk', 'safe', 'medcab'], en: [['sci', 1, 2], ['crys', 0, 1]], fixed: { note: 'n_reef' } },
+      { n: 'Шпиль', cont: [], en: [['keeper', 1, 1]], final2: 1, dark: 1 },
+    ] },
 };
 const ZONE_RAD = [0, 1, 3, 5]; // радиация за 10 минут по уровню зоны
 
@@ -369,6 +385,7 @@ const STRUCT = {
   rain:   { n: 'Дождесборник', ic: '🌧️', bp: 'rain', lv: [{ n: 'Нет' }, { n: 'Дождесборник', c: { rag: 2, planks: 2, tape: 1 } }] },
   smoke:  { n: 'Коптильня', ic: '♨️', bp: 'smoke', lv: [{ n: 'Нет' }, { n: 'Коптильня', c: { scrap: 3, planks: 2 } }] },
   garden: { n: 'Огород', ic: '🥕', bp: 'garden', lv: [{ n: 'Нет' }, { n: 'Грядки', c: { planks: 3, seeds: 1 } }] },
+  boat:   { n: 'Лодка', ic: '⛵', ch2: 1, lv: [{ n: 'Разбитая лодка у пристани' }, { n: 'Залатанный корпус', c: { planks: 8, nails: 20, rope: 4 } }, { n: 'Кристальный двигатель', c: { core: 1, cshard: 6, elec: 3, wire: 4 } }] },
   radio:  { n: 'Радиостанция', ic: '📻', lv: [{ n: 'Нет' }, { n: 'Радиостанция', c: { rpart: 3, wire: 2, battery: 2 } }] },
 };
 
@@ -392,6 +409,8 @@ const RECIPES = [
   { id: 'picks', n: 'Отмычки', need: { wire: 2 }, out: { picks: 1 }, st: 'bench', bp: 'picks', t: 20 },
   { id: 'a12', n: 'Патроны 12 кал. (×4)', need: { scrap: 1, battery: 1 }, out: { a12: 4 }, st: 'bench2', bp: 'a12', t: 40 },
   { id: 'bolts', n: 'Болты (×10)', need: { scrap: 1 }, out: { bolts: 10 }, st: 'bench', t: 10 },
+  { id: 'cblade', n: 'Кристальный клинок', need: { knife: 1, cshard: 4, tape: 1 }, out: { cblade: 1 }, st: 'bench', ch2: 1, t: 40 },
+  { id: 'cvest', n: 'Кристальная броня', need: { vest: 1, cshard: 6, wire: 2 }, out: { cvest: 1 }, st: 'bench2', ch2: 1, t: 60 },
   { id: 'herbal', n: 'Травяная мазь (антисептик)', need: { herbs: 3, alcohol: 1 }, out: { antisep: 1 }, st: 'fire', t: 30 },
 ];
 
@@ -400,18 +419,18 @@ const TRADERS = {
   semen: { n: 'Семёныч', ic: '🧓', d: 'Старый рыбак. Это он вытащил тебя на берег.',
     stock: [['canned', 0], ['water', 0], ['fish', 0], ['bandage', 0], ['rod', 0], ['seeds', 0], ['bag1', 0], ['smoked', 1], ['antisep', 1], ['bp_smoke', 1], ['bag2', 2], ['bp_garden', 2]],
     buys: ['food', 'drink', 'mat', 'val', 'tool', 'melee', 'wear', 'med'],
-    quests: ['q_fish', 'q_farm', 'q_misha'] },
+    quests: ['q_fish', 'q_farm', 'q_misha', 'q_hull'] },
   serg: { n: 'Сержант Ковальчук', ic: '🪖', d: 'Единственный, кто остался от гарнизона. Подозрительный, но честный.',
     stock: [['a9', 0], ['bandage', 0], ['knife', 0], ['bat', 0], ['pm', 1], ['a12', 1], ['mjacket', 1], ['bp_traps', 1], ['sawn', 2], ['a545', 2], ['vest', 3], ['ak', 3]],
     buys: ['melee', 'gun', 'ammo', 'wear', 'val', 'med', 'food'],
-    quests: ['q_post', 'q_kpp', 'q_guard'] },
+    quests: ['q_post', 'q_kpp', 'q_guard', 'q_awake'] },
   nomad: { n: 'Кочевой торговец', ic: '🧳', d: 'Ходит по острову с огромным рюкзаком. Никто не знает, откуда он берёт товар.',
     stock: [['bag3', 0], ['detector', 0], ['vest', 0], ['gasmask', 0], ['medkit', 0], ['antirad', 0], ['antibio', 0], ['a545', 0], ['a9', 0], ['bp_ammo', 0], ['bp_traps', 0], ['serum', 0]],
     buys: ['food', 'drink', 'med', 'melee', 'gun', 'ammo', 'wear', 'art', 'tool', 'mat', 'val'], artBonus: 1.2, quests: [] },
   levin: { n: 'Доктор Левин', ic: '👨‍🔬', d: 'Учёный из НИИ. Знает про Аппарат больше, чем говорит.',
     stock: [['antirad', 0], ['bolts', 0], ['antibio', 0], ['gasmask', 1], ['medkit', 1], ['detector', 2], ['coldpill', 0], ['serum', 3]],
     buys: ['art', 'med', 'val', 'mat'], artBonus: 1.5,
-    quests: ['q_art', 'q_anom', 'q_nii'] },
+    quests: ['q_art', 'q_anom', 'q_nii', 'q_shards'] },
 };
 
 // type: items (принести), kill (убить в локации), flag (событие), visit
@@ -420,18 +439,26 @@ const QUESTS = {
   m_camp:  { g: 'main', n: 'Обжиться', d: 'Разведи костёр (3 дров) и сделай спальное место получше на базе. Дрова — в лесу или из досок.', type: 'flag', flag: 'camp_ready', rew: { xp: { surv: 10 } }, next: 'm_radio' },
   m_radio: { g: 'main', n: 'Голос в эфире', d: 'Собери на базе радиостанцию: 3 радиодетали (Метеостанция, Маяк, Блокпост), 2 проволоки, 2 батарейки.', type: 'flag', flag: 'radio_built', rew: {}, next: 'm_nii' },
   m_nii:   { g: 'main', n: 'Остров-7', d: 'Радио поймало запись: остров на карантине из-за Аппарата в НИИ. Нужен пропуск — спроси Сержанта. Дойди до Зала Аппарата.', type: 'flag', flag: 'apparatus', rew: {} },
+  // Глава 2 «Мастер»
+  c2_shards: { g: 'main', n: 'Пробуждение', d: 'Без ядра остров «проснулся»: в аномалиях растут кристаллы, бродят кристаллиды. Собери 6 осколков кристалла.', type: 'items', need: { cshard: 6 }, rew: { xp: { surv: 15 } }, next: 'c2_boat' },
+  c2_boat:   { g: 'main', n: 'Кристальный двигатель', d: 'Синий свет бьёт в небо с островка за проливом. Почини лодку на базе (Постройки → Лодка): корпус, а затем двигатель на ядре и осколках.', type: 'flag', flag: 'boat_ready', rew: { xp: { craft: 15 } }, next: 'c2_reef' },
+  c2_reef:   { g: 'main', n: 'Остров-8', d: 'Доплыви до островка со шпилем (карта → Остров-8, от базы).', type: 'flag', flag: 'reef_seen', rew: {}, next: 'c2_keeper' },
+  c2_keeper: { g: 'main', n: 'Хранитель', d: 'В Шпиле что-то охраняет второй Аппарат. Победи Хранителя Кристаллов и реши судьбу острова.', type: 'flag', flag: 'keeper_dead', rew: { money: 800 } },
   // Семёныч
   q_fish:  { g: 'semen', n: 'Улов', d: 'Принеси 3 сырые рыбы — у старика спина не та, чтобы рыбачить.', type: 'items', need: { fish: 3 }, rew: { money: 60, items: { rod: 1, smoked: 2 }, rep: 1 } },
   q_farm:  { g: 'semen', n: 'Зачистка фермы', d: 'На ферме бродят бывшие соседи. Упокой хотя бы 6 из них.', type: 'kill', loc: 'farm', count: 6, rew: { money: 120, items: { antibio: 1, bp_garden: 1 }, rep: 1 } },
   q_misha: { g: 'semen', n: 'Сын Семёныча', d: 'Сын Семёныча, Миша, ушёл на заправку и не вернулся. Найди хоть что-нибудь.', type: 'items', need: { dogtag: 1 }, rew: { money: 150, items: { bag2: 1 }, rep: 2 } },
+  q_hull:  { g: 'semen', ch2: 1, n: 'Старая лодка', d: 'Хочешь в пролив? Принеси 6 досок и 2 верёвки — помогу залатать корпус, у меня и гвозди есть.', type: 'items', need: { planks: 6, rope: 2 }, rew: { items: { nails: 20, rope: 2, tools: 1 }, rep: 1 } },
   // Сержант
   q_post:  { g: 'serg', n: 'Бывшие сослуживцы', d: 'На блокпосту мои ребята… уже не мои. Упокой 5 солдат.', type: 'kill', loc: 'post', count: 5, rew: { money: 150, items: { k_armory: 1 }, rep: 1 } },
   q_kpp:   { g: 'serg', n: 'Журнал КПП', d: 'Принеси журнал с КПП. Хочу знать, кто приказал закрыть остров.', type: 'items', need: { kpplog: 1 }, rew: { money: 100, items: { pass: 1 }, rep: 1 } },
   q_guard: { g: 'serg', n: 'Сердце проблемы', d: 'Если доберёшься до Зала Аппарата — уничтожь то, что его охраняет.', type: 'flag', flag: 'guard_dead', rew: { money: 500, items: { ak: 1, a545: 60 }, rep: 2 } },
+  q_awake: { g: 'serg', ch2: 1, n: 'Пробуждённые', d: 'Мертвецы на блокпосту стали злее. Упокой 8 из них, пока они не пошли к маяку.', type: 'kill', loc: 'post', count: 8, rew: { money: 300, items: { a545: 40, medkit: 1 }, rep: 2 } },
   // Левин
   q_art:   { g: 'levin', n: 'Образец', d: 'Принеси любой артефакт. Они рождаются в аномалиях после Выброса.', type: 'art', rew: { money: 200, items: { detector: 1 }, rep: 1 } },
   q_anom:  { g: 'levin', n: 'Замеры', d: 'Найди болтами 6 аномалий (на болоте, у метеостанции, в НИИ).', type: 'count', key: 'anomFound', count: 6, rew: { money: 150, items: { gasmask: 1, antirad: 2 }, rep: 1 } },
   q_nii:   { g: 'levin', n: 'Записи брата', d: 'Мой брат вёл записи в лабораториях НИИ. Принеси их.', type: 'items', need: { niidata: 1 }, rew: { money: 300, items: { serum: 1 }, rep: 2 } },
+  q_shards:{ g: 'levin', ch2: 1, n: 'Кристаллография', d: 'Осколки — это не артефакты, это семена. Принеси 5, я должен понять, что из них вырастет.', type: 'items', need: { cshard: 5 }, rew: { money: 400, items: { serum: 1, antirad: 2 }, rep: 2 } },
 };
 
 // ---------- ЗАПИСКИ (сюжет по кусочкам) ----------
@@ -446,6 +473,8 @@ const NOTES = {
   n_meteo:   { t: 'Отчёт метеостанции', x: '«Выбросы цикличны. Источник — НИИ. Мощность растёт. Аппарат питается… чем? Левин-старший не отвечает.»' },
   n_stalker: { t: 'ПДА сталкера', x: '«Кристаллы — самые ценные. Говорят, если собрать много, Аппарат сделает из них корону. Бред, конечно. Но я видел светящийся венец в коридоре НИИ…»' },
   n_nii:     { t: 'Записи Левина-старшего', x: '«Аппарат не создаёт аномалии — он их притягивает. Он открывает дверь. Если вынуть ядро — дверь закроется. Или распахнётся настежь. Я не знаю.»' },
+  n_ch2:     { t: 'Ядро в рюкзаке', x: 'Ядро гудит всё громче. По ночам с юго-запада, из-за пролива, в небо бьёт синий луч. В аномалиях проросли кристаллы — холодные, как лёд. Остров проснулся. Ты — его новый Мастер. Или его следующая жертва.' },
+  n_reef:    { t: 'Журнал лаборатории «Б»', x: '«Аппарат на Острове-7 был лишь антенной. Источник — здесь, под Шпилем. Кристаллы — его нервы. Хранитель не пускает никого. Если ядро вернётся к Сердцу — всё уснёт. Если Сердце заберут — у острова будет хозяин.»' },
   n_vk:      { t: 'Старая рация в сарае', x: '«…Mystery of the Island… Выживание… если вы это слышите — команды: Искать, Копать, Крафт… [шум]…» — Похоже, кто-то играл здесь в игру. Давно, ещё до всего этого.' },
 };
 

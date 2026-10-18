@@ -82,14 +82,16 @@ const UI = (() => {
     const f = F(); const sel = st.sel || G.loc; const near = LOCS[G.loc].links;
     const seen = id => !f.fog || G.w.locs[id].seen || near[id] != null || id === G.loc;
     const drawn = new Set(); let lines = '';
-    for (const id in LOCS) for (const to in LOCS[id].links) { const k = [id, to].sort().join(); if (drawn.has(k)) continue; drawn.add(k); const A = LOCS[id], B = LOCS[to]; const nr = (id === G.loc || to === G.loc); lines += `<line class="link ${nr ? 'near' : ''}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`; }
+    const vis = id => !LOCS[id].ch2 || CH2();
+    for (const id in LOCS) for (const to in LOCS[id].links) { if (!vis(id) || !vis(to)) continue; const k = [id, to].sort().join(); if (drawn.has(k)) continue; drawn.add(k); const A = LOCS[id], B = LOCS[to]; const nr = (id === G.loc || to === G.loc); lines += `<line class="link ${nr ? 'near' : ''} ${LOCS[id].boat || LOCS[to].boat ? 'sea' : ''}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`; }
     let nodes = '';
     for (const id in LOCS) {
+      if (!vis(id)) continue;
       const l = LOCS[id], s = seen(id);
       const evs = eventsAt(id); if (evs.length && s) nodes += `<text x="${l.x - 6.5}" y="${l.y - 2.6}" style="font-size:3.6px">${EVTS[evs[0].type].ic}</text>`;
       const fr = G.coop ? COOP.others().filter(p => p.online && p.loc === id) : [];
       fr.forEach((p, k) => { nodes += `<text class="fname" x="${l.x}" y="${l.y - 5.2 - k * 3.2}">👤${esc((p.name || '').slice(0, 10))} ${stIcon(p)}</text>`; });
-      nodes += `<g class="node ${id === G.loc ? 'cur' : ''} ${id === sel ? 'sel' : ''} ${l.zone ? 'zn' : ''}" onclick="${a(() => { st.sel = id; })}"><circle cx="${l.x}" cy="${l.y}" r="3.6"/><text class="emo" x="${l.x}" y="${l.y + 1.4}">${s ? l.ic : '?'}</text><text x="${l.x}" y="${l.y + 7.2}">${s ? esc(l.n) : '???'}</text></g>`;
+      nodes += `<g class="node ${id === G.loc ? 'cur' : ''} ${id === sel ? 'sel' : ''} ${l.zone ? 'zn' : ''}" onclick="${a(() => { st.sel = id; })}"><circle cx="${l.x}" cy="${l.y}" r="3.6"/><text class="emo" x="${l.x}" y="${l.y + 1.4}">${s ? l.ic : '?'}</text><text x="${l.x}" y="${l.boat ? l.y - 5 : l.y + 7.2}">${s ? esc(l.n) : '???'}</text></g>`;
     }
     let grid = ''; for (let i = 10; i < 100; i += 10) grid += `<line class="grid" x1="${i}" y1="0" x2="${i}" y2="100"/><line class="grid" x1="0" y1="${i}" x2="100" y2="${i}"/>`;
     const l = LOCS[sel], s = seen(sel), ls = G.w.locs[sel];
@@ -111,7 +113,7 @@ const UI = (() => {
     else { const r = route(G.loc, sel); card += r ? `<p class="muted">Маршрут: ${r.path.map(k => seen(k) ? LOCS[k].n : '???').join(' → ')} · ~${r.mins} мин</p><div class="acts">${btn('🧭 Проложить маршрут', () => { st.sel = null; goTo(sel); }, 'pri', !!canTravel(r.path[0]))}</div>` : '<p class="muted">Сюда пока не пройти.</p>'; }
     if (sel !== G.loc && (G.ch.food < 25 || G.ch.drink < 25)) card += '<p class="warn">⚠️ Мало еды или воды — поешь перед дорогой.</p>';
     card += '</div>';
-    return `${tutCard()}${logLast(3)}<div class="mapwrap"><svg viewBox="0 0 100 100" role="img" aria-label="Карта острова"><image href="${ART.mapBg(ISLAND)}" x="0" y="0" width="100" height="100" preserveAspectRatio="none" style="image-rendering:pixelated"/>${lines}${nodes}</svg></div>${card}`;
+    return `${tutCard()}${logLast(3)}<div class="mapwrap"><svg viewBox="0 0 100 100" role="img" aria-label="Карта острова"><image href="${ART.mapBg(ISLAND, CH2())}" x="0" y="0" width="100" height="100" preserveAspectRatio="none" style="image-rendering:pixelated"/>${lines}${nodes}</svg></div>${card}`;
   }
 
   // ---------------- МЕСТО ----------------
@@ -196,8 +198,15 @@ const UI = (() => {
       h += '</div></div>';
     }
     if (d.final && !alive.length) h += renderApparatus();
-    if (!alive.length && !s.an && !(d.cont && d.cont.length) && !d.trader && !d.final) h += '<p class="muted">Здесь пусто.</p>';
+    if (d.final2 && !alive.length) h += renderSpire();
+    if (!alive.length && !s.an && !(d.cont && d.cont.length) && !d.trader && !d.final && !d.final2) h += '<p class="muted">Здесь пусто.</p>';
     return h;
+  }
+  function renderSpire() {
+    if (G.w.ch2 && G.w.ch2.end) return `<div class="note">💠 ${G.w.ch2.end === 'seal' ? 'Шпиль погас. Сердце острова спит, и ядро спит вместе с ним.' : 'Шпиль светит ровно и спокойно — он узнаёт тебя. Ты Мастер острова.'}</div>`;
+    if (!G.w.flags.keeper_dead) return '';
+    return `<div class="sec"><h2 class="zone">💠 Сердце острова</h2><p>Хранитель рассыпался осколками. В центре Шпиля, в коконе из кристаллов, бьётся Сердце — огромный синий камень. Ядро в двигателе твоей лодки отзывается ему через весь остров.</p>
+      <div class="choices">${btn('🌙 Вернуть ядро к Сердцу. Пусть остров уснёт — навсегда.', () => ending2('seal'), 'pri')}${btn('💠 Забрать Сердце. Остров будет слушаться тебя.', () => ending2('rule'))}${btn('↩ Уйти и подумать', () => leaveRoom())}</div></div>`;
   }
   function renderApparatus() {
     if (G.w.ending) return `<div class="note">🔮 Аппарат ${G.w.ending === 'silence' ? 'молчит. Остров затих.' : 'мёртв без ядра — но ядро тихо гудит в твоём рюкзаке.'}</div>`;
@@ -228,7 +237,7 @@ const UI = (() => {
       const items = G.inv.filter(e => sellPrice(tid, e.id) > 0);
       h += items.length ? '<div class="list">' + items.map(e => { const p = sellPrice(tid, e.id); return `<div class="row">${ART.tile(e.id)}<div class="grow"><span class="t">${esc(IT(e.id).n)}${e.n > 1 ? ' ×' + e.n : ''}</span><span class="s">${p}₽ за шт.</span></div><div class="acts">${btn(`+${p}₽`, () => sell(tid, e, false), 'sm')}${e.n > 1 ? btn(`все +${p * e.n}₽`, () => sell(tid, e, true), 'sm') : ''}</div></div>`; }).join('') + '</div>' : '<p class="muted">Ему нечего у тебя купить.</p>';
     } else {
-      const qs = T.quests;
+      const qs = T.quests.filter(q => !QUESTS[q].ch2 || CH2());
       const nextQ = qs.find(q => G.w.quests[q] !== 'done');
       qs.filter(q => G.w.quests[q] === 'done').forEach(q => h += `<div class="row dim"><span class="ic">✅</span><div class="grow"><span class="t">${QUESTS[q].n}</span></div></div>`);
       if (!nextQ) h += '<p class="muted">«Больше просить не о чем. Спасибо тебе.»</p>';
@@ -282,7 +291,7 @@ const UI = (() => {
   const canMake = r => Math.min(30, ...Object.entries(r.need).map(([k, v]) => Math.floor(allCnt(k) / v)));
   function handCraft() {
     const fire = campHere() || (atBase() && G.w.struct.fire > 0);
-    const rs = RECIPES.filter(r => (!r.st || (r.st === 'fire' && fire)) && (!r.bp || G.w.bp[r.bp]));
+    const rs = RECIPES.filter(r => (!r.st || (r.st === 'fire' && fire)) && (!r.bp || G.w.bp[r.bp]) && (!r.ch2 || CH2()));
     const rows = rs.map(r => { const w = recipeState(r); return `<div class="row ${w ? 'dim' : ''}"><div class="grow"><span class="t">${esc(r.n)}</span><span class="s">${Object.entries(r.need).map(([k, v]) => `${IT(k).ic}${IT(k).n} ${allCnt(k)}/${v}`).join(', ')}${r.st ? ' · на огне' : ''} · ${r.t} мин</span></div><div class="acts">${btn('Сделать', () => craft(r), 'sm', !!w)}${!w && canMake(r) > 1 ? btn(`×${canMake(r)}`, () => craftMax(r), 'sm') : ''}</div></div>`; }).join('');
     const camp = campHere() ? `<span class="chip good">🔥 костёр: ещё ${G.campfire.until - G.time} мин</span>` : (!L().base ? btn('🔥 Развести костёр (2 дров)', makeCamp, 'sm', !cnt(G.inv, 'lighter') || cnt(G.inv, 'wood') < 2) : '');
     return `<div class="sec" id="craftsec"><div class="sechead"><h2>Крафт в руках</h2>${camp}</div><p class="muted" style="font-size:13px">Простые вещи можно делать где угодно. ${fire ? 'Огонь рядом — можно жарить и кипятить.' : 'Чтобы жарить и кипятить вне базы, разведи костёр.'} Сложное — на верстаке базы.</p><div class="list">${rows}</div></div>`;
@@ -346,6 +355,7 @@ const UI = (() => {
     h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
     h += '<div class="sec"><h2>Постройки</h2><div class="list">';
     for (const id in STRUCT) {
+      if (STRUCT[id].ch2 && !CH2()) continue;
       const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
       const need = nx && nx.c ? Object.entries(nx.c).map(([k, v]) => `<span class="${allCnt(k) >= v ? '' : 'bad'}">${IT(k).ic}${IT(k).n} ${allCnt(k)}/${v}</span>`).join(', ') : '';
       h += `<div class="row ${why === 'bp' ? 'dim' : ''}"><span class="ic">${S.ic}</span><div class="grow"><span class="t">${S.n}: ${lv ? S.lv[lv].n : '<span class="muted">нет</span>'}</span>${nx ? `<span class="s">${why === 'bp' ? '📐 нужен чертёж' : `→ ${nx.n}: ${need}`}</span>` : '<span class="s">максимум</span>'}</div>${nx && why !== 'bp' ? btn(lv ? 'Улучшить' : 'Построить', () => build(id), 'sm pri', !!why) : ''}</div>`;
@@ -363,6 +373,7 @@ const UI = (() => {
     const act = q.filter(([, v]) => v === 'active'), done = q.filter(([, v]) => v === 'done');
     const giver = g => g === 'main' ? '⭐ Главное' : TRADERS[g].ic + ' ' + TRADERS[g].n;
     let h = `<h1>📓 Журнал</h1><div class="sec"><h2>Задания</h2><div class="list">${act.map(([id]) => `<div class="row"><div class="grow"><span class="s">${giver(QUESTS[id].g)}</span><span class="t">${QUESTS[id].n}</span><span class="s">${esc(QUESTS[id].d)}</span><span class="s">Прогресс: ${questProgress(id)}</span></div></div>`).join('') || '<p class="muted">Нет активных заданий. Поговори с жителями острова.</p>'}</div>${done.length ? `<p class="muted">Выполнено: ${done.map(([id]) => QUESTS[id].n).join(', ')}</p>` : ''}</div>`;
+    if (G.w.ending === 'master' && !G.w.ch2) h += `<div class="sec"><h2>🔮 Глава 2 «Мастер»</h2><p class="muted">Ты забрал ядро Аппарата. Остров ждёт своего Мастера: сильнее враги, чаще Выбросы, кристаллы, лодка и путь к синему шпилю за проливом.</p><div class="acts">${btn('Начать Главу 2', startCh2, 'pri')}</div></div>`;
     h += coopPanel();
     h += lbPanel();
     h += `<div class="sec"><h2>Записки (${G.w.notes.length}/${Object.keys(NOTES).length})</h2><div class="list">${G.w.notes.slice().reverse().map(id => `<div class="note"><b>${esc(NOTES[id].t)}</b><br>${esc(NOTES[id].x)}</div>`).join('')}</div></div>`;
@@ -557,7 +568,10 @@ const UI = (() => {
         jsel.busy = false;
         if (err) { jsel.err = err; draw(); return; }
         closeFull(); st.tab = 'loc';
-        event({ title: '🤝 Ты в мире друга', text: `Код мира: ${COOP.code}. Ты высадился у Лодочной станции — это общая база. Склад, постройки и задания у вас общие, а рюкзак у каждого свой.\n\nЕсли вы в одной локации, друг помогает в бою, а вещи можно передавать друг другу.`, choices: [{ t: 'Поехали' }] });
+        if (G.w.struct.fire || day() > 2) { G.tut.on = false; save(); }
+        event({ title: '🤝 Ты в мире друга', text: `Ты высадился у Лодочной станции — это ваша общая база.\n\n🏚️ Общее: база, склад, постройки, задания, время и погода.\n🎒 Твоё: персонаж, рюкзак и деньги.\n\n👥 Вверху — панель отряда. Нажми на друга: увидишь, где он и чем занят, сможешь пойти к нему или передать вещь.\n📣 Журнал → Кооператив: сигналы вроде «Нужна помощь!», чат и лента событий отряда.\n⚔️ Если вы в одной локации — деретесь вместе.`, choices: [{ t: 'Понятно' }] });
+        setTimeout(() => { try { const f = COOP.others().filter(p => p.online && p.alive !== false)[0]; if (!f || !G || f.loc === G.loc || !LOCS[f.loc]) return;
+          event({ title: `👋 ${f.name || 'Друг'} сейчас здесь: ${LOCS[f.loc].ic} ${LOCS[f.loc].n}`, text: `${f.act ? 'Занят: ' + f.act + '.\n\n' : ''}Можно сразу отправиться к нему — маршрут построится сам. Или сначала осмотрись на базе и загляни в общий склад.`, choices: [{ t: '🧭 Идти к другу', fn: () => goTo(f.loc) }, { t: 'Сначала осмотрюсь' }] }); } catch (e) {} }, 1800);
       }, 'pri', jsel.busy)}${mbtn('Назад', () => startScreen())}</div>`);
     draw();
   }
@@ -577,7 +591,15 @@ const UI = (() => {
       ? 'Ты вырываешь ядро и бьёшь его о бетон. Синий свет гаснет. Впервые за месяцы над островом обычное серое небо.\n\nЧерез три дня у пристани появляется катер с красным крестом. Семёныч машет с берега — он остаётся. «Это мой дом».\n\nКонцовка: «Тишина».'
       : 'Ты вынимаешь ядро. Оно тёплое и бьётся, как сердце. Аппарат умирает, но остров вздрагивает — и где-то в глубине просыпается что-то большее.\n\nВыбросы станут сильнее. Аномалии — богаче. Ты держишь в руках ключ от Мастер-режима.\n\nКонцовка: «Мастер». Продолжение — во второй главе.';
     showFull(() => `<div class="title"><small>ФИНАЛ ДЕМО</small>${choice === 'off' ? 'Тишина' : 'Мастер'}</div><p style="white-space:pre-wrap">${esc(txt)}</p><p class="mono">${esc(d.name)} · дней на острове: ${d.days} · врагов: ${d.kills} · записок: ${G.w.notes.length}/${Object.keys(NOTES).length}</p>
-      <div class="acts">${mbtn('Продолжить исследовать остров', closeFull, 'pri')}${mbtn('Новая игра', () => { wipe(); G = null; startScreen(); })}</div>`);
+      <div class="acts">${choice === 'take' ? mbtn('🔮 Глава 2 «Мастер»', () => { closeFull(); startCh2(); }, 'pri') : ''}${mbtn('Продолжить исследовать остров', closeFull, choice === 'take' ? '' : 'pri')}${mbtn('Новая игра', () => { wipe(); G = null; startScreen(); })}</div>`);
+  }
+  function ending2Screen(choice, d) {
+    const txt = choice === 'seal'
+      ? 'Ты вынимаешь ядро из двигателя и вкладываешь его в Сердце. Кристаллы вокруг гаснут один за другим, как свечи. Шпиль замолкает.\n\nНа обратном пути лодка идёт на одних вёслах. Над островом впервые за месяцы — обычное небо. Выбросов больше не будет. Кристаллиды рассыпаются в пыль.\n\nСемёныч встречает тебя на пристани: «Ну что, отвоевался? Пошли, уха стынет».'
+      : 'Ты кладёшь ладонь на Сердце — и оно отрывается от кокона само, будто ждало тебя. Тяжёлое, холодное, живое.\n\nОстров вздыхает. Аномалии тянутся к тебе, кристаллиды расступаются. Выбросы не прекратятся — но теперь это твоя буря.\n\nСердце острова у тебя в рюкзаке. Мастер вернулся.';
+    showFull(() => `<div class="title"><small>ФИНАЛ ГЛАВЫ 2</small>${choice === 'seal' ? 'Сон' : 'Мастер острова'}</div><p style="white-space:pre-wrap">${esc(txt)}</p><p class="mono">${esc(d.name)} · дней на острове: ${d.days} · врагов: ${d.kills} · записок: ${G.w.notes.length}/${Object.keys(NOTES).length}</p>
+      <p class="muted">Спасибо, что прошёл историю «Mystery of the Island». Мир остаётся с тобой — можно играть дальше, строить базу и звать друзей.</p>
+      <div class="acts">${mbtn('Продолжить', closeFull, 'pri')}${mbtn('Новая игра', () => { wipe(); G = null; startScreen(); })}</div>`);
   }
 
   // ---------------- старт ----------------
@@ -590,7 +612,7 @@ const UI = (() => {
     if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); } }
     else startScreen();
   }
-  return { run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, boot, startScreen,
+  return { run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,
     _name: v => { sel.name = v; }, _st: st, _j: (k, v) => { jsel[k] = v; }, _chat: sendChat };
 })();
 (window.TGA ? TGA.before() : Promise.resolve()).then(() => UI.boot(), () => UI.boot());

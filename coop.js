@@ -42,7 +42,7 @@ const COOP = (() => {
     const w = G.w;
     const o = {
       base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, stash: G.stash, prod: w.prod, catAt: w.catAt },
-      story: { mode: G.mode, flags: w.flags, quests: w.quests, qstart: w.qstart, rep: w.rep, notes: w.notes, counters: w.counters, corpses: w.corpses, events: w.events || [], ending: w.ending || null, deaths: w.deaths, gen: w.gen },
+      story: { mode: G.mode, flags: w.flags, quests: w.quests, qstart: w.qstart, rep: w.rep, notes: w.notes, counters: w.counters, corpses: w.corpses, events: w.events || [], ending: w.ending || null, deaths: w.deaths, gen: w.gen, ch2: w.ch2 || null },
       clock: { time: G.time, weather: G.weather, em: G.em, hordeDone: w.hordeDone },
     };
     for (const id of LOC_IDS) o['loc_' + id] = w.locs[id];
@@ -56,7 +56,7 @@ const COOP = (() => {
     if (sent[n] === js) return false;
     if (!force && sent[n] !== undefined && canon(parts()[n]) !== sent[n]) return false; // у нас несохранённые изменения — отправим свои
     if (n === 'base') { Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt }); G.stash = data.stash || []; }
-    else if (n === 'story') { for (const k of ['flags', 'quests', 'qstart', 'rep', 'notes', 'counters', 'corpses', 'deaths', 'events']) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {}); G.w.ending = data.ending || null; G.w.gen = data.gen || 1; }
+    else if (n === 'story') { for (const k of ['flags', 'quests', 'qstart', 'rep', 'notes', 'counters', 'corpses', 'deaths', 'events']) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {}); G.w.ending = data.ending || null; G.w.gen = data.gen || 1; if (data.ch2 || !G.w.ch2) G.w.ch2 = data.ch2 || null; }
     else if (n === 'clock') {
       if (data.time > G.time + 1) { const d = data.time - G.time; G.time = data.time; if (d >= 30) UI.log(`⏩ Пока тебя не было, в общем мире прошло ${d >= 60 ? Math.round(d / 6) / 10 + ' ч' : d + ' мин'}.`, 'sys'); }
       if (!G.weather || (data.weather && data.weather.until > G.weather.until)) G.weather = data.weather;
