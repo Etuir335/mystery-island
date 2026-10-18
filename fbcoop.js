@@ -62,6 +62,15 @@ const FB = (() => {
           throw err(e);
         }
       },
+      // атомарное изменение: fn(текущее) -> новое; повторяется сервером при гонке
+      async tx(fn) {
+        try {
+          const r = await ref().transaction((cur) => JSON.stringify(fn(parse(cur))));
+          return parse(r.snapshot.val());
+        } catch (e) {
+          throw err(e);
+        }
+      },
       onSnapshot(cb, onE) {
         const r = ref(), h = (s) => cb(snapDoc(path.split("/").pop(), s.val()));
         r.on("value", h, (e) => onE && onE(err(e)));

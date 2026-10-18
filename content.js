@@ -621,3 +621,185 @@ const CUI = {
   }
 };
 window.CUI = CUI;
+const sameItem = (list, e) => {
+  if (list.indexOf(e) >= 0) return e;
+  const k = JSON.stringify(Object.assign({}, e, { n: 0 }));
+  return list.find((x) => JSON.stringify(Object.assign({}, x, { n: 0 })) === k) || list.find((x) => x.id === e.id && !x.dur && !e.dur);
+};
+const _toStashC = toStash, _fromStashC = fromStash;
+toStash = function(e, n) {
+  const x = sameItem(G.inv, e);
+  if (!x) return UI.toast("Этой вещи уже нет в рюкзаке.");
+  _toStashC(x, n ? Math.min(n, x.n) : 0);
+  save();
+  UI.render();
+};
+fromStash = function(e, n) {
+  const x = sameItem(G.stash, e);
+  if (!x) {
+    UI.toast("Этой вещи уже нет на складе — её забрали.");
+    return UI.render();
+  }
+  _fromStashC(x, n ? Math.min(n, x.n) : 0);
+  save();
+  UI.render();
+};
+const GROUND_LIFE = 3 * DAY;
+drop = function(e, n) {
+  const x = sameItem(G.inv, e);
+  if (!x) return;
+  const i = G.inv.indexOf(x), q = Math.min(n || x.n, x.n);
+  const copy = Object.assign({}, x, { n: q, at: G.time });
+  if (G.room != null) roomSt(G.room).ground.push(copy);
+  else if (!G.traveling) {
+    const L0 = G.w.locs[G.loc];
+    (L0.ground = L0.ground || []).push(copy);
+  }
+  x.n -= q;
+  if (x.n <= 0) G.inv.splice(i, 1);
+  UI.log("⬇️ Оставил на земле: ".concat(IT(x.id).ic, " ").concat(IT(x.id).n).concat(q > 1 ? " ×" + q : "", ". Пролежит ~3 дня."));
+  save();
+  UI.render();
+};
+function takeLocGround(k) {
+  const L0 = G.w.locs[G.loc], g = L0.ground || [];
+  const e = g[k];
+  if (!e) return;
+  const c = Object.assign({}, e);
+  delete c.at;
+  G.inv.push(c);
+  g.splice(k, 1);
+  SND("pickup");
+  save();
+  UI.render();
+}
+function takeAllLocGround() {
+  const L0 = G.w.locs[G.loc];
+  for (const e of L0.ground || []) {
+    const c = Object.assign({}, e);
+    delete c.at;
+    G.inv.push(c);
+  }
+  L0.ground = [];
+  SND("pickup");
+  save();
+  UI.render();
+}
+function groundDecay() {
+  let gone = 0;
+  const f = (list) => (list || []).filter((e) => {
+    if (e.at == null) e.at = G.time;
+    if (G.time - e.at < GROUND_LIFE) return true;
+    gone++;
+    return false;
+  });
+  for (const id in G.w.locs) {
+    const L0 = G.w.locs[id];
+    if (L0.ground) L0.ground = f(L0.ground);
+    (L0.rooms || []).forEach((r) => {
+      if (r.ground) r.ground = f(r.ground);
+    });
+  }
+  return gone;
+}
+const _takeGroundC = takeGround;
+takeGround = function(k) {
+  const s = roomSt(G.room), e = s.ground[k];
+  if (e) delete e.at;
+  return _takeGroundC.apply(this, arguments);
+};
+const _takeAllGroundC = takeAllGround;
+takeAllGround = function() {
+  roomSt(G.room).ground.forEach((e) => delete e.at);
+  return _takeAllGroundC.apply(this, arguments);
+};
+const NEVER_AUTO = ["seawater", "vodka"];
+function foodState(e) {
+  const it = IT(e.id);
+  const spoiled = it.sp && F().spoil && freshness(e) >= 1;
+  return { raw: !!it.raw, spoiled, bad: !!it.raw || spoiled };
+}
+function eatPool(kind) {
+  const pool = atBase() ? G.inv.concat(G.stash) : G.inv.slice();
+  return pool.filter((e) => {
+    const it = IT(e.id);
+    if (it.smoke || NEVER_AUTO.includes(e.id) || it.salt) return false;
+    return kind === "drink" ? it.c === "drink" && (it.d || 0) > 0 : it.c === "food" && (it.f || 0) > 0;
+  });
+}
+const eatOrder = (a, b) => {
+  const fa = IT(a.id).sp && F().spoil ? freshness(a) : -1, fb = IT(b.id).sp && F().spoil ? freshness(b) : -1;
+  return fb - fa || IT(a.id).v - IT(b.id).v;
+};
+function consumeEntry(e) {
+  const inInv = G.inv.indexOf(e) >= 0, list = inInv ? G.inv : G.stash;
+  if (!inInv && G.inv.some((x) => x.id === e.id)) {
+    const i2 = list.indexOf(e);
+    list.splice(i2, 1);
+    const one = Object.assign({}, e, { n: 1 });
+    if (e.n > 1) list.splice(i2, 0, Object.assign({}, e, { n: e.n - 1 }));
+    G.inv.unshift(one);
+    return useItem(e.id);
+  }
+  const i = list.indexOf(e);
+  if (i > 0) {
+    list.splice(i, 1);
+    list.unshift(e);
+  }
+  return useItem(e.id);
+}
+function autoEat(allowBad) {
+  const c = G.ch, eaten = [];
+  let skipped = /* @__PURE__ */ new Set();
+  for (let k = 0; k < 40 && !G.dead; k++) {
+    const needF = c.food < 92, needD = c.drink < 92;
+    if (!needF && !needD) break;
+    const kind = needD && (c.drink <= c.food || !needF) ? "drink" : "food";
+    let cand = eatPool(kind).filter((e2) => allowBad || !foodState(e2).bad).sort(eatOrder);
+    if (!cand.length) {
+      const other = kind === "drink" ? "food" : "drink";
+      if (other === "food" ? needF : needD) {
+        cand = eatPool(other).filter((e2) => allowBad || !foodState(e2).bad).sort(eatOrder);
+      }
+    }
+    if (!cand.length) break;
+    const e = cand[0], it = IT(e.id), before = c.food + c.drink;
+    consumeEntry(e);
+    eaten.push(it.ic);
+    if (c.food + c.drink <= before - 0.5 && !it.raw) break;
+  }
+  const left = [];
+  if (c.food < 92) left.push("еда");
+  if (c.drink < 92) left.push("питьё");
+  const badLeft = (c.food < 92 ? eatPool("food") : []).concat(c.drink < 92 ? eatPool("drink") : []).filter((e) => foodState(e).bad);
+  if (eaten.length) UI.log("🍽️ Подкрепился: ".concat(eaten.join(" "), ". Сытость ").concat(Math.round(c.food), ", вода ").concat(Math.round(c.drink), "."), "good");
+  if (!allowBad && left.length && badLeft.length) {
+    const names = [...new Set(badLeft.map((e) => "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(foodState(e).spoiled ? " (испорчено)" : IT(e.id).c === "drink" ? " (грязная)" : " (сырое)")))].slice(0, 5).join(", ");
+    UI.event({ title: "🍽️ Нормальная еда кончилась", cls: "bad", text: "".concat(eaten.length ? "Всё нормальное съедено. " : "", "Осталось только рискованное: ").concat(names, ".\n\nСырое и испорченное может вызвать отравление или заражение. Есть всё равно?"), choices: [{ t: "⚠️ Всё равно съесть", fn: () => autoEat(true) }, { t: "Не надо" }] });
+  } else if (!eaten.length) UI.toast(left.length ? "Нечего ".concat(left.includes("еда") && left.includes("питьё") ? "есть и пить" : left.includes("еда") ? "есть" : "пить", ".") : "Ты и так сыт и напоен.");
+  save();
+  UI.render();
+}
+const _extNewDayG = extNewDay;
+extNewDay = function() {
+  _extNewDayG.apply(this, arguments);
+  if (worldAuth()) groundDecay();
+};
+CUI.ground = function() {
+  if (G.room != null || G.traveling) return "";
+  const g = G.w.locs[G.loc] && G.w.locs[G.loc].ground || [];
+  if (!g.length) return "";
+  const b = UI.btn;
+  let h = '<div class="sec"><div class="sechead"><h2>⬇️ На земле</h2>'.concat(g.length > 1 ? b("Забрать всё", takeAllLocGround, "sm") : "", '</div><div class="list">');
+  g.forEach((e, k) => {
+    const left = Math.max(1, Math.ceil((GROUND_LIFE - (G.time - (e.at || G.time))) / H));
+    h += '<div class="row">'.concat(ART.tile(e.id), '<div class="grow"><span class="t">').concat(cesc(IT(e.id).n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">растащат через ~').concat(left >= 24 ? Math.round(left / 24) + " дн." : left + " ч", "</span></div>").concat(b("Взять", () => takeLocGround(k), "sm pri"), "</div>");
+  });
+  return h + "</div></div>";
+};
+const _cuiTop = CUI.top;
+CUI.top = function() {
+  const c = G.ch;
+  const btnE = (c.food < 85 || c.drink < 85) && !G.combat ? '<div class="acts" style="margin-top:4px">'.concat(UI.btn("🍽️ Поесть и попить досыта", () => autoEat(false), "sm"), "</div>") : "";
+  return _cuiTop() + btnE;
+};

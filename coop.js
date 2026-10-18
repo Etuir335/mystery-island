@@ -7,6 +7,87 @@ const COOP = (() => {
   let feedL = [], chatLoaded = false, feedLoaded = false;
   let players = {}, chat = [], lastMe = "", lastMeAt = 0, lastPersonal = "", unread = 0;
   const sent = {};
+  let stashBase = null, stashTx = false, stashLate = null;
+  const sKey = (e) => {
+    const o = Object.assign({}, e);
+    delete o.n;
+    return canon(o);
+  };
+  function sCount(list) {
+    const m = /* @__PURE__ */ new Map();
+    for (const e of list || []) {
+      if (!e || !e.id) continue;
+      const k = sKey(e);
+      const c = m.get(k);
+      if (c) c.n += e.n || 1;
+      else m.set(k, { n: e.n || 1, e });
+    }
+    return m;
+  }
+  function sDiff(L, B) {
+    const a = sCount(L), b = sCount(B), d = /* @__PURE__ */ new Map();
+    for (const [k, v] of a) {
+      const x = v.n - (b.get(k) ? b.get(k).n : 0);
+      if (x) d.set(k, { n: x, e: v.e });
+    }
+    for (const [k, v] of b) if (!a.has(k)) d.set(k, { n: -v.n, e: v.e });
+    return d;
+  }
+  function sApply(R, d) {
+    const m = sCount(R);
+    for (const [k, v] of d) {
+      const c = m.get(k);
+      if (c) c.n += v.n;
+      else if (v.n > 0) m.set(k, { n: v.n, e: v.e });
+    }
+    const out = [];
+    for (const [, v] of m) if (v.n > 0) out.push(Object.assign({}, v.e, { n: v.n }));
+    return out;
+  }
+  const sClone = (l) => JSON.parse(JSON.stringify(l || []));
+  function stashIncoming(R) {
+    if (stashTx) {
+      stashLate = R;
+      return false;
+    }
+    if (stashBase && canon(R) === canon(stashBase)) return false;
+    const d = stashBase ? sDiff(G.stash, stashBase) : /* @__PURE__ */ new Map();
+    stashBase = sClone(R);
+    G.stash = sApply(R, d);
+    return true;
+  }
+  async function stashPush() {
+    if (!db || !code) return;
+    const ref = db.doc("coop/".concat(code, "/stash/all"));
+    const L = sClone(G.stash), d = stashBase ? sDiff(L, stashBase) : /* @__PURE__ */ new Map();
+    if (stashBase && !d.size) return;
+    stashTx = true;
+    try {
+      let R;
+      const merge = (cur) => {
+        const ci = cur && Array.isArray(cur.items) ? cur.items : null;
+        if (!stashBase) return { items: ci && (ci.length || !L.length) ? ci : L };
+        return { items: sApply(ci || stashBase, d) };
+      };
+      if (ref.tx) R = await ref.tx(merge);
+      else {
+        const sn = await ref.get();
+        R = merge(sn.exists ? sn.data() : null);
+        await ref.set(R);
+      }
+      const items = R && R.items || [];
+      const dNew = sDiff(G.stash, L);
+      stashBase = sClone(items);
+      G.stash = sApply(items, dNew);
+    } finally {
+      stashTx = false;
+      if (stashLate) {
+        const x = stashLate;
+        stashLate = null;
+        if (stashIncoming(x)) scheduleRender();
+      }
+    }
+  }
   const ONLINE_MS = 15 * 60 * 1e3;
   const LOC_IDS = Object.keys(LOCS);
   function canon(v) {
@@ -36,7 +117,7 @@ const COOP = (() => {
   function parts() {
     const w = G.w;
     const o = {
-      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, stash: G.stash, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null, power: w.power || 0 },
+      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null, power: w.power || 0 },
       story: {
         mode: G.mode,
         flags: w.flags,
@@ -77,7 +158,7 @@ const COOP = (() => {
       Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt, catLove: data.catLove || 0, catAway: !!data.catAway });
       if (data.car) G.w.car = data.car;
       G.w.power = data.power || 0;
-      G.stash = data.stash || [];
+      if (stashBase === null && Array.isArray(data.stash) && data.stash.length && !G.stash.length) G.stash = data.stash;
     } else if (n === "story") {
       for (const k of ["flags", "quests", "qstart", "rep", "notes", "counters", "corpses", "deaths", "events"]) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {});
       G.w.ending = data.ending || null;
@@ -156,6 +237,7 @@ const COOP = (() => {
           sent[n] = js;
         }
       }
+      await stashPush();
       await pushMe();
       await pushPersonal();
     } catch (e) {
@@ -228,6 +310,12 @@ const COOP = (() => {
     unsub();
     for (const n of Object.keys(parts())) subs.push(db.doc(pathOf(n)).onSnapshot((s) => {
       if (s.exists && applyDoc(n, s.data())) scheduleRender();
+    }, onErr));
+    subs.push(db.doc("coop/".concat(code, "/stash/all")).onSnapshot((s) => {
+      if (s.exists && s.data() && Array.isArray(s.data().items) && stashIncoming(s.data().items)) {
+        save();
+        scheduleRender();
+      }
     }, onErr));
     subs.push(db.collection("coop/".concat(code, "/p")).onSnapshot((qs) => {
       const o = {};
@@ -302,13 +390,22 @@ const COOP = (() => {
     }, onErr));
     subs.push(db.doc("coop/".concat(code, "/mail/").concat(uid)).onSnapshot(async (s) => {
       if (!s.exists) return;
-      const items = s.data().items || [];
-      if (!items.length) return;
+      if (!(s.data().items || []).length) return;
+      const ref = db.doc("coop/".concat(code, "/mail/").concat(uid));
+      let items = [];
       try {
-        await db.doc("coop/".concat(code, "/mail/").concat(uid)).set({ items: [] });
+        if (ref.tx) await ref.tx((cur) => {
+          items = cur && cur.items || [];
+          return { items: [] };
+        });
+        else {
+          items = s.data().items || [];
+          await ref.set({ items: [] });
+        }
       } catch (e) {
         return;
       }
+      if (!items.length) return;
       for (const g of items) {
         if (g.item && ITEMS[g.item.id]) {
           G.inv.push(g.item);
@@ -320,9 +417,19 @@ const COOP = (() => {
     }, onErr));
   }
   async function fetchAll() {
+    stashBase = null;
     for (const n of Object.keys(parts())) {
       const s = await db.doc(pathOf(n)).get();
       if (s.exists) applyDoc(n, s.data(), true);
+    }
+    try {
+      const s = await db.doc("coop/".concat(code, "/stash/all")).get();
+      const it = s.exists && s.data() && s.data().items;
+      if (Array.isArray(it) && (it.length || !G.stash.length)) {
+        stashBase = sClone(it);
+        G.stash = sClone(it);
+      }
+    } catch (e) {
     }
   }
   function genCode() {
@@ -443,6 +550,7 @@ const COOP = (() => {
   }
   const SOLO_KEY = "moti3_solo";
   function leave() {
+    stashBase = null;
     unsub();
     ready = false;
     status = "off";
@@ -515,13 +623,25 @@ const COOP = (() => {
   }
   async function give(to, e, n) {
     if (!ready) return;
+    if (typeof sameItem === "function") {
+      e = sameItem(G.inv, e);
+      if (!e) return UI.toast("Этой вещи уже нет в рюкзаке.");
+    }
+    if (e._giving) return;
+    e._giving = true;
     const q = Math.min(n || e.n, e.n), item = Object.assign({}, e, { n: q });
+    delete item._giving;
     const ref = db.doc("coop/".concat(code, "/mail/").concat(to));
     try {
-      const s = await ref.get();
-      const items = s.exists ? (s.data().items || []).slice() : [];
-      items.push({ from: G.ch.name, item });
-      await ref.set({ items });
+      const gift = { from: G.ch.name, item };
+      if (ref.tx) await ref.tx((cur) => ({ items: (cur && cur.items || []).concat([gift]) }));
+      else {
+        const s = await ref.get();
+        const items = s.exists ? (s.data().items || []).slice() : [];
+        items.push(gift);
+        await ref.set({ items });
+      }
+      delete e._giving;
       const i = G.inv.indexOf(e);
       if (i >= 0) {
         e.n -= q;
@@ -531,6 +651,7 @@ const COOP = (() => {
       save();
       UI.render();
     } catch (err) {
+      delete e._giving;
       onErr(err);
     }
   }

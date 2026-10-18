@@ -211,6 +211,7 @@ const UI = /* @__PURE__ */ (() => {
     }));
     if (acts.length) h += '<div class="acts">'.concat(acts.join(""), "</div>");
     h += EXTUI.locRows();
+    if (typeof CUI !== "undefined" && CUI.ground) h += CUI.ground();
     for (const ev of eventsAt(G.loc)) {
       const E = EVTS[ev.type], left = Math.ceil((ev.until - G.time) / H);
       if (ev.type === "drop") h += '<div class="row evt"><span class="ic">'.concat(E.ic, '</span><div class="grow"><span class="t">Контейнер гуманитарки</span><span class="s">ещё ~').concat(left, " ч").concat(ev.checked ? "" : " · возможно, рядом мародёры", "</span></div>").concat(btn("Вскрыть (20 мин)", () => openDrop(ev), "pri sm"), "</div>");
@@ -397,7 +398,7 @@ const UI = /* @__PURE__ */ (() => {
       if (it.c === "bp") out.push(btn("Изучить", () => useItem(e.id), "pri sm"));
       if (["melee", "gun", "wear", "art"].includes(it.c)) out.push(btn("Надеть", () => equip(e), "pri sm"));
       if (it.c === "mod" && typeof CUI !== "undefined") out.push(CUI.modBtn(e));
-      if (atBase()) out.push(btn("На склад", () => toStash(e)), e.n > 1 ? "" : "");
+      if (atBase()) out.push(btn(e.n > 1 ? "На склад все" : "На склад", () => toStash(e)), e.n > 1 ? btn("На склад 1", () => toStash(e, 1), "sm") : "");
       if (IT(e.id).btl) out.push(btn("🫗 Вылить", () => pourOut(e.id), "sm"));
       if (e.n > 1) out.push(btn(G.room != null ? "Бросить 1" : "Выбросить 1", () => {
         drop(e, 1);
@@ -405,7 +406,7 @@ const UI = /* @__PURE__ */ (() => {
       out.push(btn(G.room != null ? e.n > 1 ? "Бросить все" : "Бросить" : e.n > 1 ? "Выбросить все" : "Выбросить", () => {
         drop(e);
       }, "sm"));
-    } else out.push(btn("Взять", () => fromStash(e), "pri sm"), it.c === "food" || it.c === "drink" || it.c === "med" ? btn("Использовать", () => useItem(e.id), "sm") : "");
+    } else out.push(btn(e.n > 1 ? "Взять все" : "Взять", () => fromStash(e), "pri sm"), e.n > 1 ? btn("Взять 1", () => fromStash(e, 1), "sm") : "", it.c === "food" || it.c === "drink" || it.c === "med" ? btn("Использовать", () => useItem(e.id), "sm") : "");
     return out.join("");
   }
   function itemList(list, where) {
@@ -634,7 +635,7 @@ const UI = /* @__PURE__ */ (() => {
   function giveMenu(p) {
     const items = G.inv.filter((e) => IT(e.id).c !== "quest" || e.id === "rpart");
     if (!items.length) return toast("Рюкзак пуст.");
-    event({ title: "🎁 Передать: ".concat(p.name), text: "Что отдать? Предмет уйдёт целиком (вся пачка).", choices: items.slice(0, 14).map((e) => ({ t: "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(e.n > 1 ? " ×" + e.n : ""), fn: () => COOP.give(p.id, e) })).concat([{ t: "Отмена" }]) });
+    event({ title: "🎁 Передать: ".concat(p.name), text: "Что отдать?", choices: items.slice(0, 20).map((e) => ({ t: "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(e.n > 1 ? " ×" + e.n : ""), fn: () => e.n > 1 ? setTimeout(() => event({ title: "🎁 ".concat(IT(e.id).ic, " ").concat(IT(e.id).n, " ×").concat(e.n), text: "Сколько отдать: ".concat(p.name, "?"), choices: [{ t: "1 шт.", fn: () => COOP.give(p.id, e, 1) }].concat(e.n >= 4 ? [{ t: "Половину (".concat(Math.floor(e.n / 2), ")"), fn: () => COOP.give(p.id, e, Math.floor(e.n / 2)) }] : []).concat([{ t: "Все (".concat(e.n, ")"), fn: () => COOP.give(p.id, e) }, { t: "Отмена" }]) }), 0) : COOP.give(p.id, e) })).concat([{ t: "Отмена" }]) });
   }
   function render() {
     if (!G || full) return;
