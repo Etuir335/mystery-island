@@ -280,6 +280,7 @@ const COOP = (() => {
       sk: skill("melee"),
       wn: w ? w.n : "кулаки",
       pet: G.pet && G.pet.hp > 0 ? G.pet.type : null,
+      downed: !!G.downed,
       gen: G.w.gen,
       t: G.time,
       clock: clock(),
@@ -433,6 +434,10 @@ const COOP = (() => {
       }
       if (!items.length) return;
       for (const g of items) {
+        if (g.revive) {
+          if (typeof reviveMe === "function") reviveMe(g.from);
+          continue;
+        }
         if (g.item && ITEMS[g.item.id]) {
           G.inv.push(g.item);
           UI.log("🎁 ".concat(g.from, " передал тебе: ").concat(IT(g.item.id).ic, " ").concat(IT(g.item.id).n).concat(g.item.n > 1 ? " ×" + g.item.n : "", "."), "good");
@@ -755,6 +760,23 @@ const COOP = (() => {
       onErr(e);
     }
   }
+  async function sendRevive(to) {
+    if (!ready) return false;
+    const ref = db.doc("coop/".concat(code, "/mail/").concat(to)), gift = { from: G.ch.name, revive: true };
+    try {
+      if (ref.tx) await ref.tx((cur) => ({ items: (cur && cur.items || []).concat([gift]) }));
+      else {
+        const s = await ref.get();
+        const items = s.exists ? (s.data().items || []).slice() : [];
+        items.push(gift);
+        await ref.set({ items });
+      }
+      return true;
+    } catch (e) {
+      onErr(e);
+      return false;
+    }
+  }
   async function give(to, e, n) {
     if (!ready) return;
     if (typeof sameItem === "function") {
@@ -965,6 +987,8 @@ const COOP = (() => {
     get stashLog() {
       return slog;
     },
+    sendRevive,
+    pushNow: () => pushMe(true),
     backup,
     listBackups,
     restore,

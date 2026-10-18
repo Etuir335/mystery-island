@@ -1461,3 +1461,260 @@ extMigrate = function() {
   _extMigrateF.apply(this, arguments);
   if (G.w.struct.rowboat == null) G.w.struct.rowboat = 0;
 };
+const DOWN_MS = 10 * 60 * 1e3;
+function downedHook(cause) {
+  if (G.noDown) return false;
+  if (G.downed) return true;
+  if (F().death !== "perma" || !G.coop || !window.COOP || /вирус/.test(String(cause))) return false;
+  const ally = COOP.others().some((p) => p.online && p.alive !== false && !p.downed);
+  if (!ally) return false;
+  G.downed = { cause, until: Date.now() + DOWN_MS, loc: G.traveling ? G.travelTo || G.loc : G.loc };
+  G.combat = null;
+  G.interrupt = true;
+  G.room = null;
+  G.traveling = false;
+  G.loc = G.downed.loc;
+  for (const p in PARTS) G.ch.parts[p] = Math.max(1, Math.min(G.ch.parts[p], 3));
+  G.ch.bleed = 0;
+  G.ch.inj.forEach((j) => j.bleed = 0);
+  if (G.ch.rad >= 150) G.ch.rad = 140;
+  G.ch.food = Math.max(G.ch.food, 5);
+  G.ch.drink = Math.max(G.ch.drink, 5);
+  SND("hurt");
+  try {
+    UI.closeCombat && UI.closeCombat("fled", null);
+  } catch (e) {
+  }
+  FEED("🆘 тяжело ранен (".concat(cause, ") — нужна помощь: ").concat(LOCS[G.loc].ic, " ").concat(LOCS[G.loc].n, "!"));
+  save();
+  try {
+    COOP.pushNow();
+  } catch (e) {
+  }
+  downedShow();
+  return true;
+}
+function reviveMe(by) {
+  if (!G.downed) return;
+  G.downed = null;
+  for (const p in PARTS) G.ch.parts[p] = Math.max(G.ch.parts[p], Math.round(PARTS[p].max * 0.35));
+  G.ch.stress = Math.min(100, (G.ch.stress || 0) + 20);
+  downedHide();
+  UI.log("🩹 ".concat(by, " поднял тебя на ноги!"), "good");
+  FEED("🩹 снова на ногах благодаря ".concat(by));
+  save();
+  UI.render();
+}
+function giveUp() {
+  if (!G.downed) return;
+  const c = G.downed.cause;
+  G.downed = null;
+  downedHide();
+  G.noDown = true;
+  die(c);
+  G.noDown = false;
+}
+function downedShow() {
+  if (typeof document === "undefined") return;
+  let d = document.getElementById("downed");
+  if (!d) {
+    d = document.createElement("div");
+    d.id = "downed";
+    document.body.appendChild(d);
+  }
+  const left = Math.max(0, Math.ceil((G.downed.until - Date.now()) / 1e3));
+  d.innerHTML = '<div class="dbox"><div style="font-size:42px">🆘</div><h2>Ты тяжело ранен</h2><p>'.concat(cesc(G.downed.cause), ". Ты лежишь без сил: ").concat(LOCS[G.downed.loc].ic, " ").concat(cesc(LOCS[G.downed.loc].n), '.</p><p>Друг может прийти и поднять тебя (нужен бинт или аптечка).</p><div class="dtime">').concat(Math.floor(left / 60), ":").concat(String(left % 60).padStart(2, "0"), '</div><button class="btn" onclick="giveUp()">💀 Сдаться</button></div>');
+}
+function downedHide() {
+  const d = typeof document !== "undefined" && document.getElementById("downed");
+  if (d) d.remove();
+}
+window.giveUp = giveUp;
+if (typeof setInterval === "function" && typeof document !== "undefined") setInterval(() => {
+  if (typeof G === "undefined" || !G || !G.downed) return downedHide();
+  if (Date.now() > G.downed.until) {
+    const c = G.downed.cause;
+    G.downed = null;
+    downedHide();
+    G.noDown = true;
+    die(c);
+    G.noDown = false;
+    return;
+  }
+  downedShow();
+}, 1e3);
+async function reviveAlly(p) {
+  const med = ["medkit", "bandage", "dband"].find((id) => cnt(G.inv, id));
+  if (!med) return UI.toast("Нужен бинт или аптечка.");
+  take(G.inv, med, 1);
+  advance(10);
+  if (await COOP.sendRevive(p.id)) {
+    UI.log("🩹 Ты поднял ".concat(p.name, "!"), "good");
+    FEED("🩹 поднял ".concat(p.name));
+    xp("med", 5);
+  }
+  save();
+  UI.render();
+}
+ITEMS.coin = { n: "Рубли в кассе", ic: "💰", c: "money", w: 0, v: 0 };
+function bankAmt() {
+  return cntAll(G.stash, "coin");
+}
+function bankPut(n) {
+  n = Math.min(n, G.money);
+  if (n <= 0) return;
+  G.money -= n;
+  invAdd(G.inv, "coin", n);
+  toStash(G.inv.find((e) => e.id === "coin"));
+  UI.log("💰 В кассу: ".concat(n, "₽."));
+  save();
+  UI.render();
+}
+function bankTake(n) {
+  const e = G.stash.find((x) => x.id === "coin");
+  if (!e) return;
+  n = Math.min(n, bankAmt());
+  fromStash(e, n);
+  UI.log("💰 Из кассы: ".concat(n, "₽."));
+  save();
+  UI.render();
+}
+const _saveCoin = window.save;
+window.save = function() {
+  try {
+    if (typeof G !== "undefined" && G && G.inv) {
+      const c = G.inv.filter((e) => e.id === "coin");
+      if (c.length) {
+        G.money += c.reduce((a, e) => a + e.n, 0);
+        G.inv = G.inv.filter((e) => e.id !== "coin");
+      }
+    }
+  } catch (e) {
+  }
+  return _saveCoin.apply(this, arguments);
+};
+const KITS = [["sortie", "🎒 Вылазка"], ["raid", "⚔️ Рейд"], ["night", "🌙 Ночёвка"]];
+function kitSave(k) {
+  const m = {};
+  for (const e of G.inv) if (e.id !== "coin") m[e.id] = (m[e.id] || 0) + e.n;
+  G.ch.kits = Object.assign({}, G.ch.kits, { [k]: m });
+  UI.toast("Шаблон сохранён: " + Object.keys(m).length + " видов вещей.");
+  save();
+  UI.render();
+}
+function kitLoad(k) {
+  const m = (G.ch.kits || {})[k];
+  if (!m || !atBase()) return;
+  const got = [], miss = [];
+  for (const [id, n] of Object.entries(m)) {
+    let need = n - cntAll(G.inv, id);
+    while (need > 0) {
+      const e = G.stash.find((x) => x.id === id);
+      if (!e) break;
+      const q = Math.min(need, e.n);
+      fromStash(e, q);
+      need -= q;
+    }
+    if (need > 0) miss.push("".concat(IT(id).ic).concat(need));
+    else if (n > 0) got.push(IT(id).ic);
+  }
+  UI.log("🎒 Собрал «".concat(KITS.find((x) => x[0] === k)[1], "»").concat(miss.length ? " — не хватает: ".concat(miss.join(" ")) : "", "."), miss.length ? "warn" : "good");
+  save();
+  UI.render();
+}
+CUI.kits = function() {
+  if (!atBase()) return "";
+  const b = UI.btn, ks = G.ch.kits || {};
+  return '<div class="sec"><h3>🎽 Шаблоны снаряжения</h3><div class="acts">'.concat(KITS.map(([k, n]) => ks[k] ? b("".concat(n, ": собрать"), () => kitLoad(k), "sm pri") : "").join(""), '</div><div class="acts">').concat(KITS.map(([k, n]) => b("💾 ".concat(n), () => kitSave(k), "sm")).join(""), '</div><p class="muted" style="font-size:12.5px">💾 запоминает, что сейчас в рюкзаке. «Собрать» добирает недостающее со склада.</p></div>');
+};
+function goMark(id) {
+  const m = (G.w.marks || []).find((x) => x.id === id);
+  if (!m) return;
+  if (m.loc === G.loc) return UI.toast("Ты уже здесь.");
+  closeSummary();
+  if (G.room != null) leaveRoom();
+  travel(m.loc);
+  save();
+  UI.render();
+}
+window.goMark = goMark;
+const CUST_KEYS = [["needs", "🍗 Голод и жажда"], ["enemies", "🧟 Сила врагов"], ["count", "👥 Число врагов"], ["horde", "🌕 Натиск орды"]];
+const CUST_VALS = [0.5, 0.75, 1, 1.25, 1.5];
+let custCache = { k: "", f: null };
+function customF(f) {
+  const c = G.custom, key = JSON.stringify(c) + (f.__m || G.mode);
+  if (custCache.k === key) return custCache.f;
+  const o = Object.assign({}, f);
+  for (const [k] of CUST_KEYS) if (c[k] && typeof o[k] === "number") o[k] = o[k] * c[k];
+  custCache = { k: key, f: o };
+  return o;
+}
+function setCustom(k, v) {
+  G.custom = Object.assign({ needs: 1, enemies: 1, count: 1, horde: 1 }, G.custom, { [k]: v });
+  if (Object.values(G.custom).every((x) => x === 1)) delete G.custom;
+  save();
+  UI.render();
+}
+function customHtml() {
+  const c = G.custom || {}, b = UI.btn;
+  return '<div class="sec"><h2>🎚️ Своя сложность</h2><p class="muted" style="font-size:13px">Поверх режима «'.concat(MODES[G.mode].n, "». ").concat(G.coop ? "В кооперативе голод и враги — у каждого свои, натиск орды задаёт ведущий мира." : "", "</p>").concat(CUST_KEYS.map(([k, n]) => '<div class="row" style="flex-wrap:wrap"><div class="grow"><span class="t">'.concat(n, '</span></div><div class="toggle">').concat(CUST_VALS.map((v) => '<button class="'.concat((c[k] || 1) === v ? "on" : "", '" onclick="').concat("", "setCustom('").concat(k, "',").concat(v, ')">×').concat(v, "</button>")).join(""), "</div></div>")).join(""), "</div>");
+}
+window.setCustom = setCustom;
+function diaryAdd(t) {
+  if (typeof G === "undefined" || !G || !G.ch) return;
+  G.ch.diary = (G.ch.diary || []).concat([{ d: day(), k: clock(), t: String(t).slice(0, 140) }]).slice(-200);
+}
+function diaryHtml() {
+  const l = (G.ch.diary || []).slice(-30).reverse();
+  return '<div class="sec"><h2>📔 Дневник '.concat(cesc(G.ch.name), "</h2>").concat(l.length ? '<div class="list" style="gap:2px">'.concat(l.map((x) => '<div class="lg" style="font-size:13px"><span class="mono muted">День '.concat(x.d, ", ").concat(x.k, "</span> — ").concat(cesc(x.t), "</div>")).join(""), "</div>") : '<p class="muted">Здесь появятся яркие моменты твоего выживания.</p>', "</div>");
+}
+const _cuiJour3 = CUI.jour;
+CUI.jour = function() {
+  return diaryHtml() + _cuiJour3.apply(this, arguments) + customHtml();
+};
+function fx(cls, ms) {
+  const a = document.getElementById("app");
+  if (!a) return;
+  a.classList.remove(cls);
+  void a.offsetWidth;
+  a.classList.add(cls);
+  setTimeout(() => a.classList.remove(cls), ms);
+}
+if (typeof document !== "undefined") window.addEventListener("load", () => {
+  if (!window.SFX || SFX._fx) return;
+  const p = SFX.play;
+  SFX.play = function(n) {
+    try {
+      if (n === "hurt") fx("shake", 350);
+      if (n === "death") fx("flashred", 900);
+      if (n === "zap" || n === "siren") fx("flashred", 600);
+      if (n === "level" || n === "quest") fx("flashgood", 600);
+    } catch (e) {
+    }
+    return p.apply(this, arguments);
+  };
+  SFX._fx = 1;
+});
+const _cuiGround2 = CUI.ground;
+CUI.ground = function() {
+  let h = "";
+  const b = UI.btn;
+  if (G.coop && window.COOP && G.room == null && !G.traveling) for (const p of COOP.others().filter((p2) => p2.downed && p2.online && p2.loc === G.loc)) h += '<div class="row hot"><span class="ic">🆘</span><div class="grow"><span class="t">'.concat(cesc(p.name), ' тяжело ранен!</span><span class="s">Подними его, пока не поздно (бинт или аптечка, 10 мин)</span></div>').concat(b("🩹 Поднять", () => reviveAlly(p), "sm pri"), "</div>");
+  return h + _cuiGround2.apply(this, arguments);
+};
+const _sideRightM = sideRight;
+sideRight = function() {
+  let h = _sideRightM.apply(this, arguments);
+  const ms = liveMarks();
+  if (ms.length) h = '<div class="card"><h3>📍 Метки</h3>'.concat(ms.map((m) => '<div class="tm"><div>'.concat(m.ic, " ").concat(cesc(m.txt), " · ").concat(LOCS[m.loc].ic, " ").concat(cesc(LOCS[m.loc].n), '<br><span class="mono">').concat(cesc(m.by), "</span></div>").concat(m.loc !== G.loc ? '<button class="btn sm" onclick="goMark('.concat(m.id, ')">🏃</button>') : '<span class="mono">ты здесь</span>', "</div>")).join(""), "</div>") + h;
+  if (G.coop && window.COOP) {
+    const dn = COOP.others().filter((p) => p.downed && p.online);
+    if (dn.length) h = '<div class="card">'.concat(dn.map((p) => '<div class="alert">🆘 '.concat(cesc(p.name), " ранен: ").concat(LOCS[p.loc] ? LOCS[p.loc].ic + " " + cesc(LOCS[p.loc].n) : "", "</div>")).join(""), "</div>") + h;
+  }
+  return h;
+};
+const _cuiBaseK = CUI.basePanel;
+CUI.basePanel = function() {
+  const b = UI.btn, n = bankAmt();
+  return '<div class="sec"><h2>💰 Касса '.concat(G.coop ? "отряда" : "базы", ': <span class="mono">').concat(n, '₽</span></h2><div class="acts">').concat(b("+50₽", () => bankPut(50), "sm", G.money < 50)).concat(b("+всё", () => bankPut(G.money), "sm", G.money <= 0)).concat(b("−50₽", () => bankTake(50), "sm", n < 50)).concat(b("−всё", () => bankTake(n), "sm", n <= 0), "</div></div>") + _cuiBaseK.apply(this, arguments);
+};

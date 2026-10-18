@@ -378,8 +378,8 @@ const UI = /* @__PURE__ */ (() => {
     if (st.ttab === "quest" && typeof CUI !== "undefined") h += CUI.contracts(tid);
     return h;
   }
-  const CAT_ORDER = ["gun", "melee", "mod", "ammo", "med", "food", "drink", "wear", "art", "tool", "key", "quest", "bp", "mat", "val"];
-  const CAT_N = { mod: "Модули оружия", gun: "Оружие", melee: "Оружие", ammo: "Патроны", med: "Медицина", food: "Еда", drink: "Питьё", wear: "Снаряжение", art: "Артефакты", tool: "Инструменты", key: "Ключи", quest: "Сюжетное", bp: "Чертежи", mat: "Материалы", val: "Ценности" };
+  const CAT_ORDER = ["money", "gun", "melee", "mod", "ammo", "med", "food", "drink", "wear", "art", "tool", "key", "quest", "bp", "mat", "val"];
+  const CAT_N = { money: "Касса", mod: "Модули оружия", gun: "Оружие", melee: "Оружие", ammo: "Патроны", med: "Медицина", food: "Еда", drink: "Питьё", wear: "Снаряжение", art: "Артефакты", tool: "Инструменты", key: "Ключи", quest: "Сюжетное", bp: "Чертежи", mat: "Материалы", val: "Ценности" };
   function itemSub(e) {
     const it = IT(e.id), p = [];
     p.push("".concat((it.w * e.n).toFixed(it.w * e.n < 1 ? 2 : 1), " кг"));
@@ -466,7 +466,7 @@ const UI = /* @__PURE__ */ (() => {
     setTimeout(() => {
       st.xfer = false;
     }, 0);
-    return '<div class="toggle filt">'.concat([["stash", "📦 На складе (".concat(G.stash.length, ")")], ["bag", "🎒 В рюкзаке (".concat(G.inv.length, ")")]].map(([k, n]) => '<button class="'.concat(side === k ? "on" : "", '" onclick="').concat(a(() => st.sside = k), '">').concat(n, "</button>")).join(""), "</div>") + (side === "stash" ? '<div class="sec"><p class="muted" style="font-size:13px">«Взять» / «Взять 1» — в рюкзак.</p>'.concat(filtered(G.stash, "stf"), "</div>") : '<div class="sec"><p class="muted" style="font-size:13px">«На склад» / «На склад 1» — положить.</p>'.concat(filtered(G.inv, "invf"), "</div>"));
+    return (typeof CUI !== "undefined" && CUI.kits ? CUI.kits() : "") + '<div class="toggle filt">'.concat([["stash", "📦 На складе (".concat(G.stash.length, ")")], ["bag", "🎒 В рюкзаке (".concat(G.inv.length, ")")]].map(([k, n]) => '<button class="'.concat(side === k ? "on" : "", '" onclick="').concat(a(() => st.sside = k), '">').concat(n, "</button>")).join(""), "</div>") + (side === "stash" ? '<div class="sec"><p class="muted" style="font-size:13px">«Взять» / «Взять 1» — в рюкзак.</p>'.concat(filtered(G.stash, "stf"), "</div>") : '<div class="sec"><p class="muted" style="font-size:13px">«На склад» / «На склад 1» — положить.</p>'.concat(filtered(G.inv, "invf"), "</div>"));
   }
   function handCraft() {
     const fire = campHere() || atBase() && G.w.struct.fire > 0;

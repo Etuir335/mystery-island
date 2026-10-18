@@ -24,6 +24,7 @@ const setAct = (t) => {
   }
 };
 const FEED = (t) => {
+  if (typeof diaryAdd === "function") diaryAdd(t);
   if (G && G.coop && window.COOP) COOP.feed(t);
 };
 const roomName = () => G.room != null && LOCS[G.loc].rooms[G.room] ? LOCS[G.loc].rooms[G.room].n : "";
@@ -55,7 +56,10 @@ function setSlot(n) {
   }
   G = null;
 }
-const F = () => MODES[G.mode].f;
+const F = () => {
+  const f = MODES[G.mode].f;
+  return G && G.custom && typeof customF === "function" ? customF(f) : f;
+};
 const IT = (id) => ITEMS[id];
 const L = (id) => LOCS[id || G.loc];
 const day = () => Math.floor(G.time / DAY) + 1;
@@ -676,6 +680,7 @@ function resolveHordeAuto(power) {
 }
 function die(cause) {
   if (G.dead) return;
+  if (typeof downedHook === "function" && downedHook(cause)) return;
   const f = F(), c = G.ch, days = Math.floor((G.time - c.born) / DAY);
   G.combat = null;
   G.interrupt = true;
