@@ -534,7 +534,7 @@ const UI = /* @__PURE__ */ (() => {
     h += '<div class="sec"><h2>💾 Сохранения · слот '.concat(SAVE_SLOT, '</h2><div class="acts">').concat(btn("🔄 Другой слот", () => {
       save();
       startScreen();
-    }, "sm")).concat(btn("📤 Экспорт", exportScreen, "sm")).concat(btn("📥 Импорт", importScreen, "sm"), "</div></div>");
+    }, "sm")).concat(btn("📤 Экспорт", exportScreen, "sm")).concat(window.SYNC ? btn("🔗 Играть на другом устройстве", syncScreen, "sm") : "").concat(btn("📥 Импорт", importScreen, "sm"), "</div></div>");
     h += '<div class="sec"><h2>Подсказки</h2><div class="acts">'.concat(btn(hintsState().off ? "💡 Включить подсказки" : "💡 Выключить подсказки", hintsToggle, "sm"), "</div></div>");
     h += '<div class="sec"><h2>Звук</h2><div class="acts">'.concat(btn(SFX.on ? "🔊 Звук включён" : "🔇 Звук выключен", () => SFX.toggle(), "sm")).concat(btn(SFX.music ? "🎵 Музыка: да" : "🎵 Музыка: нет", () => SFX.toggleMusic(), "sm"), '</div><label class="muted" style="display:flex;gap:8px;align-items:center;font-size:13px">Громкость <input type="range" id="vol" min="0" max="100" value="').concat(Math.round(SFX.vol * 100), '" oninput="SFX.setVol(this.value/100)" style="flex:1"></label></div>');
     h += '<div class="sec"><h2>Игра</h2>'.concat(st.confirmNew ? '<p class="bad">Прогресс этой игры удалится. Точно?</p><div class="acts">'.concat(btn("Да, начать заново", () => {
@@ -946,6 +946,30 @@ const UI = /* @__PURE__ */ (() => {
       }
     })).concat(mbtn("Закрыть", closeFull), "</div>"));
   }
+  function syncScreen() {
+    if (!window.SYNC) return toast("Синхронизация недоступна в этой версии.");
+    const draw = (code, msg) => showFull(() => '<div class="title"><small>ТЕЛЕФОН ↔ ПК</small>Код персонажа</div>\n      <p class="muted">Открой игру на другом устройстве — в Телеграме или в браузере: <b>'.concat(esc(location.origin + location.pathname), '</b> → «🔗 Войти по коду» и введи код. Дальше прогресс сам переносится туда, где ты играл последним.</p>\n      <div style="font:600 32px/1.2 var(--f-mono);letter-spacing:3px;text-align:center;padding:14px;border:2px dashed var(--line);border-radius:10px;user-select:all">').concat(code ? esc(SYNC.fmt(code)) : "…", "</div>\n      ").concat(msg ? '<p class="muted">'.concat(esc(msg), "</p>") : "", '\n      <p class="muted" style="font-size:13px">⚠️ Не играй одновременно на двух устройствах — сохранится то, что было позже. Никому не давай код: по нему можно открыть твоего персонажа.</p>\n      <div class="acts">').concat(mbtn("Готово", closeFull, "pri")).concat(code ? mbtn("Отвязать код", () => {
+      SYNC.unlink();
+      closeFull();
+      toast("Код отвязан.");
+    }) : "", "</div>"));
+    draw(G.syncCode, G.syncCode ? "" : "Создаю код…");
+    SYNC.link().then((c) => draw(c, "Сохранение отправлено на сервер."), () => draw(G.syncCode, "Нет связи с сервером — попробуй ещё раз позже."));
+  }
+  function enterCodeScreen(back) {
+    if (!window.SYNC) return toast("Синхронизация недоступна в этой версии.");
+    showFull(() => '<div class="title"><small>СЛОТ '.concat(SAVE_SLOT, '</small>Войти по коду</div>\n      <p class="muted">Код персонажа берётся на другом устройстве: Журнал → «🔗 Играть на другом устройстве».</p>\n      <input type="text" id="scode" maxlength="9" placeholder="K7QX-M2PA" style="font:600 22px var(--f-mono);letter-spacing:2px;text-transform:uppercase">\n      ').concat(slotInfo(SAVE_SLOT) ? '<p class="bad">Мир в этом слоте заменится персонажем с кода.</p>' : "", '\n      <p id="smsg" class="muted"></p>\n      <div class="acts">').concat(mbtn("🔗 Войти", () => {
+      const m2 = $("smsg");
+      m2.textContent = "Загружаю…";
+      SYNC.enter($("scode").value).then((v) => {
+        closeFull();
+        if (G.coop && window.COOP) COOP.init();
+        toast("Загружен ".concat(v.name || "персонаж", ", день ").concat(v.day || "?", "."));
+      }, (e) => {
+        m2.textContent = e.message || "Ошибка связи.";
+      });
+    }, "pri")).concat(mbtn("Назад", () => startScreen()), "</div>"));
+  }
   function importScreen() {
     const doImport = (txt) => {
       try {
@@ -985,7 +1009,7 @@ const UI = /* @__PURE__ */ (() => {
             closeFull();
             if (G.coop) COOP.init();
           }
-        }, "pri") : "").concat(window.TGA && !window.claude ? "" : mbtn("🤝 Присоединиться к другу", joinScreen), "</div>");
+        }, "pri") : "").concat(window.TGA && !window.claude ? "" : mbtn("🤝 Присоединиться к другу", joinScreen)).concat(window.SYNC ? mbtn("🔗 Войти по коду", () => enterCodeScreen()) : "", "</div>");
         h += '<h2>Сложность</h2><div class="modes">'.concat(Object.entries(MODES).map(([k, M]) => '<button class="mode '.concat(sel.mode === k ? "on" : "", '" onclick="').concat(m(() => {
           sel.mode = k;
           draw();
@@ -1157,12 +1181,14 @@ const UI = /* @__PURE__ */ (() => {
       UI.startScreen();
     }
   };
-  setTimeout(go, 6e3);
+  setTimeout(go, 12e3);
   let p0;
   try {
     p0 = window.TGA ? TGA.before() : Promise.resolve();
   } catch (e) {
     p0 = Promise.resolve();
   }
+  p0 = Promise.resolve(p0).catch(() => {
+  }).then(() => window.SYNC ? Promise.race([SYNC.before(), new Promise((r) => setTimeout(r, 5e3))]) : null);
   Promise.resolve(p0).then(go, go);
 })();
