@@ -149,6 +149,7 @@ const UI = /* @__PURE__ */ (() => {
       fr.forEach((p, k) => {
         nodes += '<text class="fname" x="'.concat(l2.x, '" y="').concat(l2.y - 5.2 - k * 3.2, '">👤').concat(esc((p.name || "").slice(0, 10)), " ").concat(stIcon(p), "</text>");
       });
+      if (typeof CUI !== "undefined" && CUI.markNode && s2) nodes += CUI.markNode(id, l2);
       nodes += '<g class="node '.concat(id === G.loc ? "cur" : "", " ").concat(id === sel2 ? "sel" : "", " ").concat(l2.zone ? "zn" : "", '" onclick="').concat(a(() => {
         st.sel = id;
       }), '"><circle cx="').concat(l2.x, '" cy="').concat(l2.y, '" r="3.6"/><text class="emo" x="').concat(l2.x, '" y="').concat(l2.y + 1.4, '">').concat(s2 ? l2.ic : "?", '</text><text x="').concat(l2.x, '" y="').concat(l2.boat ? l2.y - 5 : l2.y + 7.2, '">').concat(s2 ? esc(l2.n) : "???", "</text></g>");
@@ -187,7 +188,7 @@ const UI = /* @__PURE__ */ (() => {
     }
     if (sel2 !== G.loc && (G.ch.food < 25 || G.ch.drink < 25)) card += '<p class="warn">⚠️ Мало еды или воды — поешь перед дорогой.</p>';
     card += "</div>";
-    return "".concat(tutCard()).concat(logLast(3), '<div class="mapwrap"><svg viewBox="0 0 100 100" role="img" aria-label="Карта острова"><image href="').concat(ART.mapBg(ISLAND, CH2()), '" x="0" y="0" width="100" height="100" preserveAspectRatio="none" style="image-rendering:pixelated"/>').concat(lines).concat(nodes, "</svg></div>").concat(card);
+    return "".concat(tutCard()).concat(logLast(3), '<div class="mapwrap"><svg viewBox="0 0 100 100" role="img" aria-label="Карта острова"><image href="').concat(ART.mapBg(ISLAND, CH2()), '" x="0" y="0" width="100" height="100" preserveAspectRatio="none" style="image-rendering:pixelated"/>').concat(lines).concat(nodes, "</svg></div>").concat(card).concat(typeof CUI !== "undefined" && CUI.markCard && seen(sel2) ? CUI.markCard(sel2) : "");
   }
   function renderLoc() {
     if (st.trader) return renderTrader(st.trader);
@@ -562,7 +563,7 @@ const UI = /* @__PURE__ */ (() => {
       h += EXTUI.basePanel();
     } else if (bsub === "raid") h += EXTUI.raidPanel();
     else if (bsub === "craft") h += workshop();
-    else if (bsub === "stash") h += stashDual();
+    else if (bsub === "stash") h += stashDual() + (typeof CUI !== "undefined" && CUI.stashLog ? CUI.stashLog() : "");
     else if (bsub === "build") {
       h += '<div class="sec"><h2>Постройки</h2><div class="list">';
       for (const id in STRUCT) {

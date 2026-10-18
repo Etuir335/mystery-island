@@ -968,3 +968,189 @@ CUI.basePanel = function() {
   const c = G.ch, need = c.energy < 99 || c.food < 92 || c.drink < 92;
   return '<div class="sec"><div class="acts">'.concat(UI.btn("🛌 Полностью отдохнуть", fullRest, "pri", !need), '</div><p class="muted" style="font-size:12.5px;margin:4px 0 0">Поесть и попить досыта (экономно), выспаться до полной выносливости и снова подкрепиться.').concat(G.coop ? " Общее время пойдёт вперёд и у друга." : "", "</p></div>") + _cuiBase.apply(this, arguments);
 };
+function stLog(act, id, n) {
+  if (!n) return;
+  const e = { who: G.ch.name, act, id, n, d: day(), k: clock(), at: Date.now() };
+  if (G.coop && window.COOP && COOP.logStash) COOP.logStash(e);
+  else {
+    G.w.stashLog = (G.w.stashLog || []).concat([e]).slice(-60);
+  }
+}
+const stashLogList = () => (G.coop && window.COOP && COOP.stashLog ? COOP.stashLog : G.w.stashLog) || [];
+const cntAll = (list, id) => list.filter((x) => x.id === id).reduce((a, x) => a + (x.n || 1), 0);
+const _toStashL = toStash, _fromStashL = fromStash;
+toStash = function(e, n) {
+  const id = e && e.id, b = id ? cntAll(G.stash, id) : 0;
+  const r = _toStashL.apply(this, arguments);
+  if (id) stLog("+", id, cntAll(G.stash, id) - b);
+  return r;
+};
+fromStash = function(e, n) {
+  const id = e && e.id, b = id ? cntAll(G.stash, id) : 0;
+  const r = _fromStashL.apply(this, arguments);
+  if (id) stLog("−", id, b - cntAll(G.stash, id));
+  return r;
+};
+const _stashAllC = stashAllMats;
+stashAllMats = function() {
+  const before = {};
+  for (const e of G.stash) before[e.id] = (before[e.id] || 0) + e.n;
+  const L0 = stLog;
+  let moved = [];
+  stLog = (a, id, n) => {
+    if (n) moved.push("".concat(IT(id).ic).concat(n));
+  };
+  try {
+    _stashAllC.apply(this, arguments);
+  } finally {
+    stLog = L0;
+  }
+  if (moved.length) {
+    const e = { who: G.ch.name, act: "+", id: null, txt: moved.join(" "), n: moved.length, d: day(), k: clock(), at: Date.now() };
+    if (G.coop && window.COOP && COOP.logStash) COOP.logStash(e);
+    else G.w.stashLog = (G.w.stashLog || []).concat([e]).slice(-60);
+  }
+  save();
+  UI.render();
+};
+const BAK = { list: null, busy: false, msg: "" };
+function soloBackup() {
+  try {
+    localStorage.setItem("moti3_bak".concat(SAVE_SLOT, "_").concat(day() % 3), JSON.stringify({ day: day(), at: Date.now(), g: JSON.stringify(G) }));
+  } catch (e) {
+  }
+}
+function soloBackups() {
+  const out = [];
+  for (let i = 0; i < 3; i++) {
+    try {
+      const v = JSON.parse(localStorage.getItem("moti3_bak".concat(SAVE_SLOT, "_").concat(i)) || "null");
+      if (v) out.push({ slot: i, day: v.day, at: v.at });
+    } catch (e) {
+    }
+  }
+  return out.sort((a, b) => b.day - a.day);
+}
+function soloRestore(slot) {
+  try {
+    const v = JSON.parse(localStorage.getItem("moti3_bak".concat(SAVE_SLOT, "_").concat(slot)));
+    const g = JSON.parse(v.g);
+    if (g && g.v === 3) {
+      G = g;
+      migrate();
+      save();
+      UI.toast("🗂️ Откат к началу дня ".concat(v.day));
+      UI.go("loc");
+    }
+  } catch (e) {
+    UI.toast("Копия повреждена.");
+  }
+}
+const _extNewDayB = extNewDay;
+extNewDay = function() {
+  _extNewDayB.apply(this, arguments);
+  if (G.coop && window.COOP) {
+    if (worldAuth()) COOP.backup(day());
+  } else soloBackup();
+};
+const MARKS = [["💰", "Лут"], ["☠️", "Опасно"], ["👑", "Босс"], ["🏃", "Иди сюда"], ["🏕️", "Лагерь"], ["❓", "Проверить"]];
+function addMark(loc, ic, txt) {
+  G.w.marks = (G.w.marks || []).filter((m) => !(m.loc === loc && m.ic === ic)).concat([{ id: Date.now() % 1e9, loc, ic, txt, by: G.ch.name, t: G.time }]).slice(-30);
+  save();
+  UI.render();
+}
+function delMark(id) {
+  G.w.marks = (G.w.marks || []).filter((m) => m.id !== id);
+  save();
+  UI.render();
+}
+const liveMarks = () => (G.w.marks || []).filter((m) => G.time - m.t < 3 * DAY);
+CUI.markNode = function(id, l) {
+  const ms = liveMarks().filter((m) => m.loc === id);
+  return ms.length ? '<text x="'.concat(l.x + 4.6, '" y="').concat(l.y - 3, '" style="font-size:3.4px">').concat(ms.map((m) => m.ic).join(""), "</text>") : "";
+};
+CUI.markCard = function(loc) {
+  const ms = liveMarks().filter((m) => m.loc === loc), b = UI.btn;
+  return '<div class="sec"><h3>📍 Метки</h3>'.concat(ms.map((m) => '<div class="row"><span class="ic">'.concat(m.ic, '</span><div class="grow"><span class="t">').concat(cesc(m.txt), '</span><span class="s">').concat(cesc(m.by), " · ").concat(Math.max(1, Math.round((G.time - m.t) / H)), " ч назад</span></div>").concat(b("✕", () => delMark(m.id), "sm"), "</div>")).join(""), '<div class="acts">').concat(MARKS.map(([ic, t]) => b("".concat(ic, " ").concat(t), () => addMark(loc, ic, t), "sm")).join(""), "</div></div>");
+};
+function addTodo() {
+  const el = document.getElementById("todoin");
+  const t = el && el.value.trim().slice(0, 80);
+  if (!t) return;
+  G.w.todo = (G.w.todo || []).concat([{ id: Date.now() % 1e9, t, by: G.ch.name, who: null, done: false }]).slice(-25);
+  el.value = "";
+  save();
+  UI.render();
+}
+function todoSet(id, f) {
+  G.w.todo = (G.w.todo || []).map((x) => x.id === id ? Object.assign({}, x, f(x)) : x);
+  save();
+  UI.render();
+}
+function todoDel(id) {
+  G.w.todo = (G.w.todo || []).filter((x) => x.id !== id);
+  save();
+  UI.render();
+}
+function todoHtml() {
+  const b = UI.btn, list = G.w.todo || [];
+  return '<div class="sec"><h2>📝 '.concat(G.coop ? "Дела отряда" : "Мои дела", '</h2><div class="list">').concat(list.map((x) => '<div class="row '.concat(x.done ? "dim" : "", '"><span class="ic">').concat(x.done ? "✅" : x.who ? "🙋" : "▫️", '</span><div class="grow"><span class="t">').concat(x.done ? "<s>" + cesc(x.t) + "</s>" : cesc(x.t), '</span><span class="s">').concat(cesc(x.by)).concat(x.who ? " · взял " + cesc(x.who) : "", "</span></div>").concat(!x.done && !x.who && G.coop ? b("Беру", () => todoSet(x.id, () => ({ who: G.ch.name })), "sm") : "").concat(b(x.done ? "↺" : "✓", () => todoSet(x.id, (y) => ({ done: !y.done })), "sm")).concat(b("✕", () => todoDel(x.id), "sm"), "</div>")).join("") || '<p class="muted">Пусто. Например: «10 гвоздей на стены», «сходить в НИИ вдвоём».</p>', '</div><div class="acts"><input id="todoin" type="text" maxlength="80" placeholder="Новое дело…" style="flex:1;min-width:150px">').concat(b("Добавить", addTodo, "sm pri"), "</div></div>");
+}
+function stashLogHtml() {
+  const l = stashLogList().slice(-25).reverse();
+  return '<div class="sec"><h2>🧾 Журнал склада</h2>'.concat(l.length ? '<div class="list" style="gap:2px">'.concat(l.map((x) => '<div class="lg" style="font-size:13px"><span class="mono muted">Д'.concat(x.d, " ").concat(x.k, "</span> <b>").concat(cesc(x.who), "</b> ").concat(x.act === "+" ? '<span class="good">положил</span>' : '<span class="bad">взял</span>', " ").concat(x.id ? "".concat(IT(x.id).ic, " ").concat(cesc(IT(x.id).n)).concat(x.n > 1 ? " ×" + x.n : "") : cesc(x.txt || ""), "</div>")).join(""), "</div>") : '<p class="muted">Пока пусто.</p>', "</div>");
+}
+function backupsHtml() {
+  const b = UI.btn, coop = G.coop && window.COOP;
+  if (coop && !BAK.list && !BAK.busy) {
+    BAK.busy = true;
+    COOP.listBackups().then((l) => {
+      BAK.list = l;
+    }).finally(() => {
+      BAK.busy = false;
+      UI.render();
+    });
+  }
+  const list = coop ? BAK.list || [] : soloBackups(), canRestore = !coop || COOP.host === COOP.uid;
+  return '<div class="sec"><div class="sechead"><h2>🗂️ Резервные копии</h2>'.concat(coop ? b("↻", () => {
+    BAK.list = null;
+    UI.render();
+  }, "sm") : "", '</div><p class="muted" style="font-size:13px">Мир сохраняется сам каждое утро (').concat(coop ? "5 последних дней, общий мир — откатывает только хозяин" : "3 последних дня", ").").concat(coop ? " Время не откатывается, только база, склад, сюжет и локации." : "", '</p><div class="list">').concat(list.map((x) => '<div class="row"><span class="ic">🗂️</span><div class="grow"><span class="t">Начало дня '.concat(x.day, '</span><span class="s">').concat(new Date(x.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })).concat(x.by ? " · " + cesc(x.by) : "", "</span></div>").concat(canRestore ? b("Откатить", () => UI.event({ title: "🗂️ Откатить к дню ".concat(x.day, "?"), cls: "bad", text: coop ? "База, склад, сюжет и локации общего мира вернутся к этой копии — у всех игроков. Рюкзаки игроков не меняются." : "Всё, что было после этой копии, пропадёт.", choices: [{ t: "🗂️ Откатить", fn: () => coop ? COOP.restore(x.slot).then((err) => UI.toast(err || "Мир откатан.")) : soloRestore(x.slot) }, { t: "Отмена" }] }), "sm") : "", "</div>")).join("") || '<p class="muted">'.concat(BAK.busy ? "Загружаю…" : "Копий пока нет — первая появится утром.", "</p>"), "</div></div>");
+}
+const _cuiJour = CUI.jour;
+CUI.jour = function() {
+  return todoHtml() + _cuiJour.apply(this, arguments) + backupsHtml();
+};
+function openSummary() {
+  let d = document.getElementById("sumsheet");
+  if (!d) {
+    d = document.createElement("div");
+    d.id = "sumsheet";
+    document.body.appendChild(d);
+  }
+  const draw = () => {
+    if (!document.getElementById("sumsheet")) return;
+    d.innerHTML = '<div class="sumbox"><div class="sechead"><h2>🧭 Сводка</h2><button class="btn sm" onclick="closeSummary()">✕</button></div>'.concat(sideLeft()).concat(sideRight(), "</div>");
+  };
+  draw();
+  d.onclick = (ev) => {
+    if (ev.target === d) closeSummary();
+  };
+  d._t = setInterval(draw, 1500);
+}
+function closeSummary() {
+  const d = document.getElementById("sumsheet");
+  if (d) {
+    clearInterval(d._t);
+    d.remove();
+  }
+}
+window.closeSummary = closeSummary;
+const _cuiTop2 = CUI.top;
+CUI.top = function() {
+  let h = _cuiTop2.apply(this, arguments);
+  if (window.innerWidth >= 1130) return h;
+  const sb = UI.btn("🧭 Сводка", openSummary, "sm");
+  return /<\/div>$/.test(h) && h.includes("досыта") ? h.replace(/<\/div>$/, sb + "</div>") : h + '<div class="acts" style="margin-top:4px">'.concat(sb, "</div>");
+};
+CUI.stashLog = () => stashLogHtml();

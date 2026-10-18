@@ -5,7 +5,7 @@ const COOP = (() => {
   let subs = [], timer = null, pushing = false, again = false, rTimer = null;
   let fights = {}, joined = null, hitSeen = 0, pending = [], actsSeen = {}, fightPushT = null, hitN = 0;
   let feedL = [], chatLoaded = false, feedLoaded = false;
-  let kicked = {};
+  let kicked = {}, slog = [];
   let players = {}, chat = [], lastMe = "", lastMeAt = 0, lastPersonal = "", unread = 0;
   const sent = {};
   let stashBase = null, stashTx = false, stashLate = null;
@@ -142,7 +142,9 @@ const COOP = (() => {
         killsBy: w.killsBy || {},
         contractsDone: w.contractsDone || 0,
         c3At: w.c3At || 0,
-        c3Fight: !!w.c3Fight
+        c3Fight: !!w.c3Fight,
+        marks: w.marks || [],
+        todo: w.todo || []
       },
       clock: { time: G.time, weather: G.weather, em: G.em, hordeDone: w.hordeDone }
     };
@@ -175,6 +177,8 @@ const COOP = (() => {
       G.w.contractsDone = data.contractsDone || 0;
       G.w.c3At = data.c3At || 0;
       G.w.c3Fight = !!data.c3Fight;
+      G.w.marks = data.marks || [];
+      G.w.todo = data.todo || [];
     } else if (n === "clock") {
       if (data.time > G.time + 1) {
         const d = data.time - G.time;
@@ -317,6 +321,10 @@ const COOP = (() => {
         save();
         scheduleRender();
       }
+    }, onErr));
+    subs.push(db.doc("coop/".concat(code, "/stashlog/all")).onSnapshot((s) => {
+      slog = s.exists && s.data() && s.data().items || [];
+      scheduleRender();
     }, onErr));
     subs.push(db.doc("coop/".concat(code, "/kicked/all")).onSnapshot((s) => {
       kicked = s.exists && s.data() && s.data().uids || {};
@@ -634,6 +642,62 @@ const COOP = (() => {
     }
     UI.render();
   }
+  async function logStash(entry) {
+    if (!ready || !db || !code) return;
+    const ref = db.doc("coop/".concat(code, "/stashlog/all")), add = (cur) => ({ items: (cur && cur.items || []).concat([entry]).slice(-80) });
+    slog = slog.concat([entry]).slice(-80);
+    try {
+      if (ref.tx) await ref.tx(add);
+      else {
+        const s = await ref.get();
+        await ref.set(add(s.exists ? s.data() : null));
+      }
+    } catch (e) {
+    }
+  }
+  async function backup(dayN) {
+    if (!ready || !db || !code) return;
+    try {
+      await db.doc("coop/".concat(code, "/bak/s").concat(dayN % 5)).set({ day: dayN, at: Date.now(), by: G.ch.name, parts: JSON.parse(canon(parts())), stash: G.stash });
+    } catch (e) {
+    }
+  }
+  async function listBackups() {
+    if (!ready || !db || !code) return [];
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      try {
+        const s = await db.doc("coop/".concat(code, "/bak/s").concat(i)).get();
+        if (s.exists && s.data()) {
+          const d = s.data();
+          out.push({ slot: i, day: d.day, at: d.at, by: d.by });
+        }
+      } catch (e) {
+      }
+    }
+    return out.sort((a, b) => b.day - a.day);
+  }
+  async function restore(slot) {
+    if (!ready || !G.coop || G.coop.host !== uid) return "Откатить мир может только хозяин.";
+    const s = await db.doc("coop/".concat(code, "/bak/s").concat(slot)).get();
+    if (!s.exists) return "Копия не найдена.";
+    const d = s.data();
+    for (const n in d.parts) {
+      await db.doc(pathOf(n)).set(d.parts[n]);
+      applyDoc(n, d.parts[n], true);
+    }
+    const items = d.stash || [];
+    await db.doc("coop/".concat(code, "/stash/all")).set({ items });
+    stashBase = sClone(items);
+    G.stash = sClone(items);
+    try {
+      feed("🗂️ откатил мир к копии дня ".concat(d.day));
+    } catch (e) {
+    }
+    save();
+    UI.render();
+    return "";
+  }
   const hasSolo = () => {
     try {
       return !!localStorage.getItem(SOLO_KEY);
@@ -887,6 +951,13 @@ const COOP = (() => {
     get kicked() {
       return kicked;
     },
+    logStash,
+    get stashLog() {
+      return slog;
+    },
+    backup,
+    listBackups,
+    restore,
     hasSolo,
     probe,
     create,

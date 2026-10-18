@@ -969,6 +969,75 @@ input[type=text] {
   margin-right: auto;
   font-size: 12.5px;
 }
+#sumsheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+}
+#sumsheet .sumbox {
+  background: var(--bg);
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  max-height: 82vh;
+  overflow-y: auto;
+  border-radius: 14px 14px 0 0;
+  padding: 12px 14px 20px;
+  font-size: 13.5px;
+}
+#sumsheet .card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#sumsheet h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#sumsheet .ln {
+  padding: 2px 0;
+}
+#sumsheet .ln.good {
+  color: var(--good);
+}
+#sumsheet .ln.bad {
+  color: var(--bad);
+}
+#sumsheet .ln.warn {
+  color: var(--warn);
+}
+#sumsheet .tm {
+  display: flex;
+  justify-content: space-between;
+  grid-gap: 6px;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line);
+}
+#sumsheet .mono {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+#sumsheet .alert {
+  background: #b0201a;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  font-weight: 600;
+}
 .side {
   display: none;
 }
@@ -1088,18 +1157,18 @@ input[type=text] {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792349956"></script>
-<script src="game.js?v=1792349956"></script>
-<script src="ext.js?v=1792349956"></script>
-<script src="content.js?v=1792349956"></script>
-<script src="art.js?v=1792349956"></script>
-<script src="audio.js?v=1792349956"></script>
-<script src="coop.js?v=1792349956"></script>
-<script src="tg.js?v=1792349956"></script>
-<script src="fbconfig.js?v=1792349956"></script>
-<script src="fbcoop.js?v=1792349956"></script>
-<script src="sync.js?v=1792349956"></script>
-<script src="ui.js?v=1792349956"></script>
+<script src="data.js?v=1792350226"></script>
+<script src="game.js?v=1792350226"></script>
+<script src="ext.js?v=1792350226"></script>
+<script src="content.js?v=1792350226"></script>
+<script src="art.js?v=1792350226"></script>
+<script src="audio.js?v=1792350226"></script>
+<script src="coop.js?v=1792350226"></script>
+<script src="tg.js?v=1792350226"></script>
+<script src="fbconfig.js?v=1792350226"></script>
+<script src="fbcoop.js?v=1792350226"></script>
+<script src="sync.js?v=1792350226"></script>
+<script src="ui.js?v=1792350226"></script>
 
 </body>
 </html>
