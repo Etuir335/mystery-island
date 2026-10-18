@@ -54,7 +54,7 @@ const UI = /* @__PURE__ */ (() => {
   const dangerChip = (d) => '<span class="chip '.concat(d >= 3 ? "bad" : d >= 2 ? "warn" : d ? "" : "good", '">опасность: ').concat(DANGER[d], "</span>");
   function renderTop() {
     const c = G.ch, w = weather(), f = F();
-    const toBN = 7 - (day() - 1) % 7 - 1;
+    const toBN = BNP() - (day() - 1) % BNP() - 1;
     const hp = healthPct();
     let ban = "";
     if (emissionSoon()) {
@@ -351,8 +351,9 @@ const UI = /* @__PURE__ */ (() => {
     let h = '<div class="sechead"><h1>'.concat(T.ic, " ").concat(T.n, "</h1>").concat(btn("↩ Назад", () => {
       st.trader = null;
     }, "sm"), '</div><p class="muted">').concat(esc(T.d), '</p><div class="toprow"><span>⭐ репутация <b>').concat(rep, "</b></span><span>💰 <b>").concat(G.money, "₽</b></span></div>");
-    if (tid === "nomad" && st.ttab === "quest") st.ttab = "buy";
-    h += '<div class="toggle">'.concat((tid === "nomad" ? [["buy", "Купить"], ["sell", "Продать"]] : [["quest", "Задания"], ["buy", "Купить"], ["sell", "Продать"]]).map(([k, n]) => '<button class="'.concat(st.ttab === k ? "on" : "", '" onclick="').concat(a(() => st.ttab = k), '">').concat(n, "</button>")).join(""), "</div>");
+    const noQ = tid === "nomad" || tid === "settle";
+    if (noQ && st.ttab === "quest") st.ttab = "buy";
+    h += '<div class="toggle">'.concat((noQ ? [["buy", "Купить"], ["sell", "Продать"]] : [["quest", "Задания"], ["buy", "Купить"], ["sell", "Продать"]]).map(([k, n]) => '<button class="'.concat(st.ttab === k ? "on" : "", '" onclick="').concat(a(() => st.ttab = k), '">').concat(n, "</button>")).join(""), "</div>");
     if (st.ttab === "buy") {
       h += '<div class="list">' + T.stock.map(([id, tier]) => {
         const p = buyPrice(tid, id), lock = rep < tier;
@@ -554,7 +555,7 @@ const UI = /* @__PURE__ */ (() => {
   function renderBase() {
     const s = G.w.struct;
     if (!atBase()) return "".concat(logLast(2), '<h1>🏚️ База</h1><div class="note">Ты не на базе. Лодочная станция — ').concat(LOCS.base.links[G.loc] ? "".concat(LOCS.base.links[G.loc], " мин отсюда") : "далеко отсюда", ".<br>Укрепления: ").concat(STRUCT.walls.lv[s.walls].n).concat(s.walls ? " (".concat(G.w.wallHp, "%)") : "", " · защита ").concat(defense(), "</div>");
-    const d = day(), nextBN = d % 7 === 0 && hour() < 22 ? d : d + (7 - d % 7);
+    const d = day(), nextBN = d % BNP() === 0 && hour() < 22 ? d : d + (BNP() - d % BNP());
     const power = Math.round((25 + nextBN * 2.5) * F().horde);
     let h = "".concat(ART.sceneTag({ loc: "base", key: "base", alt: "Лодочная станция", camp: false })).concat(tutCard()).concat(logLast(3), '<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">').concat(defense(), "</b> · следующая Кровавая ночь — день ").concat(nextBN, ', натиск ≈ <b class="mono">').concat(power, "</b> за ночь (3 волны).").concat(s.walls ? " Укрепления: ".concat(G.w.wallHp, "%.") : "", "</p></div>");
     const bsub = st.bsub || "main";
@@ -572,7 +573,7 @@ const UI = /* @__PURE__ */ (() => {
         if (STRUCT[id].ch2 && !CH2()) continue;
         const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
         const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => '<span class="'.concat(allCnt(k) >= v ? "" : "bad", '">').concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v, "</span>")).join(", ") : "";
-        h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why) : "", "</div>");
+        h += '<div class="row '.concat(why === "bp" ? "dim" : "", '"><span class="ic">').concat(S.ic, '</span><div class="grow"><span class="t">').concat(S.n, ": ").concat(lv ? S.lv[lv].n : '<span class="muted">нет</span>', "</span>").concat(nx ? '<span class="s">'.concat(why === "bp" ? "📐 нужен чертёж" : why === "need" ? "⚡ сначала: ".concat(STRUCT[S.need].n) : why === "npc" ? "🏘️ нужно жильцов: ".concat(S.npc) : why === "ch3" ? "📡 откроется в Главе 3" : "→ ".concat(nx.n, ": ").concat(need), "</span>") : '<span class="s">максимум</span>', "</div>").concat(nx && why !== "bp" ? btn(lv ? "Улучшить" : "Построить", () => build(id), "sm pri", !!why) : "", "</div>");
       }
       h += "</div></div>";
     }

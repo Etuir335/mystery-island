@@ -872,7 +872,7 @@ function sideWarnings() {
     w.push('<div class="alert">🔴 Выброс через ~'.concat(left, " мин").concat(inShelter() ? " · ты в укрытии" : " · беги в укрытие!", "</div>"));
   }
   if (isBloodNight()) w.push('<div class="alert">🌕 Кровавая ночь!</div>');
-  else if (day() % 7 === 0) w.push('<div class="ln bad">🌕 Сегодня в 22:00 Кровавая ночь — будь на базе</div>');
+  else if (day() % BNP() === 0) w.push('<div class="ln bad">🌕 Сегодня в 22:00 Кровавая ночь — будь на базе</div>');
   if (G.w.raidIncoming) w.push('<div class="ln bad">⚔️ Налёт на базу ≈23:00 ('.concat(cesc(FACTIONS[G.w.raidIncoming.camp].n), ")</div>"));
   if (G.w.flags.c3_sent && !G.w.flags.c3_held) w.push('<div class="ln warn">🚢 Ночь осады: будь на базе с 23:00</div>');
   try {
@@ -916,7 +916,7 @@ function sideRight() {
   }
   const info = [];
   if (G.w.struct.radio && G.em.next - G.time < 30 * DAY) info.push("📻 Выброс: день ".concat(Math.floor(G.em.next / DAY) + 1, ", ").concat(hm(G.em.next)));
-  const nb = day() % 7 === 0 ? day() : day() + (7 - day() % 7);
+  const nb = day() % BNP() === 0 ? day() : day() + (BNP() - day() % BNP());
   info.push("🌕 Кровавая ночь: день ".concat(nb));
   if (G.w.struct.gen) info.push("⚡ Генератор: ".concat(Math.round(G.w.power || 0), " ч топлива"));
   const bf = activeBuffs();
@@ -1247,7 +1247,7 @@ function pickSnare(id) {
 }
 const nextBloodDay = () => {
   const d = day();
-  return d % 7 === 0 ? d : d + (7 - d % 7);
+  return d % BNP() === 0 ? d : d + (BNP() - d % BNP());
 };
 const PREP = [
   { id: "spikes", n: "Вбить колья перед стенами", ic: "🪵", def: 10, c: { planks: 2, nails: 10 } },
@@ -1955,4 +1955,79 @@ onKill = function(e) {
     setTimeout(() => UI.event({ title: "🦑 Колыбель затихла", cls: "good", text: "Обитатель Глубин повержен. В его логове — Камень Глубин и сейфы с лучшим лутом острова. Через двое суток здесь снова заведётся что-то страшное.", choices: [{ t: "Отлично" }] }), 0);
   }
   return r;
+};
+Object.assign(STRUCT, {
+  clinic: { n: "Лазарет", ic: "🏥", npc: 1, lv: [{ n: "Нет" }, { n: "Лазарет", c: { planks: 6, rag: 6, alcohol: 1, bandage: 2 } }] },
+  forge: { n: "Кузница", ic: "⚒️", npc: 2, lv: [{ n: "Нет" }, { n: "Кузница", c: { scrap: 10, wood: 6, tools: 1, wire: 2 } }] },
+  shop: { n: "Лавка поселения", ic: "🛒", npc: 2, lv: [{ n: "Нет" }, { n: "Лавка", c: { planks: 8, nails: 12, cash: 2 } }] },
+  tower: { n: "Сторожевая вышка", ic: "🗼", npc: 3, def: [0, 12], lv: [{ n: "Нет" }, { n: "Сторожевая вышка", c: { planks: 10, nails: 16, rope: 2 } }] }
+});
+TRADERS.settle = {
+  n: "Лавка поселения",
+  ic: "🛒",
+  d: "Жильцы торгуют тем, что добыли и сделали сами. Каждый день — немного разный товар.",
+  stock: [["bandage", 0], ["water", 0], ["canned", 0], ["nails", 0], ["planks", 0], ["rope", 0], ["tape", 0], ["a9", 0], ["a12", 0], ["crackers", 0], ["herbs", 0], ["fuel", 0]],
+  buys: ["food", "drink", "med", "melee", "mat", "val", "tool"],
+  quests: []
+};
+const _canBuildS = canBuild;
+canBuild = function(id) {
+  const S = STRUCT[id];
+  if (S && S.npc && npcs().length < S.npc && !(G.w.struct[id] > 0)) return "npc";
+  return _canBuildS.apply(this, arguments);
+};
+const _defenseT = defense;
+defense = function() {
+  return _defenseT() + (G.w.struct.tower ? 12 : 0);
+};
+function clinicRest() {
+  if (!atBase() || !G.w.struct.clinic) return;
+  advance(120);
+  if (G.dead) return;
+  for (const p in PARTS) G.ch.parts[p] = Math.min(PARTS[p].max, G.ch.parts[p] + PARTS[p].max * 0.35);
+  G.ch.bleed = 0;
+  G.ch.inj.forEach((j) => {
+    j.bleed = 0;
+    j.inf = Math.max(0, (j.inf || 0) - 40);
+    j.band = true;
+    j.dis = true;
+  });
+  if (G.ch.ill) for (const k in G.ch.ill) G.ch.ill[k] = Math.max(0, G.ch.ill[k] - 30);
+  UI.log("🏥 Жильцы перевязали и подлечили тебя (2 ч).", "good");
+  save();
+  UI.render();
+}
+function forgeRepair() {
+  const w = G.eq.weapon, it = w && IT(w.id);
+  if (!atBase() || !G.w.struct.forge || !w || !it.dur) return;
+  if (allCnt("scrap") < 3) return UI.toast("Нужно 3 металлолома.");
+  allTake("scrap", 3);
+  advance(40);
+  w.dur = it.dur;
+  SND("craft");
+  UI.log("⚒️ Кузнец выправил ".concat(it.n, " — как новое."), "good");
+  save();
+  UI.render();
+}
+function openShop() {
+  if (!G.w.struct.shop) return;
+  UI._st.tab = "loc";
+  UI._st.trader = "settle";
+  UI._st.ttab = "buy";
+  setTimeout(() => UI.render(), 0);
+}
+const _cuiBaseS = CUI.basePanel;
+CUI.basePanel = function() {
+  const s = G.w.struct, n = npcs().length, b = UI.btn, acts = [];
+  if (s.clinic) acts.push(b("🏥 Лазарет: подлечиться (2 ч)", clinicRest, "sm"));
+  if (s.forge) acts.push(b("⚒️ Кузница: починить оружие (3 ⚙️)", forgeRepair, "sm", !(G.eq.weapon && IT(G.eq.weapon.id).dur) || allCnt("scrap") < 3));
+  if (s.shop) acts.push(b("🛒 Лавка поселения", openShop, "sm"));
+  const locked = ["clinic", "forge", "shop", "tower"].filter((k) => !s[k]).map((k) => "".concat(STRUCT[k].ic, " ").concat(STRUCT[k].n, " — ").concat(n >= STRUCT[k].npc ? "можно строить" : "нужно жильцов: ".concat(STRUCT[k].npc)));
+  return '<div class="sec"><h2>🏘️ Поселение · жильцов '.concat(n, "</h2>").concat(acts.length ? '<div class="acts">'.concat(acts.join(""), "</div>") : "").concat(locked.length ? '<p class="muted" style="font-size:12.5px">'.concat(locked.join(" · "), "</p>") : "", "</div>") + _cuiBaseS.apply(this, arguments);
+};
+const _extMigrateS = extMigrate;
+extMigrate = function() {
+  _extMigrateS.apply(this, arguments);
+  for (const k of ["clinic", "forge", "shop", "tower"]) if (G.w.struct[k] == null) G.w.struct[k] = 0;
+  if (G.w.rep && G.w.rep.settle == null) G.w.rep.settle = 0;
 };

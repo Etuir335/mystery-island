@@ -72,7 +72,8 @@ const isNight = () => {
   const h = hour();
   return h >= 21 || h < 6;
 };
-const isBloodNight = () => day() % 7 === 0 && hour() >= 22 || day() % 7 === 1 && day() > 1 && hour() < 4;
+const BNP = () => typeof G !== "undefined" && G && G.mode === "last" ? 3 : 7;
+const isBloodNight = () => day() % BNP() === 0 && hour() >= 22 || day() % BNP() === 1 && day() > 1 && hour() < 4;
 const weather = () => WEATHER.find((w) => w.id === G.weather.id);
 const inShelter = () => !!(L().shelter && !G.traveling);
 const worldAuth = () => !(G && G.coop && window.COOP) || COOP.isAuth();
@@ -523,7 +524,7 @@ function artSum(k) {
   return G.eq.art.filter(Boolean).reduce((a, x) => a + (IT(x.id).art[k] || 0), 0);
 }
 function newDay() {
-  UI.log("☀️ День ".concat(day(), ".") + (day() % 7 === 0 ? " 🌕 Сегодня Кровавая ночь!" : day() % 7 === 6 ? " Завтра Кровавая ночь." : ""), "sys");
+  UI.log("☀️ День ".concat(day(), ".") + (day() % BNP() === 0 ? " 🌕 Сегодня Кровавая ночь!" : day() % BNP() === BNP() - 1 ? " Завтра Кровавая ночь." : ""), "sys");
   if (!worldAuth()) return;
   if (G.w.struct.walls) {
     G.w.wallHp = Math.max(1, G.w.wallHp - 4);
@@ -575,7 +576,7 @@ function emAck() {
 }
 function emReschedule() {
   const e = G.em;
-  e.next = G.time + DAY * (CH2() && !(G.w.ch2 && G.w.ch2.end === "seal") ? R(2, 4) : R(3, 5)) + R(0, 12) * H;
+  e.next = G.time + DAY * (G.mode === "last" ? R(2, 3) : CH2() && !(G.w.ch2 && G.w.ch2.end === "seal") ? R(2, 4) : R(3, 5)) + R(0, 12) * H;
   e.id = G.time + Math.random();
   e.warned = false;
 }
@@ -629,7 +630,7 @@ const emissionSoon = () => !!(G.em.warned || G.emL && G.emL.warned && G.emL.id =
 function hordeTick(o) {
   if (typeof raidTick === "function") raidTick();
   const d = day();
-  if (d % 7 !== 0 || hour() < 22 || G.w.hordeDone[d]) return;
+  if (d % BNP() !== 0 || hour() < 22 || G.w.hordeDone[d]) return;
   G.w.hordeDone[d] = true;
   G.interrupt = true;
   const power = Math.round((25 + d * 2.5) * F().horde);

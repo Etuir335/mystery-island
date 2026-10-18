@@ -98,6 +98,36 @@ const MODES = {
       fog: true,
       noise: 1.3
     }
+  },
+  last: {
+    n: "Последний выживший",
+    ic: "💀",
+    tag: "Сколько продержишься?",
+    rules: [
+      "Правила «Хардкора» и одна жизнь",
+      "Кровавая ночь каждые 3 дня — и каждая сильнее прошлой",
+      "Выбросы чаще, врагов больше",
+      "Рекорд дней — в общую таблицу выживших"
+    ],
+    f: {
+      parts: true,
+      infection: true,
+      illness: true,
+      rad: true,
+      spoil: true,
+      cold: true,
+      virus: true,
+      death: "perma",
+      hints: 0,
+      emWarn: 30,
+      horde: 1.6,
+      hordeLoot: true,
+      needs: 1.15,
+      enemies: 1.2,
+      count: 1.25,
+      fog: true,
+      noise: 1.3
+    }
   }
 };
 const PROFS = {
