@@ -154,7 +154,7 @@ const COOP = (() => {
       return '';
     } catch (e) { status = 'off'; G.coop = null; code = null; ready = false; return e && e.code === 'invalid_argument' ? NOPERM() : 'Не удалось создать мир. Попробуй ещё раз.'; }
   }
-  async function join(c, name, traits) {
+  async function join(c, name, traits, prof) {
     if (!await probe()) return NOAVAIL();
     c = (c || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{4,8}$/.test(c)) return 'Код — 6 букв и цифр, например K7QX2M.';
@@ -166,7 +166,7 @@ const COOP = (() => {
       code = c;
       const ps = await db.doc(`data/users/${uid}/coop-${c}`).get();
       if (G && !G.coop && !G.dead) { try { localStorage.setItem(SOLO_KEY, JSON.stringify(G)); } catch (e) {} }
-      newGame(mode, name, traits);
+      newGame(mode, name, traits, prof);
       G.coop = { code: c };
       for (const k in sent) delete sent[k];
       await fetchAll();

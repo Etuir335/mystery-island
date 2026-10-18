@@ -313,7 +313,7 @@ const UI = (() => {
   // ---------------- ТЕЛО ----------------
   function renderChar() {
     const c = G.ch, f = F();
-    let h = `${logLast(2)}<div class="sec"><div class="eyebrow">${MODES[G.mode].ic} ${MODES[G.mode].n}${G.w.gen > 1 ? ` · выживший №${G.w.gen}` : ''}</div><h1>${esc(c.name)}</h1><div class="acts">${c.traits.map(t => `<span class="chip">${TRAITS[t].ic} ${TRAITS[t].n}</span>`).join('') || '<span class="muted">без черт</span>'}</div><p class="muted mono">Жив ${Math.floor((G.time - c.born) / DAY)} дн. · убито ${c.kills} · ${G.w.deaths.length ? `смертей: ${G.w.deaths.length}` : 'ни разу не умирал'}</p></div>`;
+    let h = `${logLast(2)}<div class="sec"><div class="eyebrow">${MODES[G.mode].ic} ${MODES[G.mode].n}${G.w.gen > 1 ? ` · выживший №${G.w.gen}` : ''}</div><h1>${esc(c.name)}</h1><div class="acts"><span class="chip good">${(PROFS[c.prof] || PROFS.unemployed).ic} ${(PROFS[c.prof] || PROFS.unemployed).n}</span>${c.traits.filter(t => TRAITS[t]).map(t => `<span class="chip" title="${esc(TRAITS[t].d)}">${TRAITS[t].ic} ${TRAITS[t].n}</span>`).join('') || '<span class="muted">без черт</span>'}</div>${(c.perks || []).length ? `<div class="acts">${c.perks.map(id => PERK_BY[id] ? `<span class="chip warn" title="${esc(PERK_BY[id].d)}">⭐ ${PERK_BY[id].ic} ${PERK_BY[id].n}</span>` : '').join('')}</div>` : ''}<p class="muted mono">Жив ${Math.floor((G.time - c.born) / DAY)} дн. · убито ${c.kills} · ${G.w.deaths.length ? `смертей: ${G.w.deaths.length}` : 'ни разу не умирал'}</p></div>`;
     if (f.parts) {
       const kinds = [['bandage', 'dband'], ['antisep', 'alcohol'], ['splint']];
       const have = k => kinds[k].find(id => cnt(G.inv, id));
@@ -527,9 +527,23 @@ const UI = (() => {
   // ---------------- ПОЛНЫЕ ЭКРАНЫ ----------------
   function showFull(html) { full = true; MACT = []; $('modal').innerHTML = `<div class="full"><div class="inner">${html()}</div></div>`; ART.paintAll($('modal')); }
   function closeFull() { full = null; $('modal').innerHTML = ''; showNext(); render(); }
-  const sel = { mode: 'survivor', traits: [], name: '' };
+  const sel = { mode: 'survivor', traits: [], name: '', prof: 'unemployed' };
+  // ---------- конструктор персонажа: профессия + черты ----------
+  function cpts(o) { const P = PROFS[o.prof] || PROFS.unemployed; return P.pts - o.traits.reduce((a, t) => a + TRAITS[t].cost, 0); }
+  function toggleTrait(o, k) { if (o.traits.includes(k)) o.traits = o.traits.filter(x => x !== k); else { const g = TRAITS[k].g; o.traits = o.traits.filter(x => !g || TRAITS[x].g !== g).concat(k); } }
+  function charBuilder(o, draw) {
+    o.prof = o.prof || 'unemployed';
+    const P = PROFS[o.prof], left = cpts(o);
+    const skl = sk => Object.entries(sk || {}).map(([k, v]) => `${SKILLS[k].ic}${v > 0 ? '+' : ''}${v}`).join(' ');
+    const tbtn = ([k, T]) => `<button class="trait ${o.traits.includes(k) ? 'on' : ''}" onclick="${m(() => { toggleTrait(o, k); draw(); })}"><span class="tn"><span>${T.ic} ${T.n}</span><span class="mono ${T.cost > 0 ? 'warn' : 'good'}">${T.cost > 0 ? '−' + T.cost : '+' + (-T.cost)}</span></span><span class="muted">${esc(T.d)}${T.sk ? ' · ' + skl(T.sk) : ''}</span></button>`;
+    let h = `<h2>Профессия</h2><div class="traits">${Object.entries(PROFS).map(([k, Q]) => `<button class="trait ${o.prof === k ? 'on' : ''}" onclick="${m(() => { o.prof = k; draw(); })}"><span class="tn"><span>${Q.ic} ${Q.n}</span><span class="mono ${Q.pts >= 4 ? 'good' : Q.pts < 0 ? 'bad' : ''}">${Q.pts} оч.</span></span><span class="muted">${esc(Q.d)}${Q.sk ? ' · ' + skl(Q.sk) : ''}</span></button>`).join('')}</div>`;
+    h += `<div class="sechead"><h2>Черты</h2><span class="mono ${left < 0 ? 'bad' : 'good'}">очки: ${left}</span></div><p class="muted" style="font-size:13px">${P.ic} ${P.n} даёт ${P.pts} оч. Плюсы стоят очков, минусы их дают. Итог не может быть меньше нуля. Похожие черты взаимоисключают друг друга.</p>`;
+    const T = Object.entries(TRAITS);
+    h += `<h3>Плюсы</h3><div class="traits">${T.filter(([, x]) => x.cost > 0).map(tbtn).join('')}</div><h3>Минусы</h3><div class="traits">${T.filter(([, x]) => x.cost < 0).map(tbtn).join('')}</div>`;
+    return h;
+  }
   function startScreen(cont) {
-    const pts = () => 3 - sel.traits.reduce((s, t) => s + TRAITS[t].cost, 0);
+    const pts = () => cpts(sel);
     const draw = () => showFull(() => {
       let h = `${ART.sceneTag({ loc: cont ? 'base' : 'lighthouse', key: 'title', title: true, alt: 'Остров на закате' })}<div class="title"><small>${cont ? 'ОСТРОВ ЖДЁТ НОВОГО' : 'ВЫЖИВАНИЕ · С 2020 ГОДА'}</small>${cont ? 'Новый выживший' : 'Mystery of the Island'}</div>`;
       if (!cont) {
@@ -538,33 +552,32 @@ const UI = (() => {
         h += `<h2>Сложность</h2><div class="modes">${Object.entries(MODES).map(([k, M]) => `<button class="mode ${sel.mode === k ? 'on' : ''}" onclick="${m(() => { sel.mode = k; draw(); })}"><span class="sechead"><h3>${M.ic} ${M.n}</h3><span class="muted" style="font-size:12.5px">${M.tag}</span></span><ul>${M.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></button>`).join('')}</div>`;
       } else h += `<p class="muted">Прошлый выживший погиб. Мир остался прежним: база, склад и всё построенное ждут тебя.</p>`;
       h += `<h2>Имя</h2><input type="text" id="pname" maxlength="24" placeholder="Как тебя звать?" value="${esc(sel.name)}" oninput="UI._name(this.value)">`;
-      h += `<div class="sechead"><h2>Черты</h2><span class="mono ${pts() < 0 ? 'bad' : 'good'}">очки: ${pts()}</span></div><p class="muted" style="font-size:13px">У тебя 3 очка. Плюсы стоят очков, минусы их дают. Итог не может быть меньше нуля.</p>`;
-      h += `<div class="traits">${Object.entries(TRAITS).map(([k, T]) => `<button class="trait ${sel.traits.includes(k) ? 'on' : ''}" onclick="${m(() => { sel.traits = sel.traits.includes(k) ? sel.traits.filter(x => x !== k) : [...sel.traits, k]; draw(); })}"><span class="tn"><span>${T.ic} ${T.n}</span><span class="mono ${T.cost > 0 ? 'warn' : 'good'}">${T.cost > 0 ? '−' + T.cost : '+' + (-T.cost)}</span></span><span class="muted">${esc(T.d)}</span></button>`).join('')}</div>`;
+      h += charBuilder(sel, draw);
       h += `<div class="acts">${mbtn(cont ? 'Высадиться на остров' : 'Начать', () => {
         const nm = (sel.name || '').trim() || 'Выживший';
         if (pts() < 0) return toast('Не хватает очков: убери плюс или добавь минус.');
-        if (cont) { continueWorld(nm, sel.traits.slice()); }
-        else { newGame(sel.mode, nm, sel.traits.slice()); intro(); }
+        if (cont) { continueWorld(nm, sel.traits.slice(), sel.prof); }
+        else { newGame(sel.mode, nm, sel.traits.slice(), sel.prof); intro(); }
+        setTimeout(checkPerks, 300);
         sel.traits = []; closeFull(); st.tab = 'loc';
       }, 'pri')}</div>`;
       return h;
     });
     draw();
   }
-  const jsel = { code: '', name: '', traits: [], err: '', busy: false };
+  const jsel = { code: '', name: '', traits: [], err: '', busy: false, prof: 'unemployed' };
   function joinScreen() {
-    const pts = () => 3 - jsel.traits.reduce((s, t) => s + TRAITS[t].cost, 0);
+    const pts = () => cpts(jsel);
     const draw = () => showFull(() => `<div class="title"><small>КООПЕРАТИВ</small>Присоединиться к другу</div>
       ${FBM() ? `<p class="muted">Ты войдёшь в мир друга своим персонажем: база, склад, сюжет и время — общие, рюкзак — твой.</p>${localHas() && !(G && G.coop) ? '<p class="muted">Твоя одиночная игра не пропадёт: выйти из общего мира и вернуться к ней можно в Журнале → Кооператив.</p>' : ''}` : `<p class="muted">Друг создаёт общий мир в своей игре (Журнал → Кооператив) и присылает код. Чтобы ты мог играть, он должен пригласить тебя к этой странице через «Поделиться» с правом редактора. Ты войдёшь в его мир своим персонажем: база, склад и сюжет общие.</p>`}
       <h2>Код мира</h2><input type="text" id="jcode" maxlength="8" placeholder="Например, K7QX2M" value="${esc(jsel.code)}" oninput="UI._j('code', this.value)" style="text-transform:uppercase;font-family:var(--f-mono);letter-spacing:.15em">
       <h2>Имя персонажа</h2><input type="text" id="jname" maxlength="24" placeholder="Как тебя звать?" value="${esc(jsel.name)}" oninput="UI._j('name', this.value)">
-      <div class="sechead"><h2>Черты</h2><span class="mono ${pts() < 0 ? 'bad' : 'good'}">очки: ${pts()}</span></div>
-      <div class="traits">${Object.entries(TRAITS).map(([k, T]) => `<button class="trait ${jsel.traits.includes(k) ? 'on' : ''}" onclick="${m(() => { jsel.traits = jsel.traits.includes(k) ? jsel.traits.filter(x => x !== k) : [...jsel.traits, k]; draw(); })}"><span class="tn"><span>${T.ic} ${T.n}</span><span class="mono ${T.cost > 0 ? 'warn' : 'good'}">${T.cost > 0 ? '−' + T.cost : '+' + (-T.cost)}</span></span><span class="muted">${esc(T.d)}</span></button>`).join('')}</div>
+      ${charBuilder(jsel, draw)}
       ${jsel.err ? `<p class="bad">${esc(jsel.err)}</p>` : ''}
       <div class="acts">${mbtn(jsel.busy ? 'Подключаюсь…' : 'Войти в мир', async () => {
         if (jsel.busy) return; if (pts() < 0) return toast('Не хватает очков.');
         jsel.busy = true; jsel.err = ''; draw();
-        const err = await COOP.join(jsel.code, (jsel.name || '').trim() || 'Выживший', jsel.traits.slice());
+        const err = await COOP.join(jsel.code, (jsel.name || '').trim() || 'Выживший', jsel.traits.slice(), jsel.prof);
         jsel.busy = false;
         if (err) { jsel.err = err; draw(); return; }
         closeFull(); st.tab = 'loc';
@@ -609,7 +622,7 @@ const UI = (() => {
       const had = load();
       if (!(had && G.coop && G.coop.code === inv)) { jsel.code = inv; jsel.name = had && !G.dead ? G.ch.name : String((TGA.user && TGA.user.first_name) || '').slice(0, 24); return joinScreen(); }
     }
-    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); } }
+    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); setTimeout(checkPerks, 900); } }
     else startScreen();
   }
   return { run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,
