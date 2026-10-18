@@ -57,7 +57,17 @@ const UI = /* @__PURE__ */ (() => {
     const toBN = 7 - (day() - 1) % 7 - 1;
     const hp = healthPct();
     let ban = "";
-    if (G.em.warned) ban += '<div class="banner">🔴 Выброс через ~'.concat(Math.max(0, G.em.next - G.time), " мин! ").concat(inShelter() ? "Ты в укрытии." : "Беги в укрытие!", "</div>");
+    if (emissionSoon()) {
+      const L0 = emLocal(), left = Math.max(0, Math.round(L0.ack == null ? Math.max(G.em.next - G.time, emGrace()) : emDue() - G.time));
+      const sh = !inShelter() && !G.traveling ? nearestShelter() : null, late = sh && sh.mins > left;
+      ban += '<div class="banner embig"><b>🔴 ВЫБРОС '.concat(left > 0 ? "через ~".concat(left >= 90 ? Math.round(left / 6) / 10 + " ч" : left + " мин") : "вот-вот", "!</b> ") + (inShelter() ? "✅ Ты в укрытии — переждёшь." : G.traveling ? "🏃 Ты в пути." : sh ? "Укрытие: ".concat(LOCS[sh.loc].ic, " ").concat(LOCS[sh.loc].n, " — ").concat(sh.mins, " мин").concat(late ? " ⚠️ можешь не успеть!" : "", ' <button class="btn sm pri" onclick="').concat(a(() => {
+        if (G.room != null) leaveRoom();
+        travel(sh.loc);
+      }), '">🏃 Бежать в укрытие</button>') : "Беги в укрытие!") + "</div>";
+    } else if (G.w.struct.radio && G.em.next - G.time < 30 * DAY) {
+      const t = G.em.next;
+      ban += '<div class="banner" style="background:var(--panel2);color:var(--ink)">📻 Прогноз Выброса: день '.concat(Math.floor(t / DAY) + 1, ", ").concat(String(Math.floor(t % DAY / H)).padStart(2, "0"), ":").concat(String(Math.floor(t % H)).padStart(2, "0"), "</div>");
+    }
     if (fogEvent()) ban += '<div class="banner" style="background:var(--zone)">🌫️ Туман с тварями: врагов больше обычного.</div>';
     if (isBloodNight()) ban += '<div class="banner">🌕 Кровавая ночь! Заражённые повсюду.</div>';
     const FIX = { "Голод": "eat", "Жажда": "drink", "Кровотечение": "bleed", "Боль": "pain", "Усталость": "sleep" };

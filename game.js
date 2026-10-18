@@ -545,40 +545,83 @@ function checkDeath() {
   if (F().parts ? c.parts.head <= 0 || c.parts.torso <= 0 : c.hp <= 0) die(G.lastHurt || "раны");
   else if (F().rad && c.rad >= 200) die("радиация");
 }
+const emId = (e) => e.id || e.next;
+const emWarnMin = () => Math.max(F().emWarn, 60) + (G.w.struct.radio ? 120 : 0);
+function emLocal() {
+  const e = G.em;
+  if (!G.emL || G.emL.id !== emId(e)) G.emL = { id: emId(e), warned: false, ack: null };
+  return G.emL;
+}
+const EM_GRACE = 45;
+function emGrace() {
+  const sh = inShelter() ? null : nearestShelter();
+  return Math.max(EM_GRACE, sh ? sh.mins + 15 : 0);
+}
+function emDue() {
+  const e = G.em, L2 = emLocal();
+  return L2.ack == null ? Infinity : Math.max(e.next, L2.due || L2.ack + EM_GRACE);
+}
+function emAck() {
+  const L2 = emLocal();
+  if (L2.ack == null) {
+    L2.ack = G.time;
+    L2.due = G.time + emGrace();
+  }
+  UI.render();
+}
+function emReschedule() {
+  const e = G.em;
+  e.next = G.time + DAY * (CH2() && !(G.w.ch2 && G.w.ch2.end === "seal") ? R(2, 4) : R(3, 5)) + R(0, 12) * H;
+  e.id = G.time + Math.random();
+  e.warned = false;
+}
 function emissionTick(o) {
-  const e = G.em, warnAt = e.next - F().emWarn;
-  if (!e.warned && G.time >= warnAt) {
+  const e = G.em, L2 = emLocal(), warnAt = e.next - emWarnMin();
+  if (!L2.warned && G.time >= warnAt) {
+    L2.warned = true;
     e.warned = true;
     G.interrupt = true;
+    G.emStop = true;
     SND("siren");
-    UI.event({ title: "🔴 Приближается Выброс!", cls: "bad", text: "Небо наливается багровым, воет ветер. До Выброса около ".concat(Math.max(10, e.next - G.time), " минут.\n\nУкрытия: база, Рыбацкая деревня, Маяк, Метеостанция.") + (inShelter() ? "\n\n✅ Ты в укрытии." : "\n\n⚠️ Ты под открытым небом — беги в укрытие!"), choices: [{ t: "Понял" }] });
+    const left = Math.max(EM_GRACE, e.next - G.time), sh = !inShelter() && nearestShelter();
+    UI.event({ title: "🔴 Приближается Выброс!", cls: "bad", text: "".concat(G.w.struct.radio ? "📻 Рация передаёт штормовое предупреждение. " : "", "Небо наливается багровым, воет ветер. До Выброса ~").concat(left >= 90 ? Math.round(left / 6) / 10 + " ч" : left + " мин", ".\n\nУкрытия: база, Рыбацкая деревня, Маяк, Метеостанция.") + (inShelter() ? "\n\n✅ Ты в укрытии." : "\n\n⚠️ Ты под открытым небом — беги в укрытие!".concat(sh ? "\nБлижайшее: ".concat(LOCS[sh.loc].ic, " ").concat(LOCS[sh.loc].n, " (~").concat(sh.mins, " мин).") : "")), choices: [{ t: "Понял", fn: emAck }] });
   }
-  if (G.time >= e.next) {
-    e.next = G.time + DAY * (CH2() && !(G.w.ch2 && G.w.ch2.end === "seal") ? R(2, 4) : R(3, 5)) + R(0, 12) * H;
-    e.warned = false;
+  if (G.time < e.next) return;
+  if (inShelter()) {
+    emReschedule();
     G.interrupt = true;
-    const f = F();
-    if (inShelter()) UI.event({ title: "⚡ Выброс", text: "Земля дрожит, стены гудят. Ты пережидаешь Выброс в укрытии. Когда всё стихает, в аномалиях наверняка появились новые артефакты.", choices: [{ t: "Выйти" }] });
-    else if (f.death === "wake") {
-      G.time += 4 * H;
-      G.ch.hp = Math.min(G.ch.hp, 40);
-      UI.event({ title: "⚡ Выброс застал тебя!", cls: "bad", text: "Тебя сбило с ног волной. Очнулся через 4 часа — живой, но разбитый.", choices: [{ t: "Подняться" }] });
-    } else if (f.death === "perma" && ch(0.6)) {
-      die("Выброс");
-      return;
-    } else {
-      for (const p in PARTS) G.ch.parts[p] = Math.max(1, G.ch.parts[p] * 0.4);
-      G.ch.rad += 60;
-      G.ch.stress = 100;
-      G.lastHurt = "Выброс";
-      UI.event({ title: "⚡ Выброс застал тебя!", cls: "bad", text: "Волна прошла сквозь тело. Ты выжил — чудом. Здоровье сильно подорвано, +60 радиации.", choices: [{ t: "Подняться" }] });
-    }
+    UI.event({ title: "⚡ Выброс", text: "Земля дрожит, стены гудят. Ты пережидаешь Выброс в укрытии. Когда всё стихает, в аномалиях наверняка появились новые артефакты.", choices: [{ t: "Выйти" }] });
     if (worldAuth()) for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => {
       if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick(artPool());
     });
+    return;
   }
+  if (G.time < emDue()) {
+    G.emStop = true;
+    return;
+  }
+  emReschedule();
+  G.interrupt = true;
+  const f = F();
+  if (f.death === "wake") {
+    G.time += 4 * H;
+    G.ch.hp = Math.min(G.ch.hp, 40);
+    UI.event({ title: "⚡ Выброс застал тебя!", cls: "bad", text: "Тебя сбило с ног волной. Очнулся через 4 часа — живой, но разбитый.", choices: [{ t: "Подняться" }] });
+  } else if (f.death === "perma" && ch(0.6)) {
+    die("Выброс");
+    return;
+  } else {
+    for (const p in PARTS) G.ch.parts[p] = Math.max(1, G.ch.parts[p] * 0.4);
+    G.ch.rad += 60;
+    G.ch.stress = 100;
+    G.lastHurt = "Выброс";
+    UI.event({ title: "⚡ Выброс застал тебя!", cls: "bad", text: "Волна прошла сквозь тело. Ты выжил — чудом. Здоровье сильно подорвано, +60 радиации.", choices: [{ t: "Подняться" }] });
+  }
+  if (worldAuth()) for (const id in LOCS) LOCS[id].rooms.forEach((r, i) => {
+    if (r.anom && ch(0.55 + (LOCS[id].zone || 0) * 0.1)) G.w.locs[id].rooms[i].art = wpick(artPool());
+  });
 }
-const emissionSoon = () => G.em.warned;
+const emissionSoon = () => !!(G.em.warned || G.emL && G.emL.warned && G.emL.id === emId(G.em));
 function hordeTick(o) {
   if (typeof raidTick === "function") raidTick();
   const d = day();
@@ -2186,9 +2229,14 @@ function searchAll() {
 }
 function craftMax(r) {
   let n = 0;
+  G.emStop = false;
   while (!recipeState(r) && n < 30 && !G.dead) {
     craft(r);
     n++;
+    if (G.emStop) {
+      UI.log("🔴 Ты бросил работу: приближается Выброс!", "bad");
+      break;
+    }
   }
   if (n > 1) UI.log("🔨 Сделано ×".concat(n, ": ").concat(r.n, "."));
 }
@@ -2449,6 +2497,7 @@ function startCh2() {
   G.w.quests.c2_shards = "active";
   G.em.next = Math.min(G.em.next, G.time + DAY);
   G.em.warned = false;
+  G.em.id = G.time + Math.random();
   addNote("n_ch2");
   FEED("🔮 начал Главу 2 «Мастер»");
   SND("zap");

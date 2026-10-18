@@ -803,3 +803,48 @@ CUI.top = function() {
   const btnE = (c.food < 85 || c.drink < 85) && !G.combat ? '<div class="acts" style="margin-top:4px">'.concat(UI.btn("🍽️ Поесть и попить досыта", () => autoEat(false), "sm"), "</div>") : "";
   return _cuiTop() + btnE;
 };
+function stackable(e) {
+  const it = IT(e.id);
+  return !(e.dur != null && it.dur) && !(e.uses != null && it.uses) && !["melee", "gun", "wear", "art"].includes(it.c) && !(e.mods && e.mods.length);
+}
+function normList(list) {
+  if (!Array.isArray(list)) return list;
+  const out = [], idx = {};
+  for (const e of list) {
+    if (!e || !e.id || !ITEMS[e.id]) {
+      if (e) out.push(e);
+      continue;
+    }
+    delete e.at;
+    delete e._giving;
+    if (!stackable(e)) {
+      out.push(e);
+      continue;
+    }
+    const it = IT(e.id), perish = it.sp && F().spoil;
+    const k = e.id + (perish ? "@" + Math.floor((e.born || 0) / H) : "");
+    if (idx[k] != null) {
+      const t = out[idx[k]];
+      t.n = (t.n || 1) + (e.n || 1);
+      if (perish) t.born = Math.min(t.born || 0, e.born || 0);
+    } else {
+      if (!perish) delete e.born;
+      idx[k] = out.length;
+      out.push(e);
+    }
+  }
+  list.length = 0;
+  out.forEach((x) => list.push(x));
+  return list;
+}
+const _saveN = window.save;
+window.save = function() {
+  try {
+    if (typeof G !== "undefined" && G && !G.dead) {
+      normList(G.inv);
+      if (!G.coop) normList(G.stash);
+    }
+  } catch (e) {
+  }
+  return _saveN.apply(this, arguments);
+};
