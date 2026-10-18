@@ -386,6 +386,7 @@ const RECIPES = [
   { id: 'splint', n: 'Шина', need: { stick: 2, rag: 1 }, out: { splint: 1 }, t: 10 },
   { id: 'stick', n: 'Палка из дров', need: { wood: 1 }, out: { stick: 1 }, t: 5 },
   { id: 'planks', n: 'Распилить дрова на доски', need: { wood: 2 }, out: { planks: 1 }, st: 'bench', t: 20 },
+  { id: 'planks_hand', n: 'Грубо обтесать доску (без верстака)', need: { wood: 3 }, out: { planks: 1 }, t: 45 },
   { id: 'spear', n: 'Копьё', need: { stick: 1, knife: 1, tape: 1 }, out: { spear: 1 }, t: 20 },
   { id: 'nailbat', n: 'Дубина с гвоздями', need: { planks: 1, nails: 8 }, out: { nailbat: 1 }, st: 'bench', bp: 'nailbat', t: 25 },
   { id: 'picks', n: 'Отмычки', need: { wire: 2 }, out: { picks: 1 }, st: 'bench', bp: 'picks', t: 20 },
