@@ -861,3 +861,90 @@ window.save = function() {
   }
   return _saveN.apply(this, arguments);
 };
+const SIDE = { l: "", r: "" };
+const hm = (t) => "".concat(String(Math.floor(t % DAY / H)).padStart(2, "0"), ":").concat(String(Math.floor(t % H)).padStart(2, "0"));
+function sideWarnings() {
+  const w = [], c = G.ch;
+  if (emissionSoon()) {
+    const L0 = emLocal();
+    const left = Math.max(0, Math.round(L0.ack == null ? Math.max(G.em.next - G.time, emGrace()) : emDue() - G.time));
+    w.push('<div class="alert">🔴 Выброс через ~'.concat(left, " мин").concat(inShelter() ? " · ты в укрытии" : " · беги в укрытие!", "</div>"));
+  }
+  if (isBloodNight()) w.push('<div class="alert">🌕 Кровавая ночь!</div>');
+  else if (day() % 7 === 0) w.push('<div class="ln bad">🌕 Сегодня в 22:00 Кровавая ночь — будь на базе</div>');
+  if (G.w.raidIncoming) w.push('<div class="ln bad">⚔️ Налёт на базу ≈23:00 ('.concat(cesc(FACTIONS[G.w.raidIncoming.camp].n), ")</div>"));
+  if (G.w.flags.c3_sent && !G.w.flags.c3_held) w.push('<div class="ln warn">🚢 Ночь осады: будь на базе с 23:00</div>');
+  try {
+    for (const m of moodles()) if (m.l >= 2) w.push('<div class="ln '.concat(m.l >= 3 ? "bad" : "warn", '">').concat(m.ic, " ").concat(cesc(m.n)).concat(m.d ? " — " + cesc(m.d) : "", "</div>"));
+  } catch (e) {
+  }
+  if (isNight() && !inShelter() && !G.traveling) w.push('<div class="ln warn">🌙 Ночь под открытым небом — опасно</div>');
+  return w;
+}
+function sideLeft() {
+  const w = sideWarnings();
+  let h = '<div class="card"><h3>⚠️ Важно</h3>'.concat(w.length ? w.join("") : '<div class="ln mono">Всё спокойно</div>', "</div>");
+  const lg = (G.log || []).slice(-24).reverse();
+  h += '<div class="card"><h3>📜 Последнее</h3>'.concat(lg.map((x) => '<div class="ln '.concat(x.c || "", '"><span class="mono">').concat(x.k || "", "</span> ").concat(cesc(x.t), "</div>")).join("") || '<div class="ln mono">пусто</div>', "</div>");
+  return h;
+}
+function sideRight() {
+  let h = "";
+  if (G.coop && window.COOP) {
+    const ps = COOP.others();
+    h += '<div class="card"><h3>🤝 Отряд</h3>'.concat(ps.length ? ps.map((p) => {
+      var _a, _b, _c;
+      return '<div class="tm"><div><b>'.concat(cesc(p.name || "?"), "</b> ").concat(!p.online ? "💤" : p.alive === false ? "☠️" : p.combat ? "⚔️" : "", '<br><span class="mono">').concat(p.loc && LOCS[p.loc] ? LOCS[p.loc].ic + " " + cesc(LOCS[p.loc].n) : "").concat(p.room ? " · " + cesc(p.room) : "", '</span><br><span class="mono">').concat(cesc(p.act || ""), '</span></div><div class="mono" style="text-align:right;white-space:nowrap">❤️').concat((_a = p.hp) != null ? _a : "?", "<br>🍗").concat((_b = p.food) != null ? _b : "?", " 💧").concat((_c = p.drink) != null ? _c : "?", "</div></div>");
+    }).join("") : '<div class="ln mono">друзей пока нет</div>', "</div>");
+  }
+  const act = Object.entries(G.w.quests || {}).filter(([k, v]) => v === "active" && QUESTS[k]).slice(0, 6);
+  if (act.length) h += '<div class="card"><h3>📌 Задания</h3>'.concat(act.map(([k]) => {
+    let pr = "";
+    try {
+      pr = String(questProgress(k) || "");
+      if (/^[\s–—-]*$/.test(pr)) pr = "";
+    } catch (e) {
+    }
+    return '<div class="ln">'.concat(QUESTS[k].g === "main" ? "⭐" : (TRADERS[QUESTS[k].g] || {}).ic || "•", " ").concat(cesc(QUESTS[k].n)).concat(pr ? ' <span class="mono">'.concat(cesc(pr), "</span>") : "", "</div>");
+  }).join(""), "</div>");
+  const C = G.w.contracts;
+  if (C && C.day === day()) {
+    const live = [];
+    for (const tr in C.list) for (const c of C.list[tr]) if (C.taken[c.k] === "active") live.push('<div class="ln">📋 '.concat(cesc(contractText(c)), ' <span class="mono">').concat(contractProgress(c), "/").concat(contractGoal(c), "</span></div>"));
+    if (live.length) h += '<div class="card"><h3>📋 Заказы</h3>'.concat(live.join(""), "</div>");
+  }
+  const info = [];
+  if (G.w.struct.radio && G.em.next - G.time < 30 * DAY) info.push("📻 Выброс: день ".concat(Math.floor(G.em.next / DAY) + 1, ", ").concat(hm(G.em.next)));
+  const nb = day() % 7 === 0 ? day() : day() + (7 - day() % 7);
+  info.push("🌕 Кровавая ночь: день ".concat(nb));
+  if (G.w.struct.gen) info.push("⚡ Генератор: ".concat(Math.round(G.w.power || 0), " ч топлива"));
+  const bf = activeBuffs();
+  if (bf.length) info.push(bf.map((b) => "".concat(BUFFS[b.id].ic, " ").concat(BUFFS[b.id].n, " ").concat(Math.ceil((b.until - G.time) / H), " ч")).join(" · "));
+  h += '<div class="card"><h3>🧭 Сводка</h3>'.concat(info.map((x) => '<div class="ln">'.concat(x, "</div>")).join(""), "</div>");
+  return h;
+}
+function sideRender() {
+  if (!(window.innerWidth >= 1130)) return;
+  const L0 = document.getElementById("sideL"), R0 = document.getElementById("sideR");
+  if (!L0 || !R0) return;
+  let l = "", r = "";
+  try {
+    if (typeof G !== "undefined" && G && G.ch && !G.dead) {
+      l = sideLeft();
+      r = sideRight();
+    }
+  } catch (e) {
+    l = "";
+    r = "";
+  }
+  if (l !== SIDE.l) {
+    L0.innerHTML = l;
+    SIDE.l = l;
+  }
+  if (r !== SIDE.r) {
+    R0.innerHTML = r;
+    SIDE.r = r;
+  }
+}
+setInterval(sideRender, 1e3);
+window.addEventListener("resize", sideRender);
