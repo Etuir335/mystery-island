@@ -8,6 +8,7 @@ const COOP = (() => {
   let db = null, user = null, uid = null, avail = null;
   let code = null, ready = false, status = 'off'; // off | connecting | online | offline | readonly
   let subs = [], timer = null, pushing = false, again = false, rTimer = null;
+  let fights = {}, joined = null, hitSeen = 0, pending = [], actsSeen = {}, fightPushT = null, hitN = 0;
   let feedL = [], chatLoaded = false, feedLoaded = false;
   let players = {}, chat = [], lastMe = '', lastMeAt = 0, lastPersonal = '', unread = 0;
   const sent = {};
@@ -129,6 +130,19 @@ const COOP = (() => {
       if (feedLoaded && fresh.length) fresh.forEach(x => { UI.log(`📢 ${x.n} ${x.t}`, 'sys'); UI.toast(`📢 ${x.n} ${x.t}`); });
       feedL = m; feedLoaded = true; scheduleRender();
     }, onErr));
+    // общие бои: coop/<code>/fight/<владелец>
+    subs.push(db.collection(`coop/${code}/fight`).onSnapshot(qs => {
+      const o = {}; qs.docs.forEach(d => { if (d.exists && d.data()) o[d.id] = d.data(); }); fights = o;
+      // я — помощник: применяем удары по мне, закрываем завершённые бои
+      if (joined) { const f = fights[joined];
+        if (!f || f.ended) { const res = f && f.res; joined = null; UI.allyFightEnd(res); }
+        else { const h = (f.hits || {})[uid]; if (h && h.n > hitSeen) { hitSeen = h.n; const dd = Math.max(1, h.dmg - armor()); const r = hitPlayer(dd, h.inj, null, h.by); UI.log(`💢 ${h.by} бьёт тебя: −${dd}${r ? ' ' + r : ''}`, 'bad'); if (window.SFX) SFX.play('hurt'); checkDeath(); if (G.dead || healthPct() <= 0) leaveFight(); save(); }
+          UI.allyFight(f, joined); }
+      }
+      // я — владелец: копим ходы помощников
+      const mine = fights[uid]; if (mine && mine.acts) for (const [a, x] of Object.entries(mine.acts)) if (x && G.combat && x.turn >= G.combat.turn - 1 && !actsSeen[a + ':' + x.k]) { actsSeen[a + ':' + x.k] = 1; pending.push(Object.assign({ from: a }, x)); }
+      scheduleRender();
+    }, onErr));
     subs.push(db.doc(`coop/${code}/mail/${uid}`).onSnapshot(async s => {
       if (!s.exists) return; const items = s.data().items || []; if (!items.length) return;
       try { await db.doc(`coop/${code}/mail/${uid}`).set({ items: [] }); } catch (e) { return; }
@@ -233,7 +247,7 @@ const COOP = (() => {
   // друг рядом помогает в бою
   function allyTurn(cb) {
     if (!ready || cb.opts.road) return false;
-    const al = here(); if (!al.length) return false;
+    const joinedA = allies(); const al = here().filter(p => !joinedA.includes(p.id)); if (!al.length) return false;
     let acted = false;
     for (const p of al) {
       const tg = cb.en.filter(e => e.hp > 0); if (!tg.length) break;
@@ -252,7 +266,57 @@ const COOP = (() => {
     return on.sort()[0];
   }
   const isAuth = () => !G || !G.coop || !ready || leader() === uid;
+  // ---------- общий пошаговый бой ----------
+  const fightRef = owner => db.doc(`coop/${code}/fight/${owner}`);
+  function fightDoc(cur, res) {
+    const cb = G.combat;
+    return { owner: uid, name: G.ch.name, loc: G.loc, room: roomName(), turn: cb ? cb.turn : 0, ended: !cb, res: res || null, at: Date.now(),
+      en: cb ? cb.en.map(e => ({ id: e.id, hp: Math.max(0, Math.round(e.hp)), max: e.max, dist: e.dist, stun: e.stun || 0 })) : [],
+      log: cb ? cb.log.slice(-10) : [], allies: (cur && cur.allies) || [], acts: (cur && cur.acts) || {}, hits: (cur && cur.hits) || {} };
+  }
+  // владелец публикует бой, если рядом есть друзья (или они уже вступили)
+  function pushFight(res) {
+    if (!ready || !code) return;
+    const cur = fights[uid]; const allies = (cur && cur.allies) || [];
+    if (!G.combat && !cur) return;
+    if (G.combat && !allies.length && !here().length) return;
+    clearTimeout(fightPushT);
+    const go = async () => { try { const d = fightDoc(fights[uid], res); fights[uid] = d; await fightRef(uid).set(d); if (!G.combat) setTimeout(() => { if (!G.combat) fightRef(uid).set({ ended: true, res: res || 'end', at: Date.now() }).catch(() => {}); }, 4000); } catch (e) { onErr(e); } };
+    if (res || !G.combat) go(); else fightPushT = setTimeout(go, 250);
+  }
+  // помощник: вступить / ходить / выйти
+  async function joinFight(owner) {
+    const f = fights[owner]; if (!f || f.ended || G.combat) return;
+    joined = owner; hitSeen = ((f.hits || {})[uid] || {}).n || 0;
+    try { const s = await fightRef(owner).get(); const d = s.exists ? s.data() : f; d.allies = [...new Set([...(d.allies || []), uid])]; await fightRef(owner).set(d); } catch (e) { onErr(e); }
+    setAct(`⚔️ помогает в бою: ${f.name}`); UI.allyFight(fights[owner] || f, owner);
+  }
+  async function allyAct(owner, act) {
+    try { const s = await fightRef(owner).get(); if (!s.exists) return; const d = s.data(); if (d.ended) return;
+      d.acts = d.acts || {}; d.acts[uid] = Object.assign({ k: Date.now(), turn: d.turn, n: G.ch.name }, act); await fightRef(owner).set(d); } catch (e) { onErr(e); }
+  }
+  async function leaveFight() {
+    const owner = joined; joined = null; if (!owner) return;
+    try { const s = await fightRef(owner).get(); if (s.exists) { const d = s.data(); d.allies = (d.allies || []).filter(x => x !== uid); await fightRef(owner).set(d); } } catch (e) {}
+    UI.allyFightEnd('left');
+  }
+  // владелец: применить ходы помощников (вызывается в начале хода врагов)
+  function consumeActs(cb) {
+    if (!pending.length) return false;
+    const list = pending.splice(0); let acted = false;
+    for (const a of list) {
+      const e = cb.en[a.i]; if (!e || e.hp <= 0) { cb.log.push({ t: `🤝 ${a.n}: ${a.txt || 'промах'}`, c: 'dim' }); continue; }
+      if (a.dmg > 0) { e.hp -= a.dmg; if (a.stun) e.stun = Math.max(e.stun || 0, 1); }
+      cb.log.push({ t: `🤝 ${a.n}: ${a.txt}`, c: a.dmg > 0 ? 'good' : 'dim' }); acted = true;
+    }
+    return acted;
+  }
+  const allies = () => ((fights[uid] || {}).allies || []).filter(a => others().some(p => p.id === a && p.online));
+  async function hitAlly(target, dmg, inj, by) {
+    try { const s = await fightRef(uid).get(); if (!s.exists) return; const d = s.data(); d.hits = d.hits || {}; hitN++; d.hits[target] = { n: Date.now() + hitN, dmg, inj, by }; await fightRef(uid).set(d); fights[uid] = d; } catch (e) {}
+  }
   return {
+    pushFight, joinFight, allyAct, leaveFight, consumeActs, allies, hitAlly, get fights() { return fights; }, get joined() { return joined; },
     leader, isAuth, get host() { return G && G.coop ? G.coop.host : null; },
     hasSolo, probe, create, join, init, sync, leave, send, give, allyTurn, others, here, feed, ping, get feedList() { return feedL; },
     get code() { return code; }, get status() { return status; }, get chat() { return chat; }, get uid() { return uid; },

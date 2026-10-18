@@ -144,6 +144,7 @@ const UI = (() => {
       if (ev.type === 'camp') { const n = ev.en.filter(e => e.hp > 0).length;
         h += `<div class="row evt hot"><span class="ic">${E.ic}</span><div class="grow"><span class="t">Лагерь мародёров</span><span class="s">${ev.cleared ? 'зачищен — можно обыскать' : `часовых: ${n} · ещё ~${left} ч`}</span></div><div class="acts">${ev.cleared ? btn('Обыскать', () => campLoot(ev), 'pri sm') : btn('⚔️ Напасть', () => campAttack(ev), 'bad sm') + (ev.stolen ? '' : btn(`🐾 Украсть (${Math.round(stealthChance() * 80)}%)`, () => campSteal(ev), 'sm'))}</div></div>`; }
     }
+    if (G.coop) Object.values(COOP.fights).filter(f => f && !f.ended && f.owner && f.owner !== COOP.uid && f.loc === G.loc && Date.now() - (f.at || 0) < 180000).forEach(f => { h += `<div class="row hot"><span class="ic">⚔️</span><div class="grow"><span class="t">${esc(f.name)} в бою${f.room ? ' · ' + esc(f.room) : ''}</span><span class="s">врагов: ${(f.en || []).filter(e => e.hp > 0).length} · ход ${f.turn}${(f.allies || []).length ? ' · уже помогают' : ''}</span></div>${btn('⚔️ Вступить в бой', () => COOP.joinFight(f.owner), 'pri sm', !!G.combat)}</div>`; });
     if (G.coop) COOP.here().forEach(p => { h += `<div class="row"><span class="ic">👤</span><div class="grow"><span class="t">${esc(p.name)} рядом</span><span class="s">❤️ ${p.hp}% · поможет в бою (${esc(p.wn || 'оружие')})</span></div>${btn('🎁 Передать', () => giveMenu(p), 'sm')}</div>`; });
     G.w.corpses.forEach((c, i) => { if (c.loc === G.loc) h += `<div class="row hot"><span class="ic">🪦</span><div class="grow"><span class="t">Тело: ${esc(c.name)}</span><span class="s">${c.items.length} вещей</span></div>${btn('Забрать всё', () => lootCorpse(i), 'pri sm')}</div>`; });
     h += `<div class="sec"><h2>Места</h2><div class="list">`;
@@ -464,7 +465,8 @@ const UI = (() => {
   function go(tab) { if (tab === 'room' || tab === 'loc') { st.tab = 'loc'; if (tab === 'loc') st.trader = null; } else st.tab = tab; render(); }
 
   // ---------------- СОБЫТИЯ ----------------
-  function event(e) { queue.push(e); if (!cur && !G.combat && !full) showNext(); }
+  let allyOpen = false;
+  function event(e) { queue.push(e); if (!cur && !G.combat && !full && !allyOpen) showNext(); }
   function showNext() {
     if (G && G.combat) return;
     cur = queue.shift();
@@ -503,6 +505,46 @@ const UI = (() => {
     </div></div>`;
     const cl = $('clog'); if (cl) cl.scrollTop = 1e9;
     renderTop();
+  }
+  // ---------- бой друга, в который ты вступил ----------
+  function allyStrike(f, owner, i, gun) {
+    const e = f.en[i]; if (!e || e.hp <= 0) return;
+    const D = ENEMY[e.id], ms = meleeStats(), w = curWeapon(); let dmg = 0, txt = '', stun = 0;
+    if (gun) {
+      if (!w || w.c !== 'gun' || !cnt(G.inv, w.ammo)) return toast('Нет патронов.');
+      if (!ch(mod('ammoSave'))) take(G.inv, w.ammo, 1); SND(w.spread ? 'shotgun' : 'shot'); noise(w.noise * mul('gunNoise', 0.2)); xp('shoot', 3);
+      if (ch(w.acc + skill('shoot') * 0.05 - e.dist * 0.08 + accMods() + mod('gunAcc'))) { dmg = Math.max(1, Math.round(R(w.dmg[0], w.dmg[1]) * (1 + skill('shoot') * 0.06) - (D.arm || 0) * 0.5)); stun = ch(0.3) ? 1 : 0; txt = `🔫 попадает в ${D.n}: −${dmg}`; } else txt = `🔫 мимо ${D.n}`;
+    } else {
+      if (e.dist > (ms.reach ? 1 : 0)) return toast('Слишком далеко для удара.');
+      if (ch(0.72 + skill('melee') * 0.04 + accMods() + mod('meleeAcc'))) { let d = R(ms.dmg[0], ms.dmg[1]) * (1 + skill('melee') * 0.08) * mul('meleeDmg', 0.3); if (ch(0.08 + skill('melee') * 0.02 + mod('crit'))) d *= 1.6; dmg = Math.max(1, Math.round(d - (D.arm || 0))); txt = `⚔️ бьёт ${D.n} (${ms.n}): −${dmg}`; damageWeapon(R(1, 3)); xp('melee', 2); SND('hit'); }
+      else { txt = `⚔️ промах по ${D.n}`; SND('miss'); }
+    }
+    st.allySent = owner + ':' + f.turn; COOP.allyAct(owner, { i, dmg, stun, txt }); allyFight(f, owner); save();
+  }
+  function allyFight(f, owner) {
+    if (G.combat || full) return;
+    allyOpen = true; MACT = [];
+    const ms = meleeStats(), w = curWeapon(), gun = w && w.c === 'gun';
+    const DIST = ['вплотную', 'рядом', 'далеко'], sent = st.allySent === owner + ':' + f.turn;
+    const enemies = (f.en || []).map((e, i) => { const D = ENEMY[e.id] || ENEMY.zombie; if (e.hp <= 0) return `<div class="enemy dead">${ART.enemyImg(e.id)}<div>${D.n} ☠️</div><span></span></div>`;
+      const acts = []; if (!sent) { if (e.dist <= (ms.reach ? 1 : 0)) acts.push(mbtn(`⚔️ ${esc(ms.n)}`, () => allyStrike(f, owner, i), 'pri sm')); if (gun) acts.push(mbtn(`🔫 (${cnt(G.inv, w.ammo)})`, () => allyStrike(f, owner, i, true), 'sm', !cnt(G.inv, w.ammo))); }
+      return `<div class="enemy">${ART.enemyImg(e.id, e.stun ? 'stun' : '')}<div><div class="t">${D.n}${e.stun ? ' 💫' : ''}</div>${bar(e.hp, e.max)}<span class="dist">${DIST[Math.min(2, e.dist)]}</span></div><div class="acts">${acts.join('')}</div></div>`; }).join('');
+    const lg = (f.log || []).slice(-8).map(x => `<div class="lg ${x.c || ''}">${esc(x.t)}</div>`).join('');
+    const band = ['bandage', 'dband'].find(id => cnt(G.inv, id));
+    $('modal').innerHTML = `<div class="overlay"><div class="sheet combat" role="dialog" aria-modal="true">
+      <div class="sechead"><h2>🤝 Бой ${esc(f.name)} · ход ${f.turn}</h2><span class="mono muted">❤️ ${healthPct()}%${bleeding() ? ' · 🩸' : ''}</span></div>
+      <div class="list">${enemies}</div>${lg ? `<div class="clog" id="clog">${lg}</div>` : ''}
+      <p class="muted" style="font-size:12.5px">${sent ? `⏳ Твой ход отправлен — он сработает, когда ходит ${esc(f.name)}.` : 'Твой удар сработает в начале хода врагов. Враги могут бить и тебя.'}</p>
+      <div class="acts">${band && bleeding() ? mbtn('🩹 Перевязаться', () => { useItem(band, true); allyFight(f, owner); }) : ''}${mbtn('🏃 Выйти из боя', () => COOP.leaveFight())}</div></div></div>`;
+    const cl = $('clog'); if (cl) cl.scrollTop = 1e9; renderTop();
+  }
+  function allyFightEnd(res) {
+    if (!allyOpen) return; allyOpen = false; st.allySent = null;
+    $('modal').innerHTML = '';
+    if (res === 'win') { xp('melee', 3); log('⚔️ Бой выигран вместе с другом!', 'good'); toast('⚔️ Победа!'); }
+    else if (res === 'left') log('🏃 Ты вышел из боя друга.');
+    else if (res) log('⚔️ Бой друга закончился.');
+    setAct('осматривается'); save(); showNext(); render();
   }
   function closeCombat(res, cb) {
     if (full) return;
@@ -659,7 +701,7 @@ const UI = (() => {
     if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); setTimeout(checkPerks, 900); setTimeout(() => PVP.inbox(), 1500); } }
     else startScreen();
   }
-  return { btn, mbtn, run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,
+  return { btn, mbtn, run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen, allyFight, allyFightEnd,
     _name: v => { sel.name = v; }, _st: st, _j: (k, v) => { jsel[k] = v; }, _chat: sendChat };
 })();
 (window.TGA ? TGA.before() : Promise.resolve()).then(() => UI.boot(), () => UI.boot());

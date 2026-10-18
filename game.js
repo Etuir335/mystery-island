@@ -661,6 +661,7 @@ function startCombat(en, opts = {}) {
   if (G.dead) return;
   G.combat = { en, opts, turn: 1, log: [] };
   if (typeof hint === 'function' && !G.pet && en.some(e => e.id === 'dog')) hint('dog');
+  if (window.COOP && G.coop) setTimeout(() => COOP.pushFight(), 0);
   setAct('⚔️ в бою: ' + [...new Set(en.filter(e => e.hp > 0).map(e => ENEMY[e.id].n))].join(', '));
   if (G.coop && window.COOP && (en.length >= 3 || en.some(e => ENEMY[e.id].boss))) { const here = COOP.here(); if (here.length) cLog(`🤝 ${here.map(p => p.name).join(', ')} рядом — поможет в бою.`, 'good'); else FEED(`⚔️ в тяжёлом бою (${LOCS[G.loc].ic} ${LOCS[G.loc].n}) — нужна помощь!`); }
   const first = en.find(e => e.hp > 0); if (first) { const D = ENEMY[first.id]; SND(D.boss || first.id === 'swamper' ? 'roar' : (first.id === 'dog' || first.id === 'pdog') ? 'bark' : D.human ? 'click' : 'growl'); }
@@ -746,6 +747,10 @@ function endPlayerTurn() {
   const cb = G.combat; if (!cb) return;
   cb.en.forEach(e => { if (e.hp <= 0 && !e.dead) { e.dead = true; onKill(e); } });
   if (cb.en.every(e => e.hp <= 0)) return endCombat('win');
+  if (window.COOP && G.coop && COOP.consumeActs(cb)) {
+    cb.en.forEach(e => { if (e.hp <= 0 && !e.dead) { e.dead = true; onKill(e); } });
+    if (cb.en.every(e => e.hp <= 0)) return endCombat('win');
+  }
   if (window.COOP && COOP.allyTurn(cb)) {
     cb.en.forEach(e => { if (e.hp <= 0 && !e.dead) { e.dead = true; onKill(e); } });
     if (cb.en.every(e => e.hp <= 0)) return endCombat('win');
@@ -773,11 +778,16 @@ function enemyTurn() {
   }
   cb.turn++;
   checkDeath();
-  if (G.dead) return;
+  if (G.dead) { if (window.COOP && G.coop) COOP.pushFight('dead'); return; }
   UI.combat();
+  if (window.COOP && G.coop) COOP.pushFight();
 }
 function enemyHit(e, ranged, near) {
   const D = ENEMY[e.id];
+  if (window.COOP && G.coop) { const al = COOP.allies(); if (al.length && ch(al.length / (al.length + 1.4))) { const t = pick(al), nm = (COOP.others().find(p => p.id === t) || {}).name || 'друг';
+    if (!ch(D.acc)) { cLog(`${D.ic} ${D.n} промахивается по ${nm}.`, 'dim'); return; }
+    const dmg = Math.max(1, Math.round(R(D.dmg[0], D.dmg[1]) * (D.boss ? 1 : F().enemies) * 0.85)); const inj = ranged ? 'bullet' : pick(D.inj);
+    cLog(`💢 ${D.ic} ${D.n} бьёт ${nm}: −${dmg}`, 'bad'); COOP.hitAlly(t, dmg, ch(0.45) ? inj : 'bruise', D.n); return; } }
   let acc = D.acc - armor() * 0.02 + (near >= 2 && !D.human ? 0.08 : 0);
   if (!ch(acc)) { cLog(`${D.ic} ${D.n} промахивается.`, 'dim'); return; }
   let dmg = R(D.dmg[0], D.dmg[1]) * (D.boss ? 1 : F().enemies * (CH2() ? 1.2 : 1));
@@ -835,6 +845,7 @@ function endCombat(res) {
   }
   advance(5);
   if (G.dead) return;
+  if (window.COOP && G.coop) COOP.pushFight(res);
   UI.closeCombat(res, cb);
   if (cb.opts.onEnd) cb.opts.onEnd(res);
   else UI.render();
