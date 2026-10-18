@@ -1,7 +1,16 @@
 const FB = (() => {
   const CONFIG = window.FB_CONFIG || null;
   if (window.claude || !CONFIG || !CONFIG.databaseURL) return null;
-  const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
+  const modern = (() => {
+    try {
+      new Function("let a = {}; return a?.b ?? 1");
+      return !/Edge\/1[0-8]\./.test(navigator.userAgent);
+    } catch (e) {
+      return false;
+    }
+  })();
+  const SDK = modern ? "https://www.gstatic.com/firebasejs/10.12.2/" : "https://www.gstatic.com/firebasejs/8.10.1/";
+  const SFX_ = modern ? "-compat" : "";
   let ready = null, dbx = null, uid = null;
   const load = (src) => new Promise((res, rej) => {
     const s = document.createElement("script");
@@ -19,8 +28,8 @@ const FB = (() => {
     if (ready) return ready;
     ready = (async () => {
       if (!window.firebase || !firebase.database) {
-        await load(SDK + "firebase-app-compat.js");
-        await Promise.all([load(SDK + "firebase-auth-compat.js"), load(SDK + "firebase-database-compat.js")]);
+        await load(SDK + "firebase-app" + SFX_ + ".js");
+        await Promise.all([load(SDK + "firebase-auth" + SFX_ + ".js"), load(SDK + "firebase-database" + SFX_ + ".js")]);
       }
       if (!firebase.apps.length) firebase.initializeApp(CONFIG);
       const auth = firebase.auth();

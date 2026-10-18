@@ -2165,3 +2165,33 @@ CUI.markNode = function(id, l) {
   const h = _markNodeC.apply(this, arguments);
   return (G.w.corpses || []).some((c) => c.loc === id) ? h + '<text x="'.concat(l.x - 7.6, '" y="').concat(l.y + 1.4, '" style="font-size:3.6px">🪦</text>') : h;
 };
+function themePref() {
+  try {
+    return localStorage.getItem("moti3_theme") || "auto";
+  } catch (e) {
+    return "auto";
+  }
+}
+function setTheme(v) {
+  try {
+    if (v === "auto") localStorage.removeItem("moti3_theme");
+    else localStorage.setItem("moti3_theme", v);
+  } catch (e) {
+  }
+  if (window.__tgTheme) window.__tgTheme();
+  else {
+    if (v === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = v;
+  }
+  UI.render();
+}
+window.setTheme = setTheme;
+if (typeof document !== "undefined") {
+  const tp = themePref();
+  if (tp !== "auto") document.documentElement.dataset.theme = tp;
+}
+const _cuiJourT = CUI.jour;
+CUI.jour = function() {
+  const t = themePref();
+  return _cuiJourT.apply(this, arguments) + '<div class="sec"><h2>🌓 Тема</h2><div class="toggle">'.concat([["auto", "Авто"], ["dark", "Тёмная"], ["light", "Светлая"]].map(([k, n]) => '<button class="'.concat(t === k ? "on" : "", '" onclick="setTheme(\'').concat(k, "')\">").concat(n, "</button>")).join(""), "</div></div>");
+};

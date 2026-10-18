@@ -18,7 +18,21 @@ const TGA = (() => {
   } catch (e) {
   }
   function theme() {
-    document.documentElement.dataset.theme = tg.colorScheme === "dark" ? "dark" : "light";
+    let pref = null;
+    try {
+      pref = localStorage.getItem("moti3_theme");
+    } catch (e) {
+    }
+    let dark = tg.colorScheme === "dark";
+    try {
+      const bgc = tg.themeParams && tg.themeParams.bg_color;
+      if (!tg.colorScheme && bgc && /^#[0-9a-f]{6}$/i.test(bgc)) {
+        const n = parseInt(bgc.slice(1), 16);
+        dark = (n >> 16) * 0.299 + (n >> 8 & 255) * 0.587 + (n & 255) * 0.114 < 128;
+      }
+    } catch (e) {
+    }
+    document.documentElement.dataset.theme = pref === "dark" || pref === "light" ? pref : dark ? "dark" : "light";
     const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || (tg.colorScheme === "dark" ? "#12181a" : "#e4dfcf");
     try {
       if (ver("6.1")) {
@@ -29,6 +43,7 @@ const TGA = (() => {
     } catch (e) {
     }
   }
+  window.__tgTheme = theme;
   try {
     theme();
     tg.onEvent("themeChanged", theme);
