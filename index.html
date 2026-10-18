@@ -9,16 +9,18 @@
 /* диагностика: показывает ошибки прямо на экране (для ПК, где нет консоли) */
 (function () {
   var shown = false;
-  function box() { var d = document.getElementById('errbox'); if (!d) { d = document.createElement('div'); d.id = 'errbox'; d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#7a1f16;color:#fff;font:12px/1.4 monospace;padding:10px;border-radius:8px;white-space:pre-wrap;max-height:45%;overflow:auto;user-select:text'; (document.body || document.documentElement).appendChild(d); } return d; }
+  function box() { var d = document.getElementById('errbox'); if (!d) { d = document.createElement('div'); d.id = 'errbox'; d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#7a1f16;color:#fff;font:12px/1.4 monospace;padding:10px;border-radius:8px;white-space:pre-wrap;max-height:45%;overflow:auto;user-select:text'; d.title = 'Нажми, чтобы закрыть'; d.onclick = function () { d.remove(); }; (document.body || document.documentElement).appendChild(d); } return d; }
   window.__showErr = function (m) { try { var d = box(); if (!shown) { shown = true; d.textContent = 'Сделай скриншот и отправь разработчику:\n' + navigator.userAgent + '\n'; } d.textContent += m + '\n'; } catch (e) {} };
-  window.addEventListener('error', function (e) { window.__showErr('Ошибка: ' + (e.message || e) + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno); });
+  try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } } catch (e) {}
+  window.addEventListener('error', function (e) { var t = e.target; if (t && t !== window && t.tagName === 'SCRIPT' && !/gstatic|googleapis|telegram\.org/.test(t.src)) window.__showErr('Не загрузился файл: ' + String(t.src || t.href).split('/').pop().split('?')[0]); }, true);
+  window.addEventListener('error', function (e) { if (e.target && e.target !== window) return; window.__showErr('Ошибка: ' + (e.message || e) + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno); });
   window.addEventListener('unhandledrejection', function (e) { var r = e.reason; window.__showErr('Ошибка (promise): ' + (r && (r.stack || r.message) || r)); });
-  setTimeout(function () { var mo = document.getElementById('modal'), ma = document.getElementById('main'); if (mo && ma && !mo.innerHTML.trim() && !ma.innerHTML.trim()) window.__showErr('Экран не отрисовался за 10 с. G=' + (typeof G) + ' UI=' + (typeof UI) + ' TGA=' + (typeof TGA)); }, 10000);
+  setTimeout(function () { var mo = document.getElementById('modal'), ma = document.getElementById('main'); if (mo && ma && !mo.innerHTML.trim() && !ma.innerHTML.trim()) window.__showErr('Экран не отрисовался за 10 с. Модули: ' + ['ITEMS', 'newGame', 'extraMod', 'CUI', 'ART', 'SFX', 'COOP', 'TGA', 'FB', 'UI'].map(function (k) { var ok = false; try { ok = eval('typeof ' + k) !== 'undefined'; } catch (e) {} return k + (ok ? '✓' : '✗'); }).join(' ')); }, 10000);
 })();
 </script>
 <title>Mystery of the Island</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: одноэкранное приложение — статус-полоса сверху, прокручиваемый планшет посередине, таб-бар снизу. */
 :root {
@@ -181,17 +183,17 @@ input[type=text] { padding: 10px 12px; border: 1px solid var(--line); border-rad
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792336359"></script>
-<script src="game.js?v=1792336359"></script>
-<script src="ext.js?v=1792336359"></script>
-<script src="content.js?v=1792336359"></script>
-<script src="art.js?v=1792336359"></script>
-<script src="audio.js?v=1792336359"></script>
-<script src="coop.js?v=1792336359"></script>
-<script src="tg.js?v=1792336359"></script>
-<script src="fbconfig.js?v=1792336359"></script>
-<script src="fbcoop.js?v=1792336359"></script>
-<script src="ui.js?v=1792336359"></script>
+<script src="data.js?v=1792336942"></script>
+<script src="game.js?v=1792336942"></script>
+<script src="ext.js?v=1792336942"></script>
+<script src="content.js?v=1792336942"></script>
+<script src="art.js?v=1792336942"></script>
+<script src="audio.js?v=1792336942"></script>
+<script src="coop.js?v=1792336942"></script>
+<script src="tg.js?v=1792336942"></script>
+<script src="fbconfig.js?v=1792336942"></script>
+<script src="fbcoop.js?v=1792336942"></script>
+<script src="ui.js?v=1792336942"></script>
 
 </body>
 </html>
