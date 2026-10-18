@@ -8,7 +8,7 @@ const COOP = (() => {
   let db = null, user = null, uid = null, avail = null;
   let code = null, ready = false, status = 'off'; // off | connecting | online | offline | readonly
   let subs = [], timer = null, pushing = false, again = false, rTimer = null;
-  let feedL = [];
+  let feedL = [], chatLoaded = false, feedLoaded = false;
   let players = {}, chat = [], lastMe = '', lastMeAt = 0, lastPersonal = '', unread = 0;
   const sent = {};
   const ONLINE_MS = 15 * 60 * 1000;
@@ -22,7 +22,7 @@ const COOP = (() => {
   }
 
   async function probe() {
-    if (avail !== null) return avail;
+    if (avail) return true;
     try {
       if (!window.claude || !window.claude.use) { avail = false; return false; }
       db = await window.claude.use('db'); user = await window.claude.use('user');
@@ -31,6 +31,11 @@ const COOP = (() => {
     } catch (e) { avail = false; }
     return avail;
   }
+
+  // --- тексты ошибок зависят от того, где запущена игра ---
+  const FBM = () => !!(window.claude && window.claude._fb);
+  const NOPERM = () => FBM() ? 'Сервер кооператива отказал в доступе. Попробуй перезапустить игру.' : 'Нет прав на запись в общий мир. Нужно: «Поделиться» → выключить доступ по ссылке и пригласить друга по email с правом редактора.';
+  const NOAVAIL = () => window.TGA ? 'Нет связи с сервером кооператива. Проверь интернет и попробуй ещё раз.' : 'Кооператив работает только на опубликованной странице claude.ai, когда ты вошёл в аккаунт.';
 
   // --- что общее ---
   function parts() {
@@ -65,9 +70,10 @@ const COOP = (() => {
   function scheduleRender() { clearTimeout(rTimer); rTimer = setTimeout(() => { if (G && !G.dead) UI.render(); }, 150); }
   function onErr(e) {
     const c = e && e.code;
-    if (c === 'invalid_argument') { if (status !== 'readonly') UI.event({ title: '🔒 Только чтение', cls: 'bad', text: 'Нет прав на запись в общий мир. Нужно: «Поделиться» → выключить доступ по ссылке и пригласить друга по email с правом редактора.\n\nПока что ты видишь общий мир, но твои действия в него не сохраняются.', choices: [{ t: 'Понятно' }] }); status = 'readonly'; }
+    if (c === 'invalid_argument') { if (status !== 'readonly') UI.event({ title: '🔒 Только чтение', cls: 'bad', text: NOPERM() + '\n\nПока что ты видишь общий мир, но твои действия в него не сохраняются.', choices: [{ t: 'Понятно' }] }); status = 'readonly'; }
     else if (c === 'quota_exceeded') { UI.toast('Хранилище общего мира заполнено.'); }
     else if (c === 'revoked' || c === 'not_granted' || c === 'capability_disabled') { status = 'offline'; ready = false; }
+    else if (c === 'permission_denied' || c === 'unavailable') { status = 'offline'; }
     scheduleRender();
   }
 
@@ -104,7 +110,7 @@ const COOP = (() => {
   }
 
   // --- подписки ---
-  function unsub() { subs.forEach(u => { try { u(); } catch (e) {} }); subs = []; }
+  function unsub() { subs.forEach(u => { try { u(); } catch (e) {} }); subs = []; chatLoaded = false; feedLoaded = false; }
   function subscribe() {
     unsub();
     for (const n of Object.keys(parts())) subs.push(db.doc(pathOf(n)).onSnapshot(s => { if (s.exists && applyDoc(n, s.data())) scheduleRender(); }, onErr));
@@ -112,14 +118,14 @@ const COOP = (() => {
     subs.push(db.doc(`coop/${code}/chat/log`).onSnapshot(s => {
       const m = s.exists ? (s.data().msgs || []) : [];
       const fresh = m.filter(x => x.u !== uid && !chat.some(y => y.at === x.at && y.u === x.u));
-      if (chat.length && fresh.length) { unread += fresh.length; fresh.forEach(x => { if (x.ping) { if (window.SFX) SFX.play('notify'); UI.event({ title: `📣 ${x.n}`, text: `${x.t}\n\n${x.loc && LOCS[x.loc] ? `Где: ${LOCS[x.loc].ic} ${LOCS[x.loc].n}` : ''}`, choices: x.loc && LOCS[x.loc] && x.loc !== G.loc ? [{ t: `🧭 Идти туда`, fn: () => goTo(x.loc) }, { t: 'Позже' }] : [{ t: 'Понял' }] }); } else UI.log(`💬 ${x.n}: ${x.t}`, 'sys'); }); }
-      chat = m; scheduleRender();
+      if (chatLoaded && fresh.length) { unread += fresh.length; fresh.forEach(x => { if (x.ping) { if (window.SFX) SFX.play('notify'); UI.event({ title: `📣 ${x.n}`, text: `${x.t}\n\n${x.loc && LOCS[x.loc] ? `Где: ${LOCS[x.loc].ic} ${LOCS[x.loc].n}` : ''}`, choices: x.loc && LOCS[x.loc] && x.loc !== G.loc ? [{ t: `🧭 Идти туда`, fn: () => goTo(x.loc) }, { t: 'Позже' }] : [{ t: 'Понял' }] }); } else UI.log(`💬 ${x.n}: ${x.t}`, 'sys'); }); }
+      chat = m; chatLoaded = true; scheduleRender();
     }, onErr));
     subs.push(db.doc(`coop/${code}/feed/log`).onSnapshot(s => {
       const m = s.exists ? (s.data().items || []) : [];
       const fresh = m.filter(x => x.u !== uid && !feedL.some(y => y.at === x.at && y.u === x.u));
-      if (feedL.length && fresh.length) fresh.forEach(x => { UI.log(`📢 ${x.n} ${x.t}`, 'sys'); UI.toast(`📢 ${x.n} ${x.t}`); });
-      feedL = m; scheduleRender();
+      if (feedLoaded && fresh.length) fresh.forEach(x => { UI.log(`📢 ${x.n} ${x.t}`, 'sys'); UI.toast(`📢 ${x.n} ${x.t}`); });
+      feedL = m; feedLoaded = true; scheduleRender();
     }, onErr));
     subs.push(db.doc(`coop/${code}/mail/${uid}`).onSnapshot(async s => {
       if (!s.exists) return; const items = s.data().items || []; if (!items.length) return;
@@ -135,7 +141,7 @@ const COOP = (() => {
   // --- публичные действия ---
   function genCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)]; return s; }
   async function create() {
-    if (!await probe()) return 'Кооператив работает только на опубликованной странице claude.ai, когда ты вошёл в аккаунт.';
+    if (!await probe()) return NOAVAIL();
     status = 'connecting'; UI.render();
     try {
       let c = genCode(); for (let k = 0; k < 3; k++) { const s = await db.doc(`coop/${c}`).get(); if (!s.exists) break; c = genCode(); }
@@ -146,19 +152,20 @@ const COOP = (() => {
       await push(); await pushMe(true); subscribe(); save();
       UI.log(`🤝 Общий мир создан. Код: ${c}`, 'good');
       return '';
-    } catch (e) { status = 'off'; G.coop = null; code = null; ready = false; return e && e.code === 'invalid_argument' ? 'Нет прав на запись в общий мир. Нужно: «Поделиться» → выключить доступ по ссылке и пригласить друга по email с правом редактора.' : 'Не удалось создать мир. Попробуй ещё раз.'; }
+    } catch (e) { status = 'off'; G.coop = null; code = null; ready = false; return e && e.code === 'invalid_argument' ? NOPERM() : 'Не удалось создать мир. Попробуй ещё раз.'; }
   }
   async function join(c, name, traits) {
-    if (!await probe()) return 'Кооператив работает только на опубликованной странице claude.ai, когда ты вошёл в аккаунт.';
+    if (!await probe()) return NOAVAIL();
     c = (c || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{4,8}$/.test(c)) return 'Код — 6 букв и цифр, например K7QX2M.';
     try {
       const meta = await db.doc(`coop/${c}`).get();
-      if (!meta.exists) return 'Мир с таким кодом не найден. Проверь код и что друг поделился с тобой этой страницей.';
+      if (!meta.exists) return FBM() ? 'Мир с таким кодом не найден. Попроси друга прислать приглашение ещё раз.' : 'Мир с таким кодом не найден. Проверь код и что друг поделился с тобой этой страницей.';
       const mode = meta.data().mode;
-      try { await db.doc(`coop/${c}/p/${uid}`).set({ probe: Date.now() }); } catch (e) { if (e && e.code === 'invalid_argument') return 'Нет прав на запись в общий мир. Нужно: «Поделиться» → выключить доступ по ссылке и пригласить друга по email с правом редактора.'; throw e; }
+      try { await db.doc(`coop/${c}/p/${uid}`).set({ probe: Date.now() }); } catch (e) { if (e && e.code === 'invalid_argument') return NOPERM(); throw e; }
       code = c;
       const ps = await db.doc(`data/users/${uid}/coop-${c}`).get();
+      if (G && !G.coop && !G.dead) { try { localStorage.setItem(SOLO_KEY, JSON.stringify(G)); } catch (e) {} }
       newGame(mode, name, traits);
       G.coop = { code: c };
       for (const k in sent) delete sent[k];
@@ -168,7 +175,7 @@ const COOP = (() => {
       ready = true; status = 'online';
       subscribe(); save(); await push(); await pushMe(true);
       return '';
-    } catch (e) { code = null; ready = false; status = 'off'; return e && e.code === 'invalid_argument' ? 'Нет прав на запись в общий мир. Нужно: «Поделиться» → выключить доступ по ссылке и пригласить друга по email с правом редактора.' : 'Не удалось подключиться. Попробуй ещё раз.'; }
+    } catch (e) { code = null; ready = false; status = 'off'; return e && e.code === 'invalid_argument' ? NOPERM() : 'Не удалось подключиться. Попробуй ещё раз.'; }
   }
   async function init() {
     if (!G || !G.coop) return;
@@ -182,7 +189,14 @@ const COOP = (() => {
       scheduleRender();
     } catch (e) { status = 'offline'; onErr(e); }
   }
-  function leave() { unsub(); ready = false; status = 'off'; code = null; G.coop = null; players = {}; chat = []; save(); }
+  const SOLO_KEY = 'moti3_solo';
+  function leave() {
+    unsub(); ready = false; status = 'off'; code = null; G.coop = null; players = {}; chat = [];
+    let solo = null; try { solo = JSON.parse(localStorage.getItem(SOLO_KEY)); } catch (e) {}
+    if (solo && solo.v === 3) { G = solo; try { localStorage.removeItem(SOLO_KEY); } catch (e) {} migrate(); UI.log('🏝 Ты вернулся в свою одиночную игру.', 'good'); }
+    save();
+  }
+  const hasSolo = () => { try { return !!localStorage.getItem(SOLO_KEY); } catch (e) { return false; } };
   async function send(text) {
     text = (text || '').trim().slice(0, 240); if (!text || !ready) return;
     const ref = db.doc(`coop/${code}/chat/log`);
@@ -228,7 +242,7 @@ const COOP = (() => {
     return acted;
   }
   return {
-    probe, create, join, init, sync, leave, send, give, allyTurn, others, here, feed, ping, get feedList() { return feedL; },
+    hasSolo, probe, create, join, init, sync, leave, send, give, allyTurn, others, here, feed, ping, get feedList() { return feedL; },
     get code() { return code; }, get status() { return status; }, get chat() { return chat; }, get uid() { return uid; },
     get unread() { return unread; }, readAll() { unread = 0; },
   };

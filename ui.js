@@ -374,16 +374,24 @@ const UI = (() => {
   // ---------------- КООПЕРАТИВ ----------------
   const ST_N = { off: 'выключен', connecting: 'подключение…', online: 'в сети', offline: 'нет связи — изменения не синхронизируются', readonly: 'только чтение — нет прав на запись' };
   function ago(at) { const m = Math.round((Date.now() - (at || 0)) / 60000); return m < 1 ? 'только что' : m < 60 ? `${m} мин назад` : m < 1440 ? `${Math.round(m / 60)} ч назад` : `${Math.round(m / 1440)} дн. назад`; }
+  const FBM = () => !!(window.claude && window.claude._fb);
+  function inviteLink(code) { return (window.TG_APP_LINK || '') + '?startapp=' + code; }
+  function invite() {
+    if (!G || !G.coop) return;
+    const link = inviteLink(G.coop.code), text = `🏝 Заходи ко мне на остров! Выживаем вместе в Mystery of the Island.`;
+    try { if (window.TGA && TGA.ver('6.1')) { TGA.tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(text)); return; } } catch (e) {}
+    try { navigator.clipboard.writeText(link).then(() => toast('Ссылка скопирована — отправь её другу'), () => toast(link)); } catch (e) { toast(link); }
+  }
   function coopPanel() {
     if (window.TGA && !window.claude) return `<div class="sec"><h2>🤝 Кооператив</h2><p class="muted">В Telegram-версии кооператив появится в следующем обновлении: друг будет заходить в твой мир по ссылке-приглашению.</p></div>`;
     if (!G.coop) return `<div class="sec"><h2>🤝 Кооператив</h2><p class="muted">Позови друга в свой мир. База, склад, постройки, задания и время станут общими; персонаж и рюкзак у каждого свои. Если вы в одной локации, друг помогает в бою.</p>
-      <ol class="muted" style="margin:0;padding-left:20px;font-size:14px;display:grid;gap:2px"><li>Нажми «Создать общий мир» — получишь код.</li><li>«Поделиться» вверху страницы → пригласи друга по email с правом <b>редактора</b>.</li><li>Друг открывает страницу → «Присоединиться к другу» → вводит код.</li></ol>
+      ${FBM() ? `<ol class="muted" style="margin:0;padding-left:20px;font-size:14px;display:grid;gap:2px"><li>Нажми «Создать общий мир».</li><li>Нажми «Пригласить друга» и отправь ему ссылку в Телеграме.</li><li>Друг открывает ссылку — и сразу попадает в твой мир.</li></ol>` : `<ol class="muted" style="margin:0;padding-left:20px;font-size:14px;display:grid;gap:2px"><li>Нажми «Создать общий мир» — получишь код.</li><li>«Поделиться» вверху страницы → пригласи друга по email с правом <b>редактора</b>.</li><li>Друг открывает страницу → «Присоединиться к другу» → вводит код.</li></ol>`}
       <div class="acts">${btn(st.coopBusy ? 'Создаю…' : '🌍 Создать общий мир', async () => { if (st.coopBusy) return; st.coopBusy = true; render(); const err = await COOP.create(); st.coopBusy = false; if (err) toast(err); render(); }, 'pri', st.coopBusy)}</div></div>`;
     COOP.readAll();
     const ps = COOP.others();
     let h = `<div class="sec"><div class="sechead"><h2>🤝 Кооператив</h2><span class="chip ${COOP.status === 'online' ? 'good' : 'warn'}">${ST_N[COOP.status] || COOP.status}</span></div>
       <div class="row"><div class="grow"><span class="s">Код мира — отправь другу</span><span class="t mono" style="font-size:22px;letter-spacing:.2em;user-select:all">${esc(G.coop.code)}</span></div>${btn('Копировать', () => { try { navigator.clipboard.writeText(G.coop.code).then(() => toast('Код скопирован'), () => toast('Выдели код и скопируй вручную')); } catch (e) { toast('Выдели код и скопируй вручную'); } }, 'sm')}</div>
-      <p class="muted" style="font-size:13px">Друг должен быть приглашён к этой странице как редактор («Поделиться» → по email).</p>
+      ${FBM() ? `<div class="acts">${btn('📨 Пригласить друга', invite, 'pri')}</div><p class="muted" style="font-size:13px">Друг откроет ссылку в Телеграме и сразу окажется в этом мире.</p>` : `<p class="muted" style="font-size:13px">Друг должен быть приглашён к этой странице как редактор («Поделиться» → по email).</p>`}
       <div class="list">${ps.length ? ps.map(p => `<div class="row ${p.online ? '' : 'dim'}"><span class="ic">${stIcon(p)}</span><div class="grow"><span class="t">${esc(p.name || 'Выживший')}${p.alive === false ? ' ☠️' : ''}</span><span class="s">${LOCS[p.loc] ? LOCS[p.loc].ic + ' ' + LOCS[p.loc].n : '—'}${p.room ? ' · ' + esc(p.room) : ''} · ❤️ ${p.hp ?? '?'}%</span><span class="s">${esc(p.act || '')} · ${p.online ? 'в игре' : 'был ' + ago(p.at)}</span></div>${btn('›', () => friendSheet(p), 'sm')}</div>`).join('') : '<p class="muted">Пока в мире только ты.</p>'}</div>
       <h3>Сигналы</h3><div class="acts">${['Нужна помощь!', 'Иди сюда!', 'Иду к тебе', 'Встречаемся на базе'].map(t => btn('📣 ' + t, () => COOP.ping(t), 'sm')).join('')}</div>
       <h3>Лента отряда</h3><div class="clog" style="max-height:180px">${COOP.feedList.slice(-15).reverse().map(x => `<div class="lg"><b>${esc(x.n)}</b> ${esc(x.t)} <span class="muted mono" style="font-size:11px">${ago(x.at)}</span></div>`).join('') || '<div class="lg dim">Пока тихо.</div>'}</div>
@@ -518,7 +526,7 @@ const UI = (() => {
   function joinScreen() {
     const pts = () => 3 - jsel.traits.reduce((s, t) => s + TRAITS[t].cost, 0);
     const draw = () => showFull(() => `<div class="title"><small>КООПЕРАТИВ</small>Присоединиться к другу</div>
-      <p class="muted">Друг создаёт общий мир в своей игре (Журнал → Кооператив) и присылает код. Чтобы ты мог играть, он должен пригласить тебя к этой странице через «Поделиться» с правом редактора. Ты войдёшь в его мир своим персонажем: база, склад и сюжет общие.</p>
+      ${FBM() ? `<p class="muted">Ты войдёшь в мир друга своим персонажем: база, склад, сюжет и время — общие, рюкзак — твой.</p>${localHas() && !(G && G.coop) ? '<p class="muted">Твоя одиночная игра не пропадёт: выйти из общего мира и вернуться к ней можно в Журнале → Кооператив.</p>' : ''}` : `<p class="muted">Друг создаёт общий мир в своей игре (Журнал → Кооператив) и присылает код. Чтобы ты мог играть, он должен пригласить тебя к этой странице через «Поделиться» с правом редактора. Ты войдёшь в его мир своим персонажем: база, склад и сюжет общие.</p>`}
       <h2>Код мира</h2><input type="text" id="jcode" maxlength="8" placeholder="Например, K7QX2M" value="${esc(jsel.code)}" oninput="UI._j('code', this.value)" style="text-transform:uppercase;font-family:var(--f-mono);letter-spacing:.15em">
       <h2>Имя персонажа</h2><input type="text" id="jname" maxlength="24" placeholder="Как тебя звать?" value="${esc(jsel.name)}" oninput="UI._j('name', this.value)">
       <div class="sechead"><h2>Черты</h2><span class="mono ${pts() < 0 ? 'bad' : 'good'}">очки: ${pts()}</span></div>
@@ -556,6 +564,11 @@ const UI = (() => {
 
   // ---------------- старт ----------------
   function boot() {
+    const inv = window.TGA && String(TGA.startParam || '').toUpperCase();
+    if (inv && /^[A-Z0-9]{4,8}$/.test(inv) && FBM()) {
+      const had = load();
+      if (!(had && G.coop && G.coop.code === inv)) { jsel.code = inv; jsel.name = had && !G.dead ? G.ch.name : String((TGA.user && TGA.user.first_name) || '').slice(0, 24); return joinScreen(); }
+    }
     if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); } }
     else startScreen();
   }
