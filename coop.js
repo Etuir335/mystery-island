@@ -144,7 +144,9 @@ const COOP = (() => {
         c3At: w.c3At || 0,
         c3Fight: !!w.c3Fight,
         marks: w.marks || [],
-        todo: w.todo || []
+        todo: w.todo || [],
+        snares: w.snares || [],
+        prep: w.prep || null
       },
       clock: { time: G.time, weather: G.weather, em: G.em, hordeDone: w.hordeDone }
     };
@@ -179,6 +181,8 @@ const COOP = (() => {
       G.w.c3Fight = !!data.c3Fight;
       G.w.marks = data.marks || [];
       G.w.todo = data.todo || [];
+      G.w.snares = data.snares || [];
+      G.w.prep = data.prep || null;
     } else if (n === "clock") {
       if (data.time > G.time + 1) {
         const d = data.time - G.time;
@@ -360,10 +364,16 @@ const COOP = (() => {
     subs.push(db.doc("coop/".concat(code, "/feed/log")).onSnapshot((s) => {
       const m = s.exists ? s.data().items || [] : [];
       const fresh = m.filter((x) => x.u !== uid && !feedL.some((y) => y.at === x.at && y.u === x.u));
-      if (feedLoaded && fresh.length) fresh.forEach((x) => {
-        UI.log("📢 ".concat(x.n, " ").concat(x.t), "sys");
-        UI.toast("📢 ".concat(x.n, " ").concat(x.t));
-      });
+      if (feedLoaded && fresh.length) {
+        fresh.forEach((x) => {
+          UI.log("📢 ".concat(x.n, " ").concat(x.t), "sys");
+          UI.toast("📢 ".concat(x.n, " ").concat(x.t));
+        });
+        try {
+          if (window.SFX) SFX.play(fresh.some((x) => /💀|погиб|⚔️/.test(x.t)) ? "hurt" : "notify");
+        } catch (e) {
+        }
+      }
       feedL = m;
       feedLoaded = true;
       scheduleRender();

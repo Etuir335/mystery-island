@@ -947,8 +947,10 @@ function sideRender() {
     SIDE.r = r;
   }
 }
-setInterval(sideRender, 1e3);
-window.addEventListener("resize", sideRender);
+if (typeof document !== "undefined" && typeof setInterval === "function") {
+  setInterval(sideRender, 1e3);
+  window.addEventListener("resize", sideRender);
+}
 function fullRest() {
   if (!atBase()) return UI.toast("Полный отдых — только на базе.");
   if (G.combat) return;
@@ -1154,3 +1156,308 @@ CUI.top = function() {
   return /<\/div>$/.test(h) && h.includes("досыта") ? h.replace(/<\/div>$/, sb + "</div>") : h + '<div class="acts" style="margin-top:4px">'.concat(sb, "</div>");
 };
 CUI.stashLog = () => stashLogHtml();
+Object.assign(ITEMS, {
+  snare: { n: "Силок", ic: "🪤", c: "tool", w: 0.3, v: 12, info: "Поставь в лесу, на ферме или болоте — через 8 ч проверь." },
+  balm: { n: "Согревающая мазь", ic: "🫙", c: "med", w: 0.1, v: 25, info: "Снимает обморожение и согревает на 8 ч." },
+  iv: { n: "Самодельная капельница", ic: "💉", c: "med", w: 0.4, v: 60, info: "Восстанавливает все части тела и сбивает болезнь." }
+});
+RECIPES.push(
+  { id: "snare", n: "Силок", need: { rope: 1, stick: 1 }, out: { snare: 1 }, t: 15 },
+  { id: "balm", n: "Согревающая мазь", need: { herbs: 2, rag: 1, vodka: 1 }, out: { balm: 1, bottle: 1 }, st: "fire", t: 25 },
+  { id: "iv", n: "Самодельная капельница", need: { water: 2, antibio: 1, tape: 1 }, out: { iv: 1, bottle: 2 }, st: "bench", t: 30 }
+);
+STRUCT.rowboat = { n: "Вёсельная лодка", ic: "🚣", lv: [{ n: "Нет" }, { n: "Вёсельная лодка", c: { planks: 8, nails: 16, rope: 2, tape: 2 } }] };
+const COAST = ["base", "beach", "wreck", "lighthouse", "village"];
+function boatMins(to) {
+  const r = route(G.loc, to);
+  return r ? Math.max(20, Math.round(r.mins * 0.55)) : null;
+}
+function canBoat(to) {
+  return G.w.struct.rowboat && COAST.includes(G.loc) && COAST.includes(to) && to !== G.loc && !G.traveling && !G.combat && LOCS[to] && !LOCS[to].ch2;
+}
+function boatTo(to) {
+  if (!canBoat(to)) return;
+  if (weather().id === "storm") return UI.toast("⛈️ В грозу в море не выйти.");
+  const mins = boatMins(to);
+  SND("travel");
+  setAct("🚣 плывёт: ".concat(LOCS[to].ic, " ").concat(LOCS[to].n));
+  G.room = null;
+  G.traveling = true;
+  G.travelTo = to;
+  advance(mins);
+  if (G.dead) return;
+  G.traveling = false;
+  G.loc = to;
+  G.w.locs[to].seen = true;
+  setAct("осматривается");
+  if (ch(0.1 * F().enemies)) {
+    UI.log("🧟‍♂️ Из воды у берега поднимается утопленник!", "bad");
+    startCombat(spawnList([["drowned", 1, 1]]), { road: true, onEnd: () => UI.render() });
+  }
+  UI.log("🚣 Ты доплыл на лодке: ".concat(LOCS[to].ic, " ").concat(LOCS[to].n, " (").concat(mins, " мин)."));
+  save();
+  UI.go("loc");
+}
+const SNARE_LOCS = ["forest", "farm", "swamp", "beach"];
+const snaresHere = () => (G.w.snares || []).filter((s) => s.loc === G.loc);
+function setSnare() {
+  if (!SNARE_LOCS.includes(G.loc) || !cnt(G.inv, "snare")) return;
+  if (snaresHere().length >= 3) return UI.toast("Здесь уже 3 силка.");
+  take(G.inv, "snare", 1);
+  advance(10);
+  G.w.snares = (G.w.snares || []).concat([{ id: Date.now() % 1e9, loc: G.loc, at: G.time, by: G.ch.name }]);
+  xp("surv", 1);
+  UI.log("🪤 Силок поставлен. Проверь через 8 часов.");
+  save();
+  UI.render();
+}
+function checkSnare(id) {
+  const s = (G.w.snares || []).find((x) => x.id === id);
+  if (!s) return;
+  advance(5);
+  if (G.time - s.at < 8 * H) {
+    UI.toast("Рано — ещё ~".concat(Math.ceil((s.at + 8 * H - G.time) / H), " ч."));
+    return;
+  }
+  const luck = 0.5 + skill("surv") * 0.04 + (season() === 0 ? 0.1 : season() === 1 ? -0.2 : 0);
+  if (ch(luck)) {
+    const n = R(1, 2);
+    invAdd(G.inv, "meat", n);
+    UI.log("🪤 В силке добыча: 🥩 Сырое мясо ×".concat(n, "."), "good");
+    xp("surv", 3);
+    if (ch(0.15)) {
+      invAdd(G.inv, "rag", 1);
+    }
+  } else UI.log("🪤 Силок пустой.", "dim");
+  if (ch(0.8)) {
+    s.at = G.time;
+    UI.log("🪤 Силок снова насторожен.");
+  } else {
+    G.w.snares = G.w.snares.filter((x) => x.id !== id);
+    UI.log("🪤 Силок порвался.", "warn");
+  }
+  save();
+  UI.render();
+}
+function pickSnare(id) {
+  G.w.snares = (G.w.snares || []).filter((x) => x.id !== id);
+  invAdd(G.inv, "snare", 1);
+  save();
+  UI.render();
+}
+const nextBloodDay = () => {
+  const d = day();
+  return d % 7 === 0 ? d : d + (7 - d % 7);
+};
+const PREP = [
+  { id: "spikes", n: "Вбить колья перед стенами", ic: "🪵", def: 10, c: { planks: 2, nails: 10 } },
+  { id: "torch", n: "Факелы по периметру", ic: "🔥", def: 8, c: { wood: 3, rag: 2 } },
+  { id: "cans", n: "Растяжки с банками", ic: "🥫", def: 7, c: { wire: 2, scrap: 2 } }
+];
+const prepNow = () => {
+  const p = G.w.prep;
+  return p && p.day === nextBloodDay() ? p : null;
+};
+function doPrep(id) {
+  const P = PREP.find((x) => x.id === id);
+  if (!P || !atBase()) return;
+  if (!hasAll(P.c)) return UI.toast("Не хватает материалов.");
+  if (day() < nextBloodDay() - 1) return UI.toast("Готовиться имеет смысл за день до Кровавой ночи.");
+  for (const [k, v] of Object.entries(P.c)) allTake(k, v);
+  const p = prepNow() || { day: nextBloodDay(), done: {} };
+  p.done[id] = G.ch.name;
+  G.w.prep = p;
+  advance(40);
+  xp("craft", 3);
+  UI.log("".concat(P.ic, " ").concat(P.n, ": +").concat(P.def, " к обороне на эту Кровавую ночь."), "good");
+  FEED("".concat(P.ic, " готовит базу к Кровавой ночи"));
+  save();
+  UI.render();
+}
+const _defenseP = defense;
+defense = function() {
+  const p = prepNow();
+  return _defenseP() + (p ? PREP.filter((x) => p.done[x.id]).reduce((a, x) => a + x.def, 0) : 0);
+};
+function frostTick(st) {
+  const c = G.ch;
+  c.frost = c.frost || 0;
+  const warm = activeBuffs().some((b) => b.id === "warm");
+  const exposed = season() === 1 && !inShelter() && !campHere() && !warm;
+  if (exposed) c.frost = Math.min(100, c.frost + st / H * (isNight() ? 6 : 3) * Math.max(0.2, 1 - warmth() / 10) * mul("cold", 0.2));
+  else c.frost = Math.max(0, c.frost - st / H * (inShelter() || campHere() ? 15 : 4));
+  if (c.frost >= 60 && F().parts && ch(st / H * 0.25)) {
+    const p = pick(["lleg", "rleg", "larm", "rarm"]);
+    hurtPart(p, R(3, 6), false, "обморожение");
+    UI.log("🥶 Обморожение: ".concat(PARTS[p].n, " немеет."), "bad");
+    checkDeath();
+  }
+}
+const _moodlesF = moodles;
+moodles = function() {
+  const m = _moodlesF.apply(this, arguments);
+  const f = G.ch.frost || 0;
+  if (f >= 25) m.push({ ic: "🥶", n: "Обморожение", l: f >= 80 ? 3 : f >= 50 ? 2 : 1, d: "Иди в укрытие или к огню, выпей горячего, намажься согревающей мазью." });
+  return m;
+};
+const _useItemM = useItem;
+useItem = function(id) {
+  if (id === "balm" || id === "iv") {
+    const e = G.inv.find((x) => x.id === id) || atBase() && G.stash.find((x) => x.id === id);
+    if (!e) return;
+    take(G.inv.includes(e) ? G.inv : G.stash, id, 1);
+    advance(id === "iv" ? 30 : 5);
+    xp("med", 3);
+    if (id === "balm") {
+      G.ch.frost = Math.max(0, (G.ch.frost || 0) - 60);
+      addBuff("warm");
+      UI.log("🫙 Мазь согревает руки и ноги.", "good");
+    } else {
+      for (const p in PARTS) G.ch.parts[p] = Math.min(PARTS[p].max, G.ch.parts[p] + PARTS[p].max * 0.3);
+      if (G.ch.ill) G.ch.ill = Math.max(0, G.ch.ill - 40);
+      G.ch.drink = Math.min(100, G.ch.drink + 20);
+      UI.log("💉 Капельница: силы возвращаются.", "good");
+    }
+    save();
+    UI.render();
+    return;
+  }
+  return _useItemM.apply(this, arguments);
+};
+EVTS.plane = { n: "Крушение самолёта", ic: "✈️", dur: 36, locs: ["forest", "farm", "swamp", "meteo", "post"] };
+function addPlane() {
+  const ev = { id: "plane" + G.time, type: "plane", until: G.time + 36 * H, loc: pick(EVTS.plane.locs) };
+  G.w.events = (G.w.events || []).concat([ev]);
+  SND("heli");
+  UI.event({ title: "✈️ Крушение самолёта", cls: "bad", text: "Над островом с рёвом прошёл горящий самолёт и рухнул в локации ".concat(LOCS[ev.loc].ic, " ").concat(LOCS[ev.loc].n, ". Там может быть ценный груз — но на дым сбегутся все твари округи. Обломки остынут через 1,5 суток."), choices: [{ t: "Понял" }] });
+}
+const _dailyEventP = dailyEvent;
+dailyEvent = function(force) {
+  const r = _dailyEventP.apply(this, arguments);
+  if (!force && day() >= 4 && ch(0.12) && !activeEvents().some((e) => e.type === "plane")) addPlane();
+  return r;
+};
+function openPlane(ev) {
+  if (!ev.fought) {
+    ev.fought = true;
+    UI.log("✈️ У обломков кто-то шевелится!", "bad");
+    startCombat(spawnList([["soldier", 1, 2], ["runner", 1, 2]]), { road: true, onEnd: (r) => {
+      if (r === "win") lootPlane(ev);
+      else UI.render();
+    } });
+    return;
+  }
+  lootPlane(ev);
+}
+function lootPlane(ev) {
+  advance(30);
+  if (G.dead) return;
+  const got = { medkit: 2, ration: 3, a545: R(15, 25) };
+  for (const id of [pick(["vest", "vest2", "bag3"]), pick(["scope", "silencer", "extmag", "stock"]), pick(["antibio", "serum", "iv"])]) got[id] = (got[id] || 0) + 1;
+  if (ch(0.35)) got.ak = 1;
+  for (const [k, v] of Object.entries(got)) invAdd(G.inv, k, v);
+  ev.done = true;
+  xp("search", 6);
+  FEED("✈️ вскрыл обломки самолёта (".concat(L().n, ")"));
+  SND("pickup");
+  UI.event({ title: "✈️ Груз самолёта", cls: "good", text: "Среди обломков: " + Object.entries(got).map(([k, v]) => "".concat(IT(k).ic, " ").concat(IT(k).n).concat(v > 1 ? " ×" + v : "")).join(", "), choices: [{ t: "Отлично" }] });
+}
+const MASTERY = [10, 30, 70];
+const masteryOf = (id) => {
+  const k = (G.ch.wm || {})[id] || 0;
+  return MASTERY.filter((t) => k >= t).length;
+};
+const _onKillM = onKill;
+onKill = function(e) {
+  const w = G.eq.weapon;
+  if (w) {
+    G.ch.wm = G.ch.wm || {};
+    const before = masteryOf(w.id);
+    G.ch.wm[w.id] = (G.ch.wm[w.id] || 0) + 1;
+    const after = masteryOf(w.id);
+    if (after > before) setTimeout(() => UI.log("⭐ Мастерство: ".concat(IT(w.id).n, " — уровень ").concat(after, "/3!"), "good"), 0);
+  }
+  return _onKillM.apply(this, arguments);
+};
+const _extraModW = extraMod;
+extraMod = function(k) {
+  let v = _extraModW(k);
+  const w = G && G.eq && G.eq.weapon;
+  if (!w) return v;
+  const lv = masteryOf(w.id);
+  if (!lv) return v;
+  const gun = IT(w.id).c === "gun";
+  if (!gun && k === "meleeDmg") v += 0.06 * lv;
+  if (!gun && k === "meleeAcc") v += 0.02 * lv;
+  if (gun && k === "gunAcc") v += 0.025 * lv;
+  if (gun && k === "ammoSave") v += 0.03 * lv;
+  return v;
+};
+const _cuiGround = CUI.ground;
+CUI.ground = function() {
+  let h = _cuiGround.apply(this, arguments);
+  const b = UI.btn;
+  if (G.room != null || G.traveling) return h;
+  for (const ev of eventsAt(G.loc).filter((e) => e.type === "plane")) h += '<div class="row evt"><span class="ic">✈️</span><div class="grow"><span class="t">Обломки самолёта</span><span class="s">остынут через ~'.concat(Math.ceil((ev.until - G.time) / H), " ч · ").concat(ev.fought ? "охрана перебита" : "вокруг бродят твари", "</span></div>").concat(b(ev.fought ? "Обыскать" : "Пробиться к грузу", () => openPlane(ev), "sm pri"), "</div>");
+  if (SNARE_LOCS.includes(G.loc)) {
+    const sn = snaresHere();
+    h += '<div class="sec"><div class="sechead"><h2>🪤 Силки</h2>'.concat(b("Поставить (".concat(cnt(G.inv, "snare"), ")"), setSnare, "sm", !cnt(G.inv, "snare") || sn.length >= 3), "</div>").concat(sn.map((s) => {
+      const ready = G.time - s.at >= 8 * H;
+      return '<div class="row"><span class="ic">🪤</span><div class="grow"><span class="t">Силок · '.concat(cesc(s.by), '</span><span class="s">').concat(ready ? "✅ можно проверять" : "через ~".concat(Math.ceil((s.at + 8 * H - G.time) / H), " ч"), "</span></div>").concat(b("Проверить", () => checkSnare(s.id), "sm" + (ready ? " pri" : ""), !ready)).concat(b("Снять", () => pickSnare(s.id), "sm"), "</div>");
+    }).join("") || '<p class="muted" style="font-size:13px">Сделай силок (верёвка + палка) и поставь здесь.</p>', "</div>");
+  }
+  return h;
+};
+const _markCardB = CUI.markCard;
+CUI.markCard = function(loc) {
+  let h = "";
+  if (canBoat(loc)) h += '<div class="acts">'.concat(UI.btn("🚣 На лодке — ".concat(boatMins(loc), " мин"), () => boatTo(loc), "pri"), "</div>");
+  else if (G.w.struct.rowboat && COAST.includes(loc) && loc !== G.loc && !COAST.includes(G.loc)) h += '<p class="muted" style="font-size:13px">🚣 Лодка ходит только между прибрежными местами: база, пляж, деревня, маяк, сухогруз.</p>';
+  return h + _markCardB.apply(this, arguments);
+};
+CUI.itemExtra = function(e) {
+  const it = IT(e.id), out = [];
+  if (["melee", "gun"].includes(it.c)) {
+    const k = (G.ch.wm || {})[e.id] || 0, lv = masteryOf(e.id), nx = MASTERY[lv];
+    out.push("⭐ мастерство ".concat(lv, "/3").concat(nx ? " (".concat(k, "/").concat(nx, ")") : ""));
+  }
+  return out;
+};
+CUI.quickCraft = function(e) {
+  const rs = RECIPES.filter((r) => r.need[e.id] && !recipeState(r)).slice(0, 3);
+  return rs.map((r) => {
+    const o = Object.keys(r.out)[0];
+    return UI.btn("🔨 ".concat(IT(o).ic, " ").concat(IT(o).n), () => craft(r), "sm");
+  }).join("");
+};
+const _cuiBaseP = CUI.basePanel;
+CUI.basePanel = function() {
+  let h = _cuiBaseP.apply(this, arguments);
+  const nb = nextBloodDay();
+  if (day() >= nb - 1) {
+    const p = prepNow();
+    h += '<div class="sec"><h2>🛡️ Подготовка к Кровавой ночи (день '.concat(nb, ')</h2><p class="muted" style="font-size:13px">Действует только на эту ночь. Сейчас оборона ').concat(defense(), '.</p><div class="list">').concat(PREP.map((P) => '<div class="row '.concat(p && p.done[P.id] ? "dim" : "", '"><span class="ic">').concat(P.ic, '</span><div class="grow"><span class="t">').concat(P.n, " · +").concat(P.def, '</span><span class="s">').concat(p && p.done[P.id] ? "✅ сделал ".concat(cesc(p.done[P.id])) : Object.entries(P.c).map(([k, v]) => "".concat(IT(k).ic).concat(allCnt(k), "/").concat(v)).join(" "), "</span></div>").concat(p && p.done[P.id] ? "" : UI.btn("Сделать", () => doPrep(P.id), "sm", !hasAll(P.c)), "</div>")).join(""), "</div></div>");
+  }
+  return h;
+};
+function statsHtml() {
+  const c = G.ch, kb = Object.entries(G.w.killsBy || {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const built = Object.entries(G.w.struct).filter(([k, v]) => v > 0 && STRUCT[k]).length;
+  const rs = G.w.raidStats || {};
+  const rows = [["📅 Дней на острове", Math.floor((G.time - c.born) / DAY) + 1], ["☠️ Врагов упокоено", c.kills], ["💀 Смертей в этом мире", (G.w.deaths || []).length], ["🏗️ Построек", built], ["📋 Заказов выполнено", G.w.contractsDone || 0], ["⚔️ Рейдов выиграно", rs.won || 0], ["🌕 Кровавых ночей", Object.keys(G.w.hordeDone || {}).length], ["🏆 Достижений", typeof achCount === "function" ? achCount() : 0]];
+  return '<div class="sec"><h2>📊 Статистика забега</h2><div class="list" style="gap:2px">'.concat(rows.map(([n, v]) => '<div class="row" style="padding:6px 10px"><div class="grow"><span class="t" style="font-weight:400">'.concat(n, '</span></div><b class="mono">').concat(v, "</b></div>")).join(""), "</div>").concat(kb.length ? '<p class="muted" style="font-size:13px;margin-top:6px">Чаще всего: '.concat(kb.map(([id, n]) => "".concat(ENEMY[id] ? ENEMY[id].ic : "").concat(n)).join(" · "), "</p>") : "").concat((G.w.deaths || []).length ? '<p class="muted" style="font-size:13px">Погибшие: '.concat(G.w.deaths.slice(-5).map((d) => "".concat(cesc(d.name), " (").concat(d.days, " дн., ").concat(cesc(d.cause), ")")).join(", "), "</p>") : "", "</div>");
+}
+const _cuiJour2 = CUI.jour;
+CUI.jour = function() {
+  return _cuiJour2.apply(this, arguments) + statsHtml();
+};
+const _tickF = tick;
+tick = function(st, o) {
+  _tickF.apply(this, arguments);
+  if (G && !G.dead) frostTick(st);
+};
+const _extMigrateF = extMigrate;
+extMigrate = function() {
+  _extMigrateF.apply(this, arguments);
+  if (G.w.struct.rowboat == null) G.w.struct.rowboat = 0;
+};

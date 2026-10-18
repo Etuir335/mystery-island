@@ -398,6 +398,7 @@ const UI = /* @__PURE__ */ (() => {
     if (it.cap) p.push("+".concat(it.cap, " кг"));
     if (it.d && it.c === "art") p.push(esc(it.d));
     if (it.info) p.push(esc(it.info));
+    if (typeof CUI !== "undefined" && CUI.itemExtra) p.push(...CUI.itemExtra(e));
     if (e.mods && e.mods.length) p.push("🔧 " + e.mods.map((m2) => IT(m2).ic + IT(m2).n).join(", "));
     return p.join(" · ");
   }
@@ -409,6 +410,7 @@ const UI = /* @__PURE__ */ (() => {
       if (it.c === "bp") out.push(btn("Изучить", () => useItem(e.id), "pri sm"));
       if (["melee", "gun", "wear", "art"].includes(it.c)) out.push(btn("Надеть", () => equip(e), "pri sm"));
       if (it.c === "mod" && typeof CUI !== "undefined") out.push(CUI.modBtn(e));
+      if (typeof CUI !== "undefined" && CUI.quickCraft) out.push(CUI.quickCraft(e));
       if (atBase()) out.push(btn(e.n > 1 ? "На склад все" : "На склад", () => toStash(e)), e.n > 1 ? btn("На склад 1", () => toStash(e, 1), "sm") : "");
       if (IT(e.id).btl) out.push(btn("🫗 Вылить", () => pourOut(e.id), "sm"));
       if (e.n > 1) out.push(btn(G.room != null ? "Бросить 1" : "Выбросить 1", () => {
