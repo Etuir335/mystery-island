@@ -295,16 +295,78 @@ const COOP = (() => {
     lastMe = js;
     lastMeAt = d.at;
   }
+  const personal = () => ({ ch: G.ch, inv: G.inv, eq: G.eq, money: G.money, loc: G.loc, sneak: G.sneak, campfire: G.campfire || null, dead: !!G.dead, pet: G.pet || null });
+  let personalReady = false;
   async function pushPersonal() {
-    const d = { ch: G.ch, inv: G.inv, eq: G.eq, money: G.money, loc: G.loc, sneak: G.sneak, campfire: G.campfire || null, dead: !!G.dead };
-    const js = canon(d);
+    if (!personalReady) return;
+    const js = canon(personal());
     if (js === lastPersonal) return;
+    G.pts = Date.now();
     try {
-      await db.doc(personalPath()).set(JSON.parse(js));
+      const d = JSON.parse(js);
+      d.ts = G.pts;
+      await db.doc(personalPath()).set(d);
       lastPersonal = js;
     } catch (e) {
     }
   }
+  const xpSum = (ch) => Object.values(ch && ch.xp || {}).reduce((a, v) => a + (+v || 0), 0);
+  function remoteNewer(r) {
+    if (!r || !r.ch) return false;
+    if (r.ts && G.pts) return r.ts > G.pts;
+    const a = G.ch || {}, b = r.ch;
+    if ((b.born || 0) !== (a.born || 0)) return (b.born || 0) > (a.born || 0);
+    const xa = xpSum(a), xb = xpSum(b), ka = a.kills || 0, kb = b.kills || 0;
+    if (xb !== xa) return xb > xa;
+    if (kb !== ka) return kb > ka;
+    return !!r.ts && !G.pts;
+  }
+  async function pullPersonal(live) {
+    if (!db || !code || !uid) return false;
+    let r = null;
+    try {
+      const s = await db.doc(personalPath()).get();
+      r = s.exists ? s.data() : null;
+    } catch (e) {
+      return false;
+    }
+    let took = false;
+    if (r && remoteNewer(r) && !(live && (G.combat || G.dead))) {
+      G.ch = r.ch;
+      G.inv = r.inv || [];
+      G.eq = r.eq || G.eq;
+      if (r.money != null) G.money = r.money;
+      if (r.loc && LOCS[r.loc]) G.loc = r.loc;
+      G.sneak = !!r.sneak;
+      G.campfire = r.campfire || null;
+      if ("pet" in r) G.pet = r.pet;
+      G.room = null;
+      G.traveling = false;
+      G.route = null;
+      if (r.ts) G.pts = r.ts;
+      if (r.dead && !G.dead) G.dead = true;
+      took = true;
+      try {
+        migrate();
+      } catch (e) {
+      }
+      UI.toast("🔗 Персонаж подтянут с другого устройства: рюкзак, снаряжение, здоровье");
+    }
+    personalReady = true;
+    if (took) {
+      lastPersonal = canon(personal());
+      save();
+      scheduleRender();
+    } else {
+      const rr = r ? Object.assign({}, r) : null;
+      if (rr) delete rr.ts;
+      lastPersonal = rr && canon(rr) === canon(personal()) && r.ts ? lastPersonal = canon(personal()) : "";
+    }
+    return took;
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && ready && code) pullPersonal(true);
+  });
   function unsub() {
     subs.forEach((u) => {
       try {
@@ -486,6 +548,8 @@ const COOP = (() => {
       for (const k in sent) delete sent[k];
       ready = true;
       status = "online";
+      personalReady = true;
+      lastPersonal = "";
       await push();
       await pushMe(true);
       subscribe();
@@ -542,6 +606,8 @@ const COOP = (() => {
       G.traveling = false;
       ready = true;
       status = "online";
+      personalReady = true;
+      lastPersonal = "";
       subscribe();
       save();
       await push();
@@ -573,6 +639,8 @@ const COOP = (() => {
       }
       for (const k in sent) delete sent[k];
       await fetchAll();
+      personalReady = false;
+      await pullPersonal(false);
       ready = true;
       status = "online";
       subscribe();
