@@ -518,10 +518,10 @@ function stealthChance() {
 }
 function noise(n) { G.noise = clamp(G.noise + n * F().noise * mul('noise', 0.2) * (G.sneak ? 0.35 : 1), 0, 100); }
 function enterRoom(i) {
-  const d = roomDef(i), s = roomSt(i);
+  const d = roomDef(i), s = roomSt(i), at = G.loc;
   if (d.lock && !s.open) return UI.lockMenu(i);
   advance(G.sneak ? 8 : 5);
-  if (G.dead) return;
+  if (G.dead || G.loc !== at) return; // потерял сознание по дороге — уже на базе
   G.room = i;
   // спавн врагов
   if (d.en && G.time - s.enAt > 48 * H) {
@@ -824,7 +824,7 @@ function onKill(e) {
   const D = ENEMY[e.id]; G.ch.kills++; xp(D.human ? 'shoot' : 'melee', 1);
   G.w.locs[G.combat.opts.road ? G.travelTo || G.loc : G.loc].kills++;
   if (D.human) G.ch.stress = clamp(G.ch.stress + 12, 0, 100);
-  if (D.boss) { G.w.flags[e.id === 'keeper' ? 'keeper_dead' : 'guard_dead'] = true; FEED(`⚔️ победил босса: ${D.ic} ${D.n}`); }
+  if (D.boss) { G.w.flags[e.id === 'keeper' ? 'keeper_dead' : e.id === 'guard' ? 'guard_dead' : e.id + '_dead'] = true; FEED(`⚔️ победил босса: ${D.ic} ${D.n}`); }
   cLog(`☠️ ${D.ic} ${D.n} повержен.`, 'good');
   // лут на землю
   const ground = [];

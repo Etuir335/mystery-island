@@ -392,6 +392,7 @@ function raidMenu(k) {
   ch1.push({ t: `💣 Взорвать ${WALL_N[wall]} (нужно ${need} заряд(а), есть ${bombPower()})`, fn: () => raidGo(k, 'bomb') });
   if (wall === 1) ch1.push({ t: `🪛 Вскрыть монтировкой (тихо, 2 ч${crowbar ? '' : ' — нет монтировки'})`, fn: () => raidGo(k, 'pry') });
   ch1.push({ t: `🌙 Пробраться ночью (${isNight() ? `шанс ≈${Math.round(raidSneakChance(k) * 100)}%` : 'только ночью'})`, fn: () => raidGo(k, 'sneak') });
+  if (typeof FACTION_BOSS !== 'undefined' && FACTION_BOSS[k] && c.raided >= 2 && !c.dead) ch1.push({ t: `👑 Бросить вызов главарю: ${ENEMY[FACTION_BOSS[k]].ic} ${ENEMY[FACTION_BOSS[k]].n}`, fn: () => bossRaid(k) });
   ch1.push({ t: 'Отмена' });
   UI.event({ title: `⚔️ Рейд: ${F0.ic} ${F0.n}`, text: `${F0.d}\n\n🧱 Защита: ${WALL_N[wall]}${c.raided ? ` · уже грабили: ${c.raided}` : ''}\n😠 Злость на тебя: ${Math.round(c.grudge)}/100\n${intel}\n🚶 Дорога: ~${F0.mins} мин в одну сторону.\n\nТвоя сила: ${myPower()} · заряды: ${bombPower()}${F0.peaceful ? '\n\n⚠️ Это мирные люди. Совесть тебя не похвалит.' : ''}`, choices: ch1 });
 }
@@ -436,7 +437,7 @@ function raidDaily() {
   const c = camps();
   for (const k in c) c[k].grudge = Math.max(0, c[k].grudge - 4);
   if (G.w.raidIncoming || shieldLeft() > 0) return;
-  const angry = Object.keys(c).filter(k => c[k].grudge >= 50);
+  const angry = Object.keys(c).filter(k => c[k].grudge >= 50 && !c[k].dead);
   if (!angry.length || !ch(0.35)) return;
   const k = pick(angry), F0 = FACTIONS[k];
   G.w.raidIncoming = { camp: k, at: Math.max((day() - 1) * DAY + 23 * H, G.time + 3 * H) };
@@ -556,6 +557,7 @@ EXTUI.raidPanel = function () {
   h += '<div class="list">';
   for (const k in FACTIONS) { const F0 = FACTIONS[k], s = c[k];
     if (!s.known) { h += `<div class="row dim"><span class="ic">❓</span><div class="grow"><span class="t">Неизвестный лагерь</span><span class="s">${{ radio: 'узнаешь, когда соберёшь радио', swamp: 'узнаешь, побывав на болоте', nii: 'узнаешь, добравшись до НИИ' }[F0.reveal] || ''}</span></div></div>`; continue; }
+    if (s.dead) { h += `<div class="row dim"><span class="ic">${F0.ic}</span><div class="grow"><span class="t">${F0.n}</span><span class="s">👑 главарь повержен — группировка разбежалась</span></div></div>`; continue; }
     const cool = G.time < s.readyAt;
     h += `<div class="row ${s.grudge >= 50 ? 'hot' : ''}"><span class="ic">${F0.ic}</span><div class="grow"><span class="t">${F0.n} ${'⭐'.repeat(F0.tier)}</span><span class="s">🧱 ${WALL_N[s.wall]} · добыча: ${F0.hint} · 😠 ${Math.round(s.grudge)}${cool ? ` · пусто ещё ${Math.ceil((s.readyAt - G.time) / DAY)} дн.` : ''}${s.scouted ? ' · 🔭 разведано' : ''}</span></div>${b('Рейд', () => raidMenu(k), 'sm', cool)}</div>`;
   }

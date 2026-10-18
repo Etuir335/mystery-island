@@ -145,6 +145,24 @@ const ART = (() => {
       R(120, hz + 20, 50, 10, '#6a3a22'); R(126, hz + 14, 20, 6, '#5a2e1a'); R(150, hz + 8, 3, 12, '#4a2a18');
       sparks(t, r, '#b7ff8a'); haze('#7aa83a', 0.12); },
     reef(f, t, r) { SCENES.beach(f, t, r); const hz = f.hz; R(150, hz - 34, 5, 34, '#3a4a5a'); R(151, hz - 40, 3, 6, '#7ad8ff'); for (let i = 0; i < 4; i++) line(152, hz - 40, 152 + Math.cos(t / 6 + i * 1.6) * 14, hz - 40 + Math.sin(t / 6 + i * 1.6) * 8, 'rgba(122,216,255,0.55)'); sparks(t, r, '#9ae0ff'); },
+    wreck(f, t, r) { const hz = f.hz; sea(hz, HH, f, t, r);
+      // корпус сухогруза, накренённый
+      tri(20, hz + 22, 30, hz - 4, 176, hz + 6, '#6a3a2a'); R(30, hz - 4, 146, 10, '#7a4430'); R(30, hz + 6, 146, 14, '#5a2e22'); for (let x = 34; x < 176; x += 9) R(x, hz + 8, 2, 10, '#4a2418');
+      for (let x = 40; x < 170; x += 11) P(x, hz, '#c06a3a'); R(40, hz - 2, 120, 1, '#b04a2a');
+      R(130, hz - 30, 30, 26, '#d8d0c4'); R(134, hz - 26, 6, 5, f.night ? '#3a3a2a' : '#4a6a7a'); R(144, hz - 26, 6, 5, '#4a6a7a'); R(140, hz - 40, 4, 10, '#3a3a3a'); R(56, hz - 36, 2, 32, '#5a5a5a'); line(57, hz - 34, 90, hz - 6, '#5a5a5a');
+      R(70, hz - 12, 20, 8, '#3a6a8a'); R(94, hz - 12, 20, 8, '#8a3a2a'); for (let i = 0; i < 2; i++) gull(30 + i * 60 + (t % 50), 10 + i * 6, '#f0f0f0'); haze('#2a4a5a', 0.06); },
+    mine(f, t, r) { const hz = f.hz; hills(hz + 4, '#5a5a4e', 22, 31, 6); ground(hz + 10, '#5a5248', '#6a6256');
+      tri(40, hz + 12, 100, hz - 40, 170, hz + 12, '#4a443c'); R(84, hz - 10, 34, 24, '#120e0c'); R(80, hz - 14, 42, 4, '#6a4a2a'); R(80, hz - 14, 4, 28, '#6a4a2a'); R(118, hz - 14, 4, 28, '#6a4a2a');
+      for (let x = 60; x < 150; x += 6) R(x, hz + 26, 4, 2, '#5a3a20'); R(56, hz + 24, 100, 1, '#8a8a8a'); R(56, hz + 29, 100, 1, '#8a8a8a');
+      R(30, hz + 16, 22, 10, '#6a5a4a'); R(28, hz + 14, 26, 3, '#4a3a2a'); disc(34, hz + 27, 2, '#222'); disc(48, hz + 27, 2, '#222');
+      R(150, hz - 20, 3, 36, '#5a4a3a'); R(146, hz - 22, 11, 4, '#8a7a5a');
+      if (f.night || (t >> 3) % 3 === 0) { g.globalAlpha = 0.25; disc(100, hz + 4, 6, '#7ad8ff'); g.globalAlpha = 1; } },
+    prison(f, t, r) { const hz = f.hz; hills(hz + 2, '#4a5446', 6, 41); ground(hz + 6, '#5a5a52', '#66665c');
+      R(0, hz - 14, W, 22, '#8a8680'); for (let x = 0; x < W; x += 16) R(x, hz - 14, 1, 22, '#7a7670'); R(0, hz - 16, W, 2, '#6a6660'); for (let x = 0; x < W; x += 3) P(x, hz - 18 + (x % 6 ? 0 : 1), '#9a9a9a');
+      for (const tx of [20, 170]) { R(tx, hz - 46, 4, 34, '#5a5650'); R(tx + 8, hz - 46, 4, 34, '#5a5650'); R(tx - 4, hz - 54, 20, 10, '#6a6660'); tri(tx - 6, hz - 54, tx + 6, hz - 62, tx + 18, hz - 54, '#3a3632'); R(tx, hz - 51, 12, 4, f.night && (t >> 4) % 2 ? '#ffe9a0' : '#20241c'); }
+      R(80, hz - 10, 40, 18, '#3a3632'); for (let x = 82; x < 120; x += 4) R(x, hz - 8, 1, 16, '#9a9a9a');
+      if (f.night) { const sw = Math.sin(t / 12); g.globalAlpha = 0.16; tri(26, hz - 48, 26 + 80 + sw * 60, HH, 26 + 120 + sw * 60, HH, '#fff6c0'); g.globalAlpha = 1; }
+      R(50, hz + 14, 3, 14, '#6a6a6a'); R(46, hz + 12, 11, 3, '#c8302a'); },
     nii(f, t, r) { const hz = f.hz; ground(hz + 4, '#4a4a46', '#58584f');
       R(30, hz - 40, 130, 46, '#8c8a84'); for (let y = hz - 34; y < hz; y += 9) for (let x = 38; x < 155; x += 12) R(x, y, 7, 5, (x * y) % 7 === 0 && f.night ? '#6ac8ff' : '#2a2e34'); R(30, hz - 44, 130, 4, '#6a6864'); R(84, hz - 6, 22, 12, '#2a2e34');
       const pul = 0.25 + 0.15 * Math.sin(t / 4); g.globalAlpha = pul; R(91, 0, 8, hz - 40, '#7ad8ff'); disc(95, hz - 44, 10, '#7ad8ff'); g.globalAlpha = 1;

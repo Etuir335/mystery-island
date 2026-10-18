@@ -44,7 +44,7 @@ const UI = (() => {
         <div class="vit">❤️ ${hp}%${bar(hp)}</div><div class="vit">🍗 ${Math.round(c.food)}${bar(c.food)}</div>
         <div class="vit">💧 ${Math.round(c.drink)}${bar(c.drink)}</div><div class="vit">⚡ ${Math.round(c.energy)}${bar(c.energy)}</div>
       </div>
-      ${md ? `<div class="moods">${md}</div>` : ''}${sq}${ban}`;
+      ${md ? `<div class="moods">${md}</div>` : ''}${typeof CUI !== 'undefined' ? CUI.top() : ''}${sq}${ban}`;
   }
   function stIcon(p) { return !p.online ? '💤' : p.alive === false ? '☠️' : p.combat ? '⚔️' : (p.act || '').startsWith('😴') ? '😴' : p.from ? '🚶' : '📍'; }
   function squadStrip() {
@@ -247,12 +247,13 @@ const UI = (() => {
       else { const Q = QUESTS[nextQ], act = G.w.quests[nextQ] === 'active';
         h += `<div class="row"><span class="ic">📜</span><div class="grow"><span class="t">${Q.n}</span><span class="s">«${esc(Q.d)}»</span>${act ? `<span class="s">Прогресс: ${questProgress(nextQ)}</span>` : ''}<span class="s">Награда: ${[Q.rew.money ? Q.rew.money + '₽' : '', ...Object.entries(Q.rew.items || {}).map(([k, v]) => itName(k, v))].filter(Boolean).join(', ')}</span></div>${act ? btn('Сдать', () => turnIn(nextQ), 'pri sm', !questDone(nextQ)) : btn('Взять', () => acceptQuest(nextQ), 'pri sm')}</div>`; }
     }
+    if (st.ttab === 'quest' && typeof CUI !== 'undefined') h += CUI.contracts(tid);
     return h;
   }
 
   // ---------------- ВЕЩИ ----------------
-  const CAT_ORDER = ['gun', 'melee', 'ammo', 'med', 'food', 'drink', 'wear', 'art', 'tool', 'key', 'quest', 'bp', 'mat', 'val'];
-  const CAT_N = { gun: 'Оружие', melee: 'Оружие', ammo: 'Патроны', med: 'Медицина', food: 'Еда', drink: 'Питьё', wear: 'Снаряжение', art: 'Артефакты', tool: 'Инструменты', key: 'Ключи', quest: 'Сюжетное', bp: 'Чертежи', mat: 'Материалы', val: 'Ценности' };
+  const CAT_ORDER = ['gun', 'melee', 'mod', 'ammo', 'med', 'food', 'drink', 'wear', 'art', 'tool', 'key', 'quest', 'bp', 'mat', 'val'];
+  const CAT_N = { mod: 'Модули оружия', gun: 'Оружие', melee: 'Оружие', ammo: 'Патроны', med: 'Медицина', food: 'Еда', drink: 'Питьё', wear: 'Снаряжение', art: 'Артефакты', tool: 'Инструменты', key: 'Ключи', quest: 'Сюжетное', bp: 'Чертежи', mat: 'Материалы', val: 'Ценности' };
   function itemSub(e) {
     const it = IT(e.id), p = [];
     p.push(`${(it.w * e.n).toFixed(it.w * e.n < 1 ? 2 : 1)} кг`);
@@ -265,6 +266,8 @@ const UI = (() => {
     if (it.c === 'gun') p.push(`патроны: ${cnt(G.inv, it.ammo)}`);
     if (it.arm) p.push(`броня +${it.arm}`); if (it.warm) p.push(`тепло +${it.warm}`); if (it.cap) p.push(`+${it.cap} кг`);
     if (it.d && it.c === 'art') p.push(esc(it.d));
+    if (it.info) p.push(esc(it.info));
+    if (e.mods && e.mods.length) p.push('🔧 ' + e.mods.map(m => IT(m).ic + IT(m).n).join(', '));
     return p.join(' · ');
   }
   function itemActs(e, where) {
@@ -274,6 +277,7 @@ const UI = (() => {
       if (it.c === 'med') out.push(btn('Использовать', () => useItem(e.id), 'pri sm'));
       if (it.c === 'bp') out.push(btn('Изучить', () => useItem(e.id), 'pri sm'));
       if (['melee', 'gun', 'wear', 'art'].includes(it.c)) out.push(btn('Надеть', () => equip(e), 'pri sm'));
+      if (it.c === 'mod' && typeof CUI !== 'undefined') out.push(CUI.modBtn(e));
       if (atBase()) out.push(btn('На склад', () => toStash(e)), e.n > 1 ? '' : '');
       if (IT(e.id).btl) out.push(btn('🫗 Вылить', () => pourOut(e.id), 'sm'));
       if (e.n > 1) out.push(btn(G.room != null ? 'Бросить 1' : 'Выбросить 1', () => { drop(e, 1); }, 'sm'));
@@ -361,12 +365,13 @@ const UI = (() => {
     h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${(G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn('🐈 Взять кота с собой', takeCat) : ''}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
     h += EXTUI.basePanel();
     h += EXTUI.raidPanel();
+    if (typeof CUI !== 'undefined') h += CUI.basePanel();
     h += '<div class="sec"><h2>Постройки</h2><div class="list">';
     for (const id in STRUCT) {
       if (STRUCT[id].ch2 && !CH2()) continue;
       const S = STRUCT[id], lv = s[id] || 0, nx = S.lv[lv + 1], why = canBuild(id);
       const need = nx && nx.c ? Object.entries(buildCost(nx.c)).map(([k, v]) => `<span class="${allCnt(k) >= v ? '' : 'bad'}">${IT(k).ic}${IT(k).n} ${allCnt(k)}/${v}</span>`).join(', ') : '';
-      h += `<div class="row ${why === 'bp' ? 'dim' : ''}"><span class="ic">${S.ic}</span><div class="grow"><span class="t">${S.n}: ${lv ? S.lv[lv].n : '<span class="muted">нет</span>'}</span>${nx ? `<span class="s">${why === 'bp' ? '📐 нужен чертёж' : `→ ${nx.n}: ${need}`}</span>` : '<span class="s">максимум</span>'}</div>${nx && why !== 'bp' ? btn(lv ? 'Улучшить' : 'Построить', () => build(id), 'sm pri', !!why) : ''}</div>`;
+      h += `<div class="row ${why === 'bp' ? 'dim' : ''}"><span class="ic">${S.ic}</span><div class="grow"><span class="t">${S.n}: ${lv ? S.lv[lv].n : '<span class="muted">нет</span>'}</span>${nx ? `<span class="s">${why === 'bp' ? '📐 нужен чертёж' : why === 'need' ? `⚡ сначала: ${STRUCT[S.need].n}` : why === 'ch3' ? '📡 откроется в Главе 3' : `→ ${nx.n}: ${need}`}</span>` : '<span class="s">максимум</span>'}</div>${nx && why !== 'bp' ? btn(lv ? 'Улучшить' : 'Построить', () => build(id), 'sm pri', !!why) : ''}</div>`;
     }
     h += '</div></div>';
     const rs = RECIPES.map(r => ({ r, w: recipeState(r) })).filter(x => x.w !== 'bp').sort((x, y) => (x.w ? 1 : 0) - (y.w ? 1 : 0));
@@ -382,6 +387,7 @@ const UI = (() => {
     const giver = g => g === 'main' ? '⭐ Главное' : TRADERS[g].ic + ' ' + TRADERS[g].n;
     let h = `<h1>📓 Журнал</h1><div class="sec"><h2>Задания</h2><div class="list">${act.map(([id]) => `<div class="row"><div class="grow"><span class="s">${giver(QUESTS[id].g)}</span><span class="t">${QUESTS[id].n}</span><span class="s">${esc(QUESTS[id].d)}</span><span class="s">Прогресс: ${questProgress(id)}</span></div></div>`).join('') || '<p class="muted">Нет активных заданий. Поговори с жителями острова.</p>'}</div>${done.length ? `<p class="muted">Выполнено: ${done.map(([id]) => QUESTS[id].n).join(', ')}</p>` : ''}</div>`;
     if (G.w.ending === 'master' && !G.w.ch2) h += `<div class="sec"><h2>🔮 Глава 2 «Мастер»</h2><p class="muted">Ты забрал ядро Аппарата. Остров ждёт своего Мастера: сильнее враги, чаще Выбросы, кристаллы, лодка и путь к синему шпилю за проливом.</p><div class="acts">${btn('Начать Главу 2', startCh2, 'pri')}</div></div>`;
+    if (typeof CUI !== 'undefined') h += CUI.jour();
     h += coopPanel();
     h += lbPanel();
     h += `<div class="sec"><h2>Записки (${G.w.notes.length}/${Object.keys(NOTES).length})</h2><div class="list">${G.w.notes.slice().reverse().map(id => `<div class="note"><b>${esc(NOTES[id].t)}</b><br>${esc(NOTES[id].x)}</div>`).join('')}</div></div>`;
@@ -704,4 +710,7 @@ const UI = (() => {
   return { btn, mbtn, run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen, allyFight, allyFightEnd,
     _name: v => { sel.name = v; }, _st: st, _j: (k, v) => { jsel[k] = v; }, _chat: sendChat };
 })();
-(window.TGA ? TGA.before() : Promise.resolve()).then(() => UI.boot(), () => UI.boot());
+(() => { let done = false; const go = () => { if (done) return; done = true; try { UI.boot(); } catch (e) { console.error(e); UI.startScreen(); } };
+  setTimeout(go, 6000); // страховка: даже если облако Телеграма молчит, игра запустится
+  let p0; try { p0 = window.TGA ? TGA.before() : Promise.resolve(); } catch (e) { p0 = Promise.resolve(); }
+  Promise.resolve(p0).then(go, go); })();

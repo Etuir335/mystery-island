@@ -4,7 +4,7 @@ const TGA = (() => {
   const tg = window.Telegram && Telegram.WebApp;
   if (!tg || !tg.initData) return null; // открыто не в Телеграме — обычный режим
   const ver = v => { try { return tg.isVersionAtLeast(v); } catch (e) { return false; } };
-  tg.ready(); tg.expand();
+  try { tg.ready(); tg.expand(); } catch (e) {}
   if (ver('7.7')) try { tg.disableVerticalSwipes(); } catch (e) {}
 
   // --- тема: светлая/тёмная как в Телеграме ---
@@ -13,15 +13,16 @@ const TGA = (() => {
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || (tg.colorScheme === 'dark' ? '#12181a' : '#e4dfcf');
     try { if (ver('6.1')) { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } if (ver('7.10')) tg.setBottomBarColor(bg); } catch (e) {}
   }
-  theme(); tg.onEvent('themeChanged', theme);
+  try { theme(); tg.onEvent('themeChanged', theme); } catch (e) {}
 
   const user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
   const startParam = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
 
   // --- облачные сохранения (CloudStorage: до 4096 символов на ключ) ---
   const CS = ver('6.9') ? tg.CloudStorage : null;
-  const csGet = keys => new Promise(res => { try { CS.getItems(keys, (err, v) => res(err ? null : v)); } catch (e) { res(null); } });
-  const csSet = (k, v) => new Promise(res => { try { CS.setItem(k, v, (err, ok) => res(!err && ok)); } catch (e) { res(false); } });
+  // у каждого запроса тайм-аут: на некоторых ПК Telegram Desktop не отвечает на CloudStorage, и игра зависала на загрузке
+  const csGet = keys => new Promise(res => { const t = setTimeout(() => res(null), 4000); try { CS.getItems(keys, (err, v) => { clearTimeout(t); res(err ? null : v); }); } catch (e) { clearTimeout(t); res(null); } });
+  const csSet = (k, v) => new Promise(res => { const t = setTimeout(() => res(false), 6000); try { CS.setItem(k, v, (err, ok) => { clearTimeout(t); res(!err && ok); }); } catch (e) { clearTimeout(t); res(false); } });
   const CH = 3800;
   const SX = () => (typeof SAVE_SLOT !== 'undefined' && SAVE_SLOT > 1 ? String(SAVE_SLOT) : '');
   const TSK = () => 'moti3_ts' + SX();

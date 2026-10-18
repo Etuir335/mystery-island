@@ -42,9 +42,9 @@ const COOP = (() => {
   function parts() {
     const w = G.w;
     const o = {
-      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, stash: G.stash, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null },
+      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, stash: G.stash, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null, power: w.power || 0 },
       story: { mode: G.mode, flags: w.flags, quests: w.quests, qstart: w.qstart, rep: w.rep, notes: w.notes, counters: w.counters, corpses: w.corpses, events: w.events || [], ending: w.ending || null, deaths: w.deaths, gen: w.gen, ch2: w.ch2 || null,
-        npcs: w.npcs || [], camps: w.camps || null, raidIncoming: w.raidIncoming || null, raidStats: w.raidStats || null, pvpOn: !!w.pvpOn },
+        npcs: w.npcs || [], camps: w.camps || null, raidIncoming: w.raidIncoming || null, raidStats: w.raidStats || null, pvpOn: !!w.pvpOn, contracts: w.contracts || null, killsBy: w.killsBy || {}, contractsDone: w.contractsDone || 0, c3At: w.c3At || 0, c3Fight: !!w.c3Fight },
       clock: { time: G.time, weather: G.weather, em: G.em, hordeDone: w.hordeDone },
     };
     for (const id of LOC_IDS) o['loc_' + id] = w.locs[id];
@@ -57,9 +57,9 @@ const COOP = (() => {
     const js = canon(data);
     if (sent[n] === js) return false;
     if (!force && sent[n] !== undefined && canon(parts()[n]) !== sent[n]) return false; // у нас несохранённые изменения — отправим свои
-    if (n === 'base') { Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt, catLove: data.catLove || 0, catAway: !!data.catAway }); if (data.car) G.w.car = data.car; G.stash = data.stash || []; }
+    if (n === 'base') { Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt, catLove: data.catLove || 0, catAway: !!data.catAway }); if (data.car) G.w.car = data.car; G.w.power = data.power || 0; G.stash = data.stash || []; }
     else if (n === 'story') { for (const k of ['flags', 'quests', 'qstart', 'rep', 'notes', 'counters', 'corpses', 'deaths', 'events']) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {}); G.w.ending = data.ending || null; G.w.gen = data.gen || 1; if (data.ch2 || !G.w.ch2) G.w.ch2 = data.ch2 || null;
-      G.w.npcs = data.npcs || []; if (data.camps) G.w.camps = data.camps; G.w.raidIncoming = data.raidIncoming || null; if (data.raidStats) G.w.raidStats = data.raidStats; G.w.pvpOn = !!data.pvpOn; }
+      G.w.npcs = data.npcs || []; if (data.camps) G.w.camps = data.camps; G.w.raidIncoming = data.raidIncoming || null; if (data.raidStats) G.w.raidStats = data.raidStats; G.w.pvpOn = !!data.pvpOn; if (data.contracts) G.w.contracts = data.contracts; G.w.killsBy = data.killsBy || {}; G.w.contractsDone = data.contractsDone || 0; G.w.c3At = data.c3At || 0; G.w.c3Fight = !!data.c3Fight; }
     else if (n === 'clock') {
       if (data.time > G.time + 1) { const d = data.time - G.time; G.time = data.time; if (d >= 30) { const txt = `⏩ Время общее: пока ты ${G.ch && G.ch.energy < 90 ? 'занимался своим' : 'был занят'}, у друга прошло ${d >= 60 ? Math.round(d / 6) / 10 + ' ч' : d + ' мин'} (сон, дорога или поиски).`; UI.log(txt, 'sys'); if (d >= 120) UI.toast(`⏩ +${Math.round(d / 6) / 10} ч общего времени`); } }
       if (!G.weather || (data.weather && data.weather.until > G.weather.until)) G.weather = data.weather;
