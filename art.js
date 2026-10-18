@@ -246,7 +246,7 @@ const ART = (() => {
   const sprCache = {};
   function enemy(id) {
     if (sprCache[id]) return sprCache[id];
-    const S = SPR[id] || SPR.zombie, cv = document.createElement('canvas'); cv.width = 16; cv.height = 16; const x = cv.getContext('2d');
+    const S = SPR[id] || (ENEMY[id] && SPR[ENEMY[id].spr]) || SPR.zombie, cv = document.createElement('canvas'); cv.width = 16; cv.height = 16; const x = cv.getContext('2d');
     S.m.forEach((row, y) => [...row].forEach((ch, i) => { if (ch !== '.' && S.p[ch]) { x.fillStyle = S.p[ch]; x.fillRect(i, y, 1, 1); } }));
     return sprCache[id] = cv.toDataURL();
   }

@@ -263,6 +263,8 @@ const ITEMS = {
   herbs:    { n: 'Лечебные травы', ic: '🌿', c: 'mat', w: 0.05, v: 8 },
   carpart:  { n: 'Автозапчасти', ic: '⚙️', c: 'mat', w: 2, v: 30 },
   fuel:     { n: 'Канистра бензина', ic: '⛽', c: 'mat', w: 4, v: 45 },
+  bomb:     { n: 'Самодельная бомба', ic: '💣', c: 'raid', w: 1, v: 60, d: 'Ломает частокол. Каменной стене нужно 2, стальным воротам — 4.' },
+  c4:       { n: 'Взрывпакет', ic: '🧨', c: 'raid', w: 1.2, v: 180, d: 'Как три бомбы.' },
   // Ценности
   watch:    { n: 'Часы', ic: '⌚', c: 'val', w: 0.1, v: 60 },
   ring:     { n: 'Золотое кольцо', ic: '💍', c: 'val', w: 0.01, v: 120 },
@@ -291,6 +293,7 @@ const ITEMS = {
   bp_garden:{ n: 'Чертёж: огород', ic: '📐', c: 'bp', w: 0.05, v: 40, bp: 'garden' },
   bp_nail:  { n: 'Чертёж: дубина с гвоздями', ic: '📐', c: 'bp', w: 0.05, v: 30, bp: 'nailbat' },
   bp_picks: { n: 'Чертёж: отмычки', ic: '📐', c: 'bp', w: 0.05, v: 30, bp: 'picks' },
+  bp_c4:    { n: 'Чертёж: взрывпакет', ic: '📐', c: 'bp', w: 0.05, v: 150, bp: 'c4' },
   bp_ammo:  { n: 'Чертёж: патроны 12 кал.', ic: '📐', c: 'bp', w: 0.05, v: 80, bp: 'a12' },
 };
 
@@ -309,7 +312,7 @@ const CONT = {
   car:     { n: 'Багажник машины', ic: '🚗', t: 12, roll: [0, 3], loot: [['tools', 1], ['tape', 3], ['water', 3], ['bat', 1], ['bag2', 1], ['scrap', 4], ['flash', 2], ['a12', 1], ['fuel', 2], ['carpart', 3]] },
   backpack:{ n: 'Брошенный рюкзак', ic: '🎒', t: 10, roll: [1, 3], loot: [['canned', 3], ['water', 3], ['bandage', 2], ['lighter', 2], ['rod', 1], ['bag2', 1], ['cigs', 2], ['a9', 1], ['antirad', 1], ['bolts', 2], ['bottle', 2]] },
   locker:  { n: 'Шкафчик солдата', ic: '🗄️', t: 12, roll: [1, 3], loot: [['ration', 3], ['mjacket', 2], ['a545', 2], ['a9', 3], ['bandage', 2], ['cigs', 3], ['k_armory', 1], ['watch', 1]] },
-  milcrate:{ n: 'Военный ящик', ic: '🪖', t: 20, roll: [2, 4], loot: [['ration', 4], ['a545', 3], ['a9', 3], ['a12', 2], ['bandage', 3], ['medkit', 1], ['gasmask', 1], ['bag3', 1], ['antirad', 2], ['bp_ammo', 1]] },
+  milcrate:{ n: 'Военный ящик', ic: '🪖', t: 20, roll: [2, 4], loot: [['ration', 4], ['a545', 3], ['a9', 3], ['a12', 2], ['bandage', 3], ['medkit', 1], ['gasmask', 1], ['bag3', 1], ['antirad', 2], ['bp_ammo', 1], ['bp_c4', 1], ['bomb', 1]] },
   armory:  { n: 'Оружейная стойка', ic: '🗃️', t: 15, roll: [2, 3], loot: [['ak', 2], ['pm', 3], ['sawn', 2], ['a545', 4], ['a9', 4], ['a12', 3], ['vest', 2]] },
   safe:    { n: 'Сейф', ic: '🔐', t: 10, roll: [2, 3], loot: [['cash', 5], ['ring', 3], ['watch', 3], ['pm', 1], ['a9', 2], ['antibio', 1]] },
   labdesk: { n: 'Лабораторный стол', ic: '🧪', t: 15, roll: [1, 3], loot: [['antirad', 3], ['alcohol', 3], ['elec', 4], ['battery', 3], ['antibio', 2], ['gasmask', 1], ['serum', 1]] },
@@ -333,6 +336,12 @@ const ENEMY = {
   sci:     { n: 'Заражённый учёный', ic: '🥼', hp: 32, dmg: [6, 10], sp: 1, acc: 0.55, inj: ['scratch', 'bite'], loot: 'labdesk', xp: 6 },
   crys:    { n: 'Кристаллид', ic: '💠', hp: 55, dmg: [9, 14], sp: 1, acc: 0.6, arm: 4, inj: ['lacer', 'burn'], noVirus: 1, xp: 14, drop: [['cshard', 2]] },
   keeper:  { n: 'Хранитель Кристаллов', ic: '🔷', hp: 260, dmg: [16, 26], sp: 1, acc: 0.62, arm: 6, inj: ['frac', 'lacer', 'burn'], noVirus: 1, xp: 120, boss: 1, drop: [['cshard', 8]] },
+  bandit:  { n: '«Волк»', ic: '🐺', spr: 'raider', hp: 42, dmg: [8, 13], sp: 1, acc: 0.6, arm: 1, human: 1, inj: ['lacer', 'bullet', 'bruise'], loot: 'body', xp: 10, noVirus: 1, gear: [['knife', 3], ['bat', 3], ['pm', 1]] },
+  fisherman:{ n: 'Рыбак-артельщик', ic: '🎣', spr: 'raider', hp: 34, dmg: [5, 9], sp: 1, acc: 0.55, human: 1, inj: ['lacer', 'bruise'], loot: 'body', xp: 6, noVirus: 1, gear: [['knife', 3], ['stick', 2]] },
+  stalkerE:{ n: 'Сталкер', ic: '☢️', spr: 'raider', hp: 50, dmg: [9, 14], sp: 1, acc: 0.62, arm: 2, human: 1, inj: ['bullet', 'lacer', 'bruise'], loot: 'stash', xp: 12, noVirus: 1, gear: [['pm', 2], ['sawn', 2], ['machete', 1]] },
+  deserter:{ n: 'Дезертир', ic: '🪖', spr: 'raider', hp: 55, dmg: [10, 15], sp: 1, acc: 0.65, arm: 3, human: 1, inj: ['bullet', 'lacer', 'bruise'], loot: 'locker', xp: 14, noVirus: 1, gear: [['pm', 2], ['ak', 1], ['sawn', 1]] },
+  cultist: { n: 'Сектант', ic: '🔵', spr: 'sci', hp: 46, dmg: [10, 16], sp: 2, acc: 0.6, arm: 1, human: 1, inj: ['lacer', 'burn', 'bruise'], loot: 'labdesk', xp: 14, noVirus: 1, gear: [['machete', 2], ['knife', 2]] },
+  baseguard:{ n: 'Защитник базы', ic: '🛡️', spr: 'raider', hp: 48, dmg: [9, 14], sp: 1, acc: 0.62, arm: 2, human: 1, inj: ['bullet', 'lacer', 'bruise'], loot: 'body', xp: 12, noVirus: 1, gear: [['bat', 2], ['pm', 2], ['sawn', 1]] },
   guard:   { n: 'Страж Аппарата', ic: '🗿', hp: 160, dmg: [14, 22], sp: 1, acc: 0.6, arm: 5, inj: ['frac', 'lacer', 'burn'], noVirus: 1, xp: 60, boss: 1, drop: [['crown', 1]] },
 };
 
@@ -491,6 +500,8 @@ const RECIPES = [
   { id: 'bolts', n: 'Болты (×10)', need: { scrap: 1 }, out: { bolts: 10 }, st: 'bench', t: 10 },
   { id: 'cblade', n: 'Кристальный клинок', need: { knife: 1, cshard: 4, tape: 1 }, out: { cblade: 1 }, st: 'bench', ch2: 1, t: 40 },
   { id: 'cvest', n: 'Кристальная броня', need: { vest: 1, cshard: 6, wire: 2 }, out: { cvest: 1 }, st: 'bench2', ch2: 1, t: 60 },
+  { id: 'bomb', n: 'Самодельная бомба', need: { tape: 1, scrap: 1, a12: 3 }, out: { bomb: 1 }, st: 'bench', t: 30 },
+  { id: 'c4', n: 'Взрывпакет', need: { bomb: 2, elec: 2, battery: 1 }, out: { c4: 1 }, st: 'bench2', bp: 'c4', t: 45 },
   { id: 'herbal', n: 'Травяная мазь (антисептик)', need: { herbs: 3, alcohol: 1 }, out: { antisep: 1 }, st: 'fire', t: 30 },
 ];
 

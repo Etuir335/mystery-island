@@ -95,6 +95,9 @@ const TGA = (() => {
   window.addEventListener('DOMContentLoaded', () => { ['main', 'modal'].forEach(id => { const el = document.getElementById(id); if (el) mo.observe(el, { childList: true }); }); syncBack(); });
   if (document.readyState !== 'loading') ['main', 'modal'].forEach(id => { const el = document.getElementById(id); if (el) mo.observe(el, { childList: true }); });
 
-  return { before, tg, user, startParam, haptic, upload, ver };
+  // достижения — отдельный ключ в облаке (объединяем с локальными)
+  function saveAch() { if (!CS) return; try { const v = localStorage.getItem('moti3_ach'); if (v && v.length < 4000) csSet('a', v); } catch (e) {} }
+  async function loadAch() { if (!CS) return; const g = await csGet(['a']); if (!g || !g.a) return; try { const cloud = JSON.parse(g.a), loc = JSON.parse(localStorage.getItem('moti3_ach') || '{}'); localStorage.setItem('moti3_ach', JSON.stringify(Object.assign({}, cloud, loc))); } catch (e) {} }
+  return { before: () => Promise.all([before(), loadAch()]), tg, user, startParam, haptic, upload, ver, saveAch };
 })();
 window.TGA = TGA;

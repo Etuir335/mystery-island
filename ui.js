@@ -344,6 +344,7 @@ const UI = (() => {
     h += `<div class="sec"><h2>Навыки</h2><div class="grid2">${Object.keys(SKILLS).map(k => { const lv = skill(k), raw = SKILL_XP.findIndex((x, i) => i > 0 && c.xp[k] < x); const lo = SKILL_XP[Math.max(0, (raw < 0 ? SKILL_XP.length : raw) - 1)], hi = raw < 0 ? lo : SKILL_XP[raw]; return `<div class="vit" style="font-size:12.5px">${SKILLS[k].ic} ${SKILLS[k].n} <b class="mono">${lv}</b>${bar(raw < 0 ? 1 : c.xp[k] - lo, raw < 0 ? 1 : hi - lo)}</div>`; }).join('')}</div><p class="muted" style="font-size:13px">Навыки растут от дела: дерёшься — растёт ближний бой, обыскиваешь — поиск.</p></div>`;
     h += `<div class="sec"><div class="sechead"><h2>Правила сложности</h2>${btn(st.showRules ? 'Скрыть' : 'Показать', () => st.showRules = !st.showRules, 'sm')}</div>${st.showRules ? `<ul class="muted" style="margin:0;padding-left:18px">${MODES[G.mode].rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}</div>`;
     h += EXTUI.charPanel();
+    h += EXTUI.achPanel();
     return h;
   }
 
@@ -356,6 +357,7 @@ const UI = (() => {
     let h = `${ART.sceneTag({ loc: 'base', key: 'base', alt: 'Лодочная станция', camp: false })}${tutCard()}${logLast(3)}<div class="sec"><h1>🏚️ Лодочная станция</h1><p class="muted">Защита <b class="mono">${defense()}</b> · следующая Кровавая ночь — день ${nextBN}, натиск ≈ <b class="mono">${power}</b> за ночь (3 волны).${s.walls ? ` Укрепления: ${G.w.wallHp}%.` : ''}</p></div>`;
     h += `<div class="grid2">${btn(`😴 Спать до утра${s.bed ? ' (кровать)' : ''}`, () => sleepHere())}${btn('😴 Вздремнуть 2 ч', () => sleepHere(2))}${btn('🐈 Погладить кота', petCat)}${(G.w.catLove || 0) >= 4 && !G.pet && !G.w.catAway ? btn('🐈 Взять кота с собой', takeCat) : ''}${btn('🔨 Подлатать стены (2 доски, 4 гвоздя)', repairWalls, '', !s.walls)}${s.radio ? btn('📻 Слушать эфир', radioMsg) : ''}</div>`;
     h += EXTUI.basePanel();
+    h += EXTUI.raidPanel();
     h += '<div class="sec"><h2>Постройки</h2><div class="list">';
     for (const id in STRUCT) {
       if (STRUCT[id].ch2 && !CH2()) continue;
@@ -409,7 +411,7 @@ const UI = (() => {
     if (!window.FB || !FB.lb) return '';
     lbLoad();
     const me = FB.uid;
-    const rows = (lbs.list || []).map((e, i) => `<div class="row ${e.id === me ? 'evt' : ''}"><span class="ic mono">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><div class="grow"><span class="t">${esc(e.name || 'Выживший')}${e.id === me ? ' (ты)' : ''}${e.alive ? '' : ' ☠️'}</span><span class="s">${MODE_IC[e.mode] || ''} ${MODES[e.mode] ? MODES[e.mode].n : ''}${e.coop ? ' · 🤝' : ''} · убито: ${e.kills || 0}</span></div><b class="mono">${e.days} дн.</b></div>`).join('');
+    const rows = (lbs.list || []).map((e, i) => `<div class="row ${e.id === me ? 'evt' : ''}"><span class="ic mono">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><div class="grow"><span class="t">${esc(e.name || 'Выживший')}${e.id === me ? ' (ты)' : ''}${e.alive ? '' : ' ☠️'}</span><span class="s">${MODE_IC[e.mode] || ''} ${MODES[e.mode] ? MODES[e.mode].n : ''}${e.coop ? ' · 🤝' : ''} · убито: ${e.kills || 0}${e.ach ? ` · 🏅${e.ach}` : ''}</span></div><b class="mono">${e.days} дн.</b></div>`).join('');
     return `<div class="sec"><div class="sechead"><h2>🏆 Таблица выживших</h2>${btn(lbs.busy ? '…' : '↻', () => lbLoad(true), 'sm')}</div>
       <p class="muted" style="font-size:13px">Сколько дней прожил персонаж. У каждого игрока в таблице — лучший забег; живой забег обновляется по ходу игры.</p>
       <div class="list">${lbs.list ? (rows || '<p class="muted">Пока никого — будь первым.</p>') : `<p class="muted">${lbs.err || 'Загружаю…'}</p>`}</div></div>`;
@@ -626,7 +628,7 @@ const UI = (() => {
       const had = load();
       if (!(had && G.coop && G.coop.code === inv)) { jsel.code = inv; jsel.name = had && !G.dead ? G.ch.name : String((TGA.user && TGA.user.first_name) || '').slice(0, 24); return joinScreen(); }
     }
-    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); setTimeout(checkPerks, 900); } }
+    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); setTimeout(checkPerks, 900); setTimeout(() => PVP.inbox(), 1500); } }
     else startScreen();
   }
   return { btn, mbtn, run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, ending2: ending2Screen, boot, startScreen,

@@ -163,7 +163,7 @@ function startKit() {
 }
 
 // ---------------- сохранение ----------------
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} if (G && G.coop && window.COOP) COOP.sync(); if (G && typeof lbSubmit === 'function') lbSubmit(); }
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} if (G && G.coop && window.COOP) COOP.sync(); if (G && typeof lbSubmit === 'function') lbSubmit(); if (G && typeof achCheck === 'function') achCheck(); if (G && typeof PVP !== 'undefined') PVP.publish(); }
 function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.v === 3) { G = s; migrate(); return true; } } catch (e) {} return false; }
 function migrate() { if (G.ch && !G.ch.prof) { G.ch.prof = 'unemployed'; G.ch.perks = G.ch.perks || []; G.ch.perkAsk = G.ch.perkAsk || {}; } for (const id in LOCS) if (!G.w.locs[id]) G.w.locs[id] = { seen: false, rooms: LOCS[id].rooms.map(() => ({ cont: {}, en: [], enAt: -1e9, an: null, art: null, ground: [], aware: true, fixed: false })), kills: 0 }; if (G.w.struct.boat == null) G.w.struct.boat = 0; if (!G.w.events) G.w.events = []; if (G.w.rep.nomad == null) G.w.rep.nomad = 0; if (!G.tut) G.tut = { on: day() <= 2 && !G.w.struct.fire, done: {} }; if (!G.w.flags.mig_bottles) { G.w.flags.mig_bottles = 1; if (G.w.struct.distill == null) G.w.struct.distill = 0; if (!G.dead) { invAdd(G.inv, 'bottle', 2); G.log.push({ t: '🍶 Обновление: теперь воду можно набирать в бутылки. В рюкзаке 2 пустые бутылки.', c: 'good', d: day(), k: clock() }); } } }
 function wipe() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
@@ -320,6 +320,7 @@ const emissionSoon = () => G.em.warned;
 
 // ---------------- Кровавая ночь (7 Days to Die) ----------------
 function hordeTick(o) {
+  if (typeof raidTick === 'function') raidTick();
   const d = day();
   if (d % 7 !== 0 || hour() < 22 || G.w.hordeDone[d]) return;
   G.w.hordeDone[d] = true; G.interrupt = true;
@@ -807,7 +808,6 @@ function onKill(e) {
 }
 function endCombat(res) {
   setAct(res === 'win' ? 'отбился' : res === 'fled' ? 'сбежал из боя' : 'осматривается');
-  if (res === 'win' && G.combat && G.combat.en.some(e => ENEMY[e.id].boss)) FEED('☠️ победил Стража Аппарата!');
   const cb = G.combat; G.combat = null;
   if (G.room != null && !cb.opts.road) {
     const s = roomSt(G.room);
@@ -1355,7 +1355,7 @@ function dailyBonus() {
 // ---------- таблица выживших ----------
 let lbLast = 0;
 function lbEntry(dead) {
-  const c = G.ch; return { name: c.name, days: Math.max(0, Math.floor((G.time - c.born) / DAY)), kills: c.kills || 0, mode: G.mode, alive: !(dead || G.dead), coop: !!G.coop, run: `${G.w.gen || 1}:${c.born}:${c.name}` };
+  const c = G.ch; return { name: c.name, days: Math.max(0, Math.floor((G.time - c.born) / DAY)), kills: c.kills || 0, mode: G.mode, ach: typeof achCount === 'function' ? achCount() : 0, alive: !(dead || G.dead), coop: !!G.coop, run: `${G.w.gen || 1}:${c.born}:${c.name}` };
 }
 function lbSubmit(force, dead) {
   if (!window.FB || !FB.lb || !G || !G.ch) return Promise.resolve();
