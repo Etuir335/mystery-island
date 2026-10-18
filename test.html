@@ -1038,6 +1038,73 @@ input[type=text] {
   margin: 4px 0;
   font-weight: 600;
 }
+#downed {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  background: rgba(40, 0, 0, .82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+}
+#downed .dbox {
+  max-width: 420px;
+}
+#downed .dtime {
+  font: 700 40px var(--f-mono);
+  margin: 14px 0;
+}
+#downed .btn {
+  background: #fff;
+  color: #300;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #app.shake {
+    animation: shk .35s linear;
+  }
+  @keyframes shk {
+    20% {
+      transform: translateX(-6px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-4px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+  #app.flashred {
+    animation: flr .7s ease-out;
+  }
+  @keyframes flr {
+    0% {
+      box-shadow: inset 0 0 0 2000px rgba(200, 20, 10, .35);
+    }
+    100% {
+      box-shadow: none;
+    }
+  }
+  #app.flashgood {
+    animation: flg .6s ease-out;
+  }
+  @keyframes flg {
+    0% {
+      box-shadow: inset 0 0 0 2000px rgba(240, 200, 60, .25);
+    }
+    100% {
+      box-shadow: none;
+    }
+  }
+}
 .side {
   display: none;
 }
@@ -1157,18 +1224,18 @@ input[type=text] {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792350630"></script>
-<script src="game.js?v=1792350630"></script>
-<script src="ext.js?v=1792350630"></script>
-<script src="content.js?v=1792350630"></script>
-<script src="art.js?v=1792350630"></script>
-<script src="audio.js?v=1792350630"></script>
-<script src="coop.js?v=1792350630"></script>
-<script src="tg.js?v=1792350630"></script>
-<script src="fbconfig.js?v=1792350630"></script>
-<script src="fbcoop.js?v=1792350630"></script>
-<script src="sync.js?v=1792350630"></script>
-<script src="ui.js?v=1792350630"></script>
+<script src="data.js?v=1792352541"></script>
+<script src="game.js?v=1792352541"></script>
+<script src="ext.js?v=1792352541"></script>
+<script src="content.js?v=1792352541"></script>
+<script src="art.js?v=1792352541"></script>
+<script src="audio.js?v=1792352541"></script>
+<script src="coop.js?v=1792352541"></script>
+<script src="tg.js?v=1792352541"></script>
+<script src="fbconfig.js?v=1792352541"></script>
+<script src="fbcoop.js?v=1792352541"></script>
+<script src="sync.js?v=1792352541"></script>
+<script src="ui.js?v=1792352541"></script>
 
 </body>
 </html>

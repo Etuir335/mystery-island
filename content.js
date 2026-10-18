@@ -1910,3 +1910,49 @@ sideLeft = function() {
   const c = dailyCh(), s0 = dailyState();
   return _sideLeftD.apply(this, arguments) + '<div class="card"><h3>🎯 Испытание дня</h3><div class="ln '.concat(s0.done ? "good" : "", '">').concat(c.ic, " ").concat(c.n, ": ").concat(c.d, " — ").concat(Math.min(s0.prog, c.goal), "/").concat(c.goal).concat(s0.done ? " ✅" : "", "</div></div>");
 };
+Object.assign(ITEMS, {
+  deepstone: { n: "Камень Глубин", ic: "💠", c: "art", w: 0.4, v: 900, art: { heal: 3, rad: 1 }, d: "Тёплый, пульсирует. Раны на глазах затягиваются." },
+  labkey: { n: "Пропуск уровня «Б»", ic: "🪪", c: "key", w: 0, v: 60 }
+});
+Object.assign(ENEMY, {
+  abyss: { n: "Обитатель Глубин", ic: "🦑", spr: "swamper", hp: 230, dmg: [15, 24], sp: 1, acc: 0.65, arm: 5, inj: ["lacer", "frac", "burn"], noVirus: 1, xp: 90, boss: 1, drop: [["deepstone", 1], ["serum", 2], ["crystal", 2]] }
+});
+CONT.vault = { n: "Сейф лаборатории", ic: "🧰", t: 20, roll: [2, 4], loot: [["serum", 2], ["antibio", 2], ["medkit", 2], ["scope", 1], ["silencer", 1], ["vest2", 1], ["c4", 1], ["crystal", 1], ["cash", 4], ["iv", 1]] };
+LOCS.depths = {
+  n: "Нижние уровни НИИ",
+  ic: "🕳️",
+  x: 94,
+  y: 27,
+  dg: 3,
+  zone: 3,
+  d: "Под НИИ — шесть ярусов лабораторий. Чем глубже, тем страшнее и богаче. Твари возвращаются через двое суток.",
+  links: { nii: 15 },
+  rooms: [
+    { n: "Ярус −1: склад", cont: ["milcrate", "labdesk"], en: [["sci", 2, 3], ["armored", 0, 1]], dark: 1 },
+    { n: "Ярус −2: виварий", cont: ["labdesk", "body"], en: [["pdog", 2, 2], ["crawler", 1, 2]], dark: 1 },
+    { n: "Ярус −3: изолятор", cont: ["locker", "labdesk"], en: [["armored", 1, 2], ["acid", 1, 1]], dark: 1, fixed: { item: "labkey" } },
+    { n: "Ярус −4: архив", cont: ["vault", "desk"], lock: "labkey", en: [["hunterN", 1, 2], ["sci", 1, 2]], dark: 1 },
+    { n: "Ярус −5: реактор", cont: ["labdesk", "vault"], en: [["swamper", 1, 1], ["crys", 1, 2]], anom: 3, dark: 1 },
+    { n: "Ярус −6: колыбель", cont: ["vault", "vault"], en: [["abyss", 1, 1]], dark: 1 }
+  ]
+};
+LOCS.nii.links.depths = 15;
+const _canTravelD = canTravel;
+canTravel = function(to) {
+  if (to === "depths" && !G.w.flags.guard_dead) return "🕳️ Шахта лифта под НИИ завалена. Сначала одолей Стража Аппарата.";
+  return _canTravelD.apply(this, arguments);
+};
+const _extMigrateDp = extMigrate;
+extMigrate = function() {
+  _extMigrateDp.apply(this, arguments);
+  if (!G.w.locs.depths) G.w.locs.depths = { seen: false, rooms: LOCS.depths.rooms.map(() => ({ cont: {}, en: [], enAt: -1e9, an: null, art: null, ground: [], aware: true, fixed: false })), kills: 0 };
+};
+const _onKillAbyss = onKill;
+onKill = function(e) {
+  const r = _onKillAbyss.apply(this, arguments);
+  if (e.id === "abyss") {
+    diaryAdd("🦑 одолел Обитателя Глубин на дне НИИ");
+    setTimeout(() => UI.event({ title: "🦑 Колыбель затихла", cls: "good", text: "Обитатель Глубин повержен. В его логове — Камень Глубин и сейфы с лучшим лутом острова. Через двое суток здесь снова заведётся что-то страшное.", choices: [{ t: "Отлично" }] }), 0);
+  }
+  return r;
+};

@@ -542,6 +542,34 @@ const ART = /* @__PURE__ */ (() => {
       R(50, hz + 14, 3, 14, "#6a6a6a");
       R(46, hz + 12, 11, 3, "#c8302a");
     },
+    depths(f, t, r) {
+      const hz = f.hz;
+      R(0, 0, W, HH, "#14181c");
+      for (let x = 0; x < W; x += 24) {
+        R(x, 0, 2, HH, "#20262c");
+      }
+      R(0, hz + 14, W, HH - hz - 14, "#1c2024");
+      for (let x = 0; x < W; x += 8) R(x, hz + 14, 4, 1, "#2a3036");
+      tri(60, hz + 14, 96, hz - 30, 132, hz + 14, "#0c0e10");
+      R(84, hz - 20, 24, 34, "#08090a");
+      for (let i = 0; i < 5; i++) {
+        const x = 16 + i * 40, on = (t + i * 5) % 30 > 4;
+        R(x, 6, 8, 3, on ? "#ff5a3a" : "#4a1a12");
+        if (on) {
+          g.globalAlpha = 0.15;
+          disc(x + 4, 10, 14, "#ff5a3a");
+          g.globalAlpha = 1;
+        }
+      }
+      const pul = 0.2 + 0.15 * Math.sin(t / 5);
+      g.globalAlpha = pul;
+      disc(96, hz + 6, 18, "#7ad8ff");
+      g.globalAlpha = 1;
+      sparks(t, r, "#7ad8ff");
+      R(20, hz + 4, 14, 10, "#2a2e34");
+      R(150, hz, 20, 14, "#2a2e34");
+      R(154, hz + 3, 12, 4, "#4a6a7a");
+    },
     nii(f, t, r) {
       const hz = f.hz;
       ground(hz + 4, "#4a4a46", "#58584f");
