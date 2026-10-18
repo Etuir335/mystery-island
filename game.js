@@ -1269,3 +1269,29 @@ function apparatus(choice) {
   save();
   UI.ending(choice, { name: c.name, days, kills: c.kills });
 }
+
+// ---------- ежедневная награда (реальные сутки, серия до 7 дней) ----------
+const DAILY = [
+  { t: 'консервы', it: [['canned', 1]] },
+  { t: 'бинт и чистая вода', it: [['bandage', 1], ['water', 1]] },
+  { t: 'копчёная рыба и тряпки', it: [['smoked', 2], ['rag', 2]] },
+  { t: 'обезболивающее и гвозди', it: [['painkill', 1], ['nails', 10]] },
+  { t: 'батарейка и металлолом', it: [['battery', 1], ['scrap', 2]] },
+  { t: 'патроны и консервы', it: [['a9', 6], ['canned', 1]] },
+  { t: 'антибиотики, патроны 12 кал. и 30₽', it: [['antibio', 1], ['a12', 4]], money: 30 },
+];
+function dailyBonus() {
+  if (!G || G.dead) return;
+  const key = 'moti3_daily', today = new Date().toLocaleDateString('sv');
+  let st = {}; try { st = JSON.parse(localStorage.getItem(key)) || {}; } catch (e) {}
+  if (st.d === today) return;
+  const yest = new Date(Date.now() - 864e5).toLocaleDateString('sv');
+  const streak = st.d === yest ? (st.s || 0) + 1 : 1;
+  try { localStorage.setItem(key, JSON.stringify({ d: today, s: streak })); } catch (e) {}
+  const R = DAILY[(streak - 1) % DAILY.length];
+  for (const [id, n] of R.it) if (ITEMS[id]) invAdd(G.inv, id, n);
+  if (R.money) G.money += R.money;
+  save();
+  UI.event({ title: `🎁 Ежедневная находка · день ${streak}`, text: `Утром у двери сарая кто-то оставил свёрток: ${R.t}.\n\n${streak % 7 ? `Заходи завтра — награда будет лучше (серия ${streak} из 7).` : 'Неделя без пропусков! Завтра серия начнётся заново.'}`, choices: [{ t: 'Забрать' }] });
+  if (window.SFX) SFX.play('pickup');
+}

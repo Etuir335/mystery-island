@@ -569,7 +569,7 @@ const UI = (() => {
       const had = load();
       if (!(had && G.coop && G.coop.code === inv)) { jsel.code = inv; jsel.name = had && !G.dead ? G.ch.name : String((TGA.user && TGA.user.first_name) || '').slice(0, 24); return joinScreen(); }
     }
-    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); } }
+    if (load()) { if (G.dead) deathScreen(G.w.deaths[G.w.deaths.length - 1] || {}); else { render(); if (G.coop) COOP.init(); setTimeout(dailyBonus, 400); } }
     else startScreen();
   }
   return { run, mrun, log, toast, render, go, event, combat, closeCombat, horde, lockMenu, deathScreen, ending, boot, startScreen,
