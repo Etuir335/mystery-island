@@ -2737,6 +2737,11 @@ function workTick(st) {
   if (!worldAuth() || !G.w.npcs || !G.w.npcs.length) return;
   let changed = false;
   for (const n of G.w.npcs) {
+    if (n.exp) continue;
+    if (n.role === "crafter" && npcRepairTick(n, st)) {
+      changed = true;
+      continue;
+    }
     if (!WORKERS[n.role]) continue;
     if (n.role === "cook" && !n.q) n.q = [{ t: "auto" }];
     if (!n.q || !n.q.length) continue;
@@ -2878,7 +2883,8 @@ function workPanel() {
       }).join(""), "</div>") : "";
       body += '<div class="acts">'.concat(b("➕ Заказ", () => orderMenu(n.id), "sm pri")).concat(b("Сменить занятие", () => roleMenu(n.id), "sm"), "</div>");
     } else body += '<div class="s muted">'.concat(R0.d, '</div><div class="acts">').concat(b("Сменить занятие", () => roleMenu(n.id), "sm"), "</div>");
-    h += '<div class="row wrow"><span class="ic">'.concat(R0.ic, '</span><div class="grow"><div class="sechead"><span class="t">').concat(esc2(n.name), " · ").concat(R0.n, '</span><span class="mono muted" style="font-size:12px">настроение ').concat(Math.round(n.morale), "</span></div>").concat(uiBar(n.morale, 100)).concat(body, '<div class="acts" style="justify-content:flex-end">').concat(b("Выгнать", () => dismissNpc(n.id), "sm"), "</div></div></div>");
+    if (n.exp) body = npcExpHtml(n);
+    h += '<div class="row wrow"><span class="ic">'.concat(R0.ic, '</span><div class="grow"><div class="sechead"><span class="t">').concat(esc2(n.name), " · ").concat(R0.n, '</span><span class="mono muted" style="font-size:12px">').concat(n.hp != null && n.hp < 100 ? "❤️ ".concat(Math.round(n.hp), " · ") : "", "настроение ").concat(Math.round(n.morale), "</span></div>").concat(uiBar(n.morale, 100)).concat(body).concat(npcGearHtml(n), '<div class="acts" style="justify-content:flex-end">').concat(b("Выгнать", () => dismissNpc(n.id), "sm"), "</div></div></div>");
   }
   return h + "</div></div>";
 }
@@ -3275,3 +3281,426 @@ checkSnare = function(id) {
   }
   return r;
 };
+const NSLOT = { w: { n: "Оружие / инструмент", ok: (it) => ["melee", "gun"].includes(it.c) || it.id === "rod" }, a: { n: "Броня / одежда", ok: (it) => it.c === "wear" && (it.slot === "vest" || it.slot === "body") }, b: { n: "Рюкзак", ok: (it) => it.c === "wear" && it.slot === "bag" } };
+const neq = (n) => n.eq = n.eq || {};
+const nW = (n) => neq(n).w && IT(neq(n).w.id), nA = (n) => neq(n).a && IT(neq(n).a.id);
+const durOf = (e) => e && e.dur != null && IT(e.id).dur ? e.dur / IT(e.id).dur : null;
+function wearNpc(n, k, amt) {
+  const e = neq(n)[k];
+  if (!e || e.dur == null) return;
+  e.dur = Math.max(0, e.dur - amt);
+  if (e.dur <= 0) {
+    UI.log("💥 У ".concat(n.name, " сломалось: ").concat(IT(e.id).n, "."), "warn");
+    delete n.eq[k];
+  }
+}
+function giveNpc(id, k) {
+  const n = npcBy(id);
+  if (!n || !atBase()) return UI.toast("Выдать можно только на базе.");
+  const items = G.stash.filter((e) => NSLOT[k].ok(Object.assign({ id: e.id }, IT(e.id))) && !IT(e.id).quest);
+  if (!items.length) return UI.toast("На складе нет подходящих вещей.");
+  UI.event({ title: "🎽 ".concat(n.name, ": ").concat(NSLOT[k].n), text: "Что выдать со склада?", choices: items.slice(0, 20).map((e) => {
+    const it = IT(e.id), d = durOf(e);
+    return { t: "".concat(it.ic, " ").concat(it.n).concat(it.dmg ? " · урон ".concat(it.dmg[0], "–").concat(it.dmg[1]) : "").concat(it.arm ? " · броня ".concat(it.arm) : "").concat(d != null ? " · ".concat(Math.round(d * 100), "%") : ""), fn: () => wEdit(() => {
+      const one = Object.assign({}, e, { n: 1 });
+      if ((e.n || 1) > 1) e.n -= 1;
+      else G.stash.splice(G.stash.indexOf(e), 1);
+      if (neq(n)[k]) G.stash.push(neq(n)[k]);
+      n.eq[k] = one;
+      UI.log("🎽 ".concat(n.name, " получил: ").concat(it.ic, " ").concat(it.n, "."));
+    }) };
+  }).concat([{ t: "Отмена" }]) });
+}
+function takeNpc(id, k) {
+  const n = npcBy(id);
+  if (!n || !neq(n)[k]) return;
+  if (!atBase()) return UI.toast("Забрать можно только на базе.");
+  wEdit(() => {
+    G.stash.push(n.eq[k]);
+    delete n.eq[k];
+  });
+}
+window.giveNpc = giveNpc;
+window.takeNpc = takeNpc;
+function npcGearHtml(n) {
+  if (n.exp) return "";
+  const b = UI.btn, e = neq(n);
+  return '<div class="ngear">'.concat(Object.entries(NSLOT).map(([k, S]) => {
+    const x = e[k], d = durOf(x);
+    return '<div class="ngs '.concat(d != null && d < 0.3 ? "low" : "", '"><span class="s muted">').concat(S.n, "</span><span>").concat(x ? "".concat(IT(x.id).ic, " ").concat(esc2(IT(x.id).n)).concat(d != null ? ' <span class="mono '.concat(d < 0.3 ? "bad" : "muted", '">').concat(Math.round(d * 100), "%</span>") : "") : '<span class="muted">—</span>', '</span><span class="acts">').concat(b(x ? "Сменить" : "Выдать", () => giveNpc(n.id, k), "sm")).concat(x ? b("Забрать", () => takeNpc(n.id, k), "sm") : "", "</span></div>");
+  }).join(""), '\n    <div class="acts">').concat(b("🧭 Вылазка…", () => expMenu(n.id), "sm", n.hp != null && n.hp < 60)).concat(n.hp != null && n.hp < 60 ? '<span class="s warn">ранен — отлёживается</span>' : "", "</div></div>");
+}
+function npcRepairTick(m, st) {
+  const need = npcs().filter((x2) => !x2.exp).map((x2) => [x2, neq(x2).w]).find(([, e2]) => e2 && durOf(e2) != null && durOf(e2) < 0.4);
+  if (!need) return false;
+  const [x, e] = need, it = IT(e.id), useTape = cnt(G.stash, "tape") > 0, useScrap = !useTape && cnt(G.stash, "scrap") >= 2;
+  if (!useTape && !useScrap) {
+    m.now = "ждёт: скотч или металлолом — починить ".concat(it.n, " (").concat(x.name, ")");
+    return false;
+  }
+  m.wt = Math.min(240, (m.wt || 0) + st * 0.5);
+  m.now = "чинит: ".concat(it.n, " (").concat(x.name, ")");
+  if (m.wt < 20) return true;
+  m.wt -= 20;
+  if (useTape) take(G.stash, "tape", 1);
+  else take(G.stash, "scrap", 2);
+  e.dur = Math.min(it.dur, e.dur + it.dur * (useTape ? 0.25 : 0.4));
+  m.today = m.today || {};
+  m.today[e.id] = m.today[e.id] || 0;
+  UI.log("🔧 ".concat(m.name, " подлатал ").concat(it.n, " для ").concat(x.name, " (").concat(Math.round(durOf(e) * 100), "%)."), "dim");
+  return true;
+}
+const _npcDailyG = npcDaily;
+npcDaily = function() {
+  const away = npcs().filter((n) => n.exp);
+  away.forEach((n) => {
+    n._r = n.role;
+    n.role = "_away";
+  });
+  _npcDailyG.apply(this, arguments);
+  away.forEach((n) => {
+    n.role = n._r;
+    delete n._r;
+  });
+  const out = [], med = npcs().some((n) => n.role === "medic" && !n.exp);
+  for (const n of npcs()) {
+    if (n.hp != null && n.hp < 100) n.hp = Math.min(100, n.hp + (med ? 30 : 15));
+    if (n.exp) continue;
+    const w = nW(n), win = season() === 1;
+    if (n.role === "forager" && w && w.chop) {
+      const k = R(2, 3);
+      invAdd(G.stash, "wood", k);
+      wearNpc(n, "w", 3);
+      out.push("🪓 ".concat(n.name, ": дрова ×").concat(k));
+    } else if (n.role === "forager" && w && w.c === "melee" && !win) {
+      const id = pick(["herbs", "berries", "mushroom"]);
+      invAdd(G.stash, id, 1);
+      wearNpc(n, "w", 1);
+      out.push("🔪 ".concat(n.name, ": ").concat(IT(id).ic));
+    }
+    if (n.role === "hunter" && w) {
+      if (w.c === "gun" && cnt(G.stash, w.ammo)) {
+        take(G.stash, w.ammo, Math.min(cnt(G.stash, w.ammo), R(1, 2)));
+        if (ch(0.75)) {
+          const k = R(2, 3);
+          invAdd(G.stash, "meat", k);
+          out.push("🔫 ".concat(n.name, ": мясо ×").concat(k));
+        }
+      } else if (w.c === "melee" && ch(0.35)) {
+        invAdd(G.stash, "meat", 1);
+        wearNpc(n, "w", 3);
+        out.push("🗡️ ".concat(n.name, ": мясо ×1"));
+      }
+    }
+    if (n.role === "fisher" && w && w.id === "rod") {
+      const k = win ? 1 : R(1, 2);
+      invAdd(G.stash, "fish", k);
+      out.push("🎣 ".concat(n.name, " с удочкой: рыба ×").concat(k));
+    }
+  }
+  if (out.length) UI.log("🎽 Снаряжение помогло: " + out.join(" · "), "sys");
+};
+const _defenseG = defense;
+defense = function() {
+  let d = _defenseG.apply(this, arguments);
+  for (const n of npcs()) if (n.role === "guard" && !n.exp) {
+    const w = nW(n), a = nA(n);
+    if (w && w.dmg) d += Math.round((w.dmg[0] + w.dmg[1]) / 4) + (w.c === "gun" && cnt(G.stash, w.ammo) ? 4 : 0);
+    if (a && a.arm) d += a.arm * 2;
+  }
+  return d;
+};
+const TACT = {
+  careful: { n: "🐢 Осторожно", loot: 0.4, risk: 0.35, retreat: 70, rooms: [1, 1], die: false, d: "мало лута, почти без риска, уходит при первых ранах" },
+  normal: { n: "🚶 Обычно", loot: 0.6, risk: 0.7, retreat: 45, rooms: [1, 2], die: false, d: "обычно; при серьёзных ранах отступает" },
+  bold: { n: "🔥 Смело", loot: 0.7, risk: 1.2, retreat: 20, rooms: [2, 4], die: true, d: "много лута, но может погибнуть" }
+};
+function npcPower(n, ammo) {
+  const w = nW(n), a = nA(n);
+  let p = 1 + (n.role === "guard" ? 0.6 : n.role === "hunter" ? 0.3 : 0);
+  if (w && w.dmg) p += (w.dmg[0] + w.dmg[1]) / 2 / (w.c === "gun" ? ammo ? 7 : 30 : 10);
+  if (a && a.arm) p += a.arm * 0.25;
+  return p;
+}
+function expTargets() {
+  return Object.keys(LOCS).filter((id) => id !== "base" && G.w.locs[id] && G.w.locs[id].seen && !(LOCS[id].ch2 && !CH2()) && LOCS[id].rooms && LOCS[id].rooms.length && route("base", id));
+}
+function expSim(n, loc, tac, rnd, ammo) {
+  const L2 = LOCS[loc], T = TACT[tac], P = npcPower(n, ammo > 0), thr = (L2.dg || 0) * 1.5 + 0.5;
+  const rr = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  let hp = n.hp == null ? 100 : n.hp, fights = 0, used = 0;
+  const loot = [];
+  const rooms = L2.rooms.filter((r) => !r.lock && !r.final && (r.cont || []).length);
+  const nRooms = Math.min(rooms.length, rr(T.rooms[0], T.rooms[1]));
+  const order = rooms.slice().sort(() => rnd() - 0.5).slice(0, nRooms);
+  let searched = 0, retreated = false;
+  for (const r of order) {
+    const hasEn = (r.en || []).some((e) => e[2] > 0);
+    if (hasEn && rnd() < Math.min(0.9, 0.25 + (L2.dg || 0) * 0.15)) {
+      fights++;
+      if (ammo > used) used += rr(1, 3);
+      const dmg = Math.max(0, (6 + rnd() * 14) * thr * 2 / npcPowerAmmo(n, ammo - used) * T.risk);
+      hp -= dmg;
+      if (hp <= 0) {
+        if (T.die) return { dead: true, loot: [], fights, used, searched };
+        hp = 5;
+        retreated = true;
+        break;
+      }
+      if (hp < T.retreat) {
+        retreated = true;
+      }
+    }
+    for (const ct of r.cont) {
+      const C = CONT[ct];
+      if (!C) continue;
+      let k = Math.floor(rr(C.roll[0], C.roll[1]) * T.loot + rnd() * 0.7);
+      for (let i = 0; i < k; i++) {
+        let tot = C.loot.reduce((a, x2) => a + x2[1], 0), x = rnd() * tot;
+        for (const [id, wt] of C.loot) {
+          x -= wt;
+          if (x <= 0) {
+            loot.push(id);
+            break;
+          }
+        }
+      }
+    }
+    searched++;
+    if (retreated) break;
+  }
+  return { dead: false, hp: Math.max(5, Math.round(hp)), loot, fights, used: Math.min(used, ammo), searched, retreated };
+}
+const npcPowerAmmo = (n, a) => npcPower(n, a > 0);
+function expRisk(n, loc, tac) {
+  const w = nW(n), ammo = w && w.c === "gun" ? Math.min(12, cnt(G.stash, w.ammo)) : 0;
+  let dead = 0, hurt = 0, items = 0;
+  const N = 300;
+  for (let i = 0; i < N; i++) {
+    const r = expSim(n, loc, tac, Math.random, ammo);
+    if (r.dead) dead++;
+    else {
+      if (r.hp < 60) hurt++;
+      items += r.loot.length;
+    }
+  }
+  return { dead: dead / N, hurt: hurt / N, items: items / Math.max(1, N - dead) };
+}
+function expMenu(id) {
+  const n = npcBy(id);
+  if (!n) return;
+  if (!atBase()) return UI.toast("Отправить на вылазку можно только с базы.");
+  const ts = expTargets();
+  if (!ts.length) return UI.toast("Сначала разведай места на карте.");
+  UI.event({ title: "🧭 ".concat(n.name, ": куда идти?"), text: "Сила: ".concat(npcPower(n, true).toFixed(1), " (оружие, броня, занятие). Чем опаснее место, тем больше риск."), choices: ts.map((l) => ({ t: "".concat(LOCS[l].ic, " ").concat(LOCS[l].n, " · ").concat(["безопасно", "низкая", "средняя", "высокая"][LOCS[l].dg || 0] || "высокая", " опасность · ~").concat(Math.round(route("base", l).mins * 2 / 60 + 2), " ч"), fn: () => setTimeout(() => tactMenu(id, l), 0) })).concat([{ t: "Отмена" }]) });
+}
+function tactMenu(id, loc) {
+  const n = npcBy(id);
+  if (!n) return;
+  const ch0 = Object.entries(TACT).map(([k, T]) => {
+    const r = expRisk(n, loc, k);
+    return { t: "".concat(T.n, " — ~").concat(r.items.toFixed(1), " вещей · ранен ").concat(Math.round(r.hurt * 100), "%").concat(r.dead ? " · гибель ".concat(Math.max(1, Math.round(r.dead * 100)), "%") : ""), fn: () => expGo(id, loc, k) };
+  });
+  UI.event({ title: "🧭 ".concat(LOCS[loc].ic, " ").concat(LOCS[loc].n), text: Object.values(TACT).map((T) => "".concat(T.n, ": ").concat(T.d)).join("\n") + "\n\nЦифры — прикидка по 300 пробным вылазкам.", choices: ch0.concat([{ t: "Отмена" }]) });
+}
+function expGo(id, loc, tac) {
+  const n = npcBy(id);
+  if (!n || n.exp) return;
+  const w = nW(n);
+  let ammo = 0;
+  if (w && w.c === "gun") {
+    ammo = Math.min(12, cnt(G.stash, w.ammo));
+    if (ammo) take(G.stash, w.ammo, ammo);
+  }
+  const mins = route("base", loc).mins * 2 + 120;
+  wEdit(() => {
+    n.exp = { loc, tac, at: G.time, until: G.time + mins, ammo };
+  });
+  UI.log("🧭 ".concat(n.name, " ушёл на вылазку: ").concat(LOCS[loc].ic, " ").concat(LOCS[loc].n, " (").concat(TACT[tac].n, "). Вернётся через ~").concat(Math.round(mins / 60), " ч."), "good");
+}
+window.expMenu = expMenu;
+function expTick() {
+  if (!worldAuth()) return;
+  for (const n of npcs().slice()) {
+    const x = n.exp;
+    if (!x || G.time < x.until) continue;
+    const r = expSim(n, x.loc, x.tac, Math.random, x.ammo || 0), w = nW(n);
+    delete n.exp;
+    if (r.dead) {
+      npcs().splice(npcs().indexOf(n), 1);
+      UI.log("⚰️ ".concat(n.name, " не вернулся с вылазки (").concat(LOCS[x.loc].n, "). Снаряжение потеряно."), "bad");
+      FEED("⚰️ житель ".concat(n.name, " погиб на вылазке"));
+      try {
+        SND("death");
+      } catch (e) {
+      }
+      continue;
+    }
+    n.hp = r.hp;
+    if (w && w.c === "gun" && x.ammo) {
+      const left = Math.max(0, x.ammo - r.used);
+      if (left) invAdd(G.stash, w.ammo, left);
+    }
+    if (w && w.c === "melee") wearNpc(n, "w", r.fights * R(3, 8));
+    const got = {};
+    for (const id of r.loot) {
+      invAdd(G.stash, id, IT(id).c === "ammo" ? R(3, 8) : 1);
+      got[id] = (got[id] || 0) + 1;
+    }
+    const txt = Object.entries(got).map(([k, v]) => "".concat(IT(k).ic).concat(v > 1 ? "×" + v : "")).join(" ") || "ничего";
+    UI.log("🧭 ".concat(n.name, " вернулся с вылазки (").concat(LOCS[x.loc].n, "): ").concat(txt, ".").concat(r.fights ? " Стычек: ".concat(r.fights, ".") : "").concat(r.retreated ? " Пришлось отступить." : "").concat(n.hp < 60 ? " Ранен — несколько дней отлёживается." : ""), n.hp < 60 ? "warn" : "good");
+    try {
+      SND("notify");
+    } catch (e) {
+    }
+  }
+}
+function npcExpHtml(n) {
+  const x = n.exp, left = Math.max(0, x.until - G.time);
+  return '<div class="wnow">🧭 На вылазке: '.concat(LOCS[x.loc].ic, " ").concat(LOCS[x.loc].n, " · ").concat(TACT[x.tac].n, '</div><div class="s muted">Вернётся через ~').concat(left >= 60 ? Math.round(left / 6) / 10 + " ч" : left + " мин").concat(x.ammo ? " · взял патронов: ".concat(x.ammo) : "", "</div>");
+}
+const _tickExp = tick;
+tick = function(st, o) {
+  _tickExp.apply(this, arguments);
+  try {
+    if (G && !G.dead) expTick();
+  } catch (e) {
+    console.warn(e);
+  }
+};
+const _sideWarnN = sideWarnings;
+sideWarnings = function() {
+  const w = _sideWarnN.apply(this, arguments);
+  for (const n of npcs()) {
+    const e = neq(n).w, d = durOf(e);
+    if (d != null && d < 0.25 && !cnt(G.stash, "tape") && cnt(G.stash, "scrap") < 2) w.push('<div class="ln warn">🔧 '.concat(cesc(n.name), ": ").concat(cesc(IT(e.id).n), " ").concat(Math.round(d * 100), "% — нечем чинить (скотч/металлолом)</div>"));
+  }
+  for (const n of npcs()) if (n.exp) {
+    const left = n.exp.until - G.time;
+    if (left < 60) w.push('<div class="ln">🧭 '.concat(cesc(n.name), " скоро вернётся с вылазки</div>"));
+  }
+  return w;
+};
+Object.assign(ITEMS, {
+  bow: { n: "Самодельный лук", ic: "🏹", c: "gun", w: 1, v: 60, dmg: [9, 15], ammo: "arrow", noise: 3, acc: 0.68, quiet: 1 },
+  cbow: { n: "Арбалет", ic: "🎯", c: "gun", w: 3, v: 260, dmg: [16, 25], ammo: "xbolt", noise: 4, acc: 0.8, quiet: 1 },
+  arrow: { n: "Стрелы", ic: "🪶", c: "ammo", w: 0.03, v: 2 },
+  xbolt: { n: "Арбалетные болты", ic: "🔸", c: "ammo", w: 0.05, v: 4 },
+  pipe: { n: "Стальная труба", ic: "🔧", c: "melee", w: 1.5, v: 15, dmg: [7, 11], dur: 120, noise: 6, push: 1 },
+  hammer: { n: "Молоток", ic: "🔨", c: "melee", w: 0.8, v: 15, dmg: [6, 10], dur: 90, noise: 5 },
+  knuckles: { n: "Кастет", ic: "🥊", c: "melee", w: 0.3, v: 25, dmg: [6, 9], dur: 220, noise: 2 },
+  fireaxe: { n: "Пожарный топор", ic: "🪓", c: "melee", w: 2.4, v: 90, dmg: [14, 21], dur: 120, noise: 7, chop: 1, pry: 1 }
+});
+RECIPES.push(
+  { id: "bow", n: "Самодельный лук", need: { stick: 2, rope: 1 }, out: { bow: 1 }, t: 40 },
+  { id: "arrow", n: "Стрелы (×6)", need: { stick: 1, scrap: 1 }, out: { arrow: 6 }, t: 20 },
+  { id: "cbow", n: "Арбалет", need: { planks: 2, wire: 2, rope: 1, scrap: 2 }, out: { cbow: 1 }, st: "bench", t: 60 },
+  { id: "xbolt", n: "Арбалетные болты (×6)", need: { scrap: 1, wood: 1 }, out: { xbolt: 6 }, st: "bench", t: 20 },
+  { id: "knuckles", n: "Кастет", need: { scrap: 2 }, out: { knuckles: 1 }, st: "bench", t: 25 }
+);
+const addLoot2 = (ct, list) => {
+  if (CONT[ct]) CONT[ct].loot.push(...list);
+};
+addLoot2("shed", [["pipe", 2], ["hammer", 2], ["fireaxe", 1]]);
+addLoot2("toolbox", [["hammer", 3], ["pipe", 1]]);
+addLoot2("car", [["pipe", 1], ["fireaxe", 1]]);
+addLoot2("tent", [["bow", 1], ["arrow", 2]]);
+addLoot2("backpack", [["arrow", 1], ["knuckles", 1]]);
+addLoot2("milcrate", [["xbolt", 1]]);
+addLoot2("armory", [["cbow", 1], ["xbolt", 2]]);
+Object.assign(SALVAGE, { pipe: { scrap: 2 }, hammer: { scrap: 1, wood: 1 }, knuckles: { scrap: 1 }, fireaxe: { scrap: 2, wood: 1 }, bow: { stick: 1, rope: 1 }, cbow: { wire: 1, scrap: 1, planks: 1 } });
+const _pShootA = pShoot;
+pShoot = function(i) {
+  const w = curWeapon(), cb = G.combat, a0 = w && w.quiet ? cnt(G.inv, w.ammo) : 0;
+  const r = _pShootA.apply(this, arguments);
+  if (w && w.quiet && cb) {
+    const used = a0 - cnt(G.inv, w.ammo);
+    if (used > 0) {
+      cb._ammo = cb._ammo || {};
+      cb._ammo[w.ammo] = (cb._ammo[w.ammo] || 0) + used;
+    }
+  }
+  return r;
+};
+const _endCombatA = endCombat;
+endCombat = function(res) {
+  const cb = G.combat, r = _endCombatA.apply(this, arguments);
+  if (cb && cb._ammo && res === "win") {
+    const got = [];
+    for (const [id, n] of Object.entries(cb._ammo)) {
+      const k = Math.round(n * (0.4 + Math.random() * 0.3));
+      if (k) {
+        invAdd(G.inv, id, k);
+        got.push("".concat(IT(id).ic, " ").concat(IT(id).n, " ×").concat(k));
+      }
+    }
+    if (got.length) UI.log("🏹 Подобрал после боя: ".concat(got.join(", "), "."), "dim");
+  }
+  return r;
+};
+const ITEM_DESC = {
+  ak: "Автомат Калашникова. Мощный и точный, но громкий — на выстрелы сбегаются.",
+  pm: "Пистолет Макарова. Лёгкий и надёжный, урон средний.",
+  sawn: "Обрез двустволки. Бьёт дробью по двум целям вблизи, очень громкий.",
+  bow: "Тихое оружие: почти не шумит. Часть стрел можно подобрать после боя.",
+  cbow: "Тихий и мощный. Часть болтов можно подобрать после боя.",
+  stick: "Лучше, чем ничего. Быстро ломается.",
+  knife: "Тихий, но слабый. Годится и для разделки.",
+  crowbar: "Открывает запертые двери и ящики.",
+  axe: "Хорошее оружие и инструмент: рубит дрова.",
+  fireaxe: "Тяжёлый: рубит дрова и вскрывает двери.",
+  machete: "Быстрое и тихое лезвие.",
+  bat: "Отталкивает врага.",
+  pipe: "Крепкая, почти не ломается, отталкивает.",
+  knuckles: "Тихий и почти вечный, но урон небольшой.",
+  gasmask: "Защищает от радиации и газа в аномалиях.",
+  vest: "Сильно снижает урон, но тяжёлый.",
+  bag1: "Маленький рюкзак.",
+  bag2: "Средний рюкзак.",
+  bag3: "Большой военный рюкзак.",
+  bandage: "Останавливает кровотечение. Чистый — без риска заражения.",
+  dband: "Останавливает кровь, но грязный: рана может воспалиться. Прокипяти на огне.",
+  antibio: "Лечит воспаление ран и лихорадку.",
+  painkill: "Снимает боль на время.",
+  medkit: "Перевязка и обработка сразу.",
+  antirad: "Выводит радиацию.",
+  serum: "Единственное лекарство от вируса после укуса.",
+  rod: "Нужна для рыбалки.",
+  flash: "Свет в тёмных помещениях — больше находок ночью.",
+  lighter: "Разжечь костёр.",
+  picks: "Вскрыть замок без шума.",
+  detector: "Находит артефакты в аномалиях.",
+  tools: "Нужен для мастерской и ремонта."
+};
+const MED_TXT = { band: "останавливает кровотечение", disinf: "обрабатывает рану от заражения", antibio: "лечит инфекцию и лихорадку", pain: "снимает боль", splint: "фиксирует перелом", kit: "перевязка и обработка сразу", antirad: "выводит радиацию", cold: "лечит простуду", serum: "лечит вирус" };
+function itemDesc(e) {
+  const it = IT(e.id), p = [];
+  const base = ITEM_DESC[e.id] || it.d || "";
+  if (base && it.c !== "art") p.push(base);
+  if (it.c === "gun") {
+    const A = IT(it.ammo), inv = cnt(G.inv, it.ammo), st = cnt(G.stash, it.ammo);
+    p.push("<b>Патроны: ".concat(A.ic, " ").concat(A.n, "</b> — в рюкзаке ").concat(inv).concat(atBase() || G.coop ? ", на складе ".concat(st) : "", "."));
+    p.push("Урон ".concat(it.dmg[0], "–").concat(it.dmg[1], ", точность ~").concat(Math.round(it.acc * 100), "%, шум: ").concat(it.noise >= 30 ? "очень громко" : it.noise >= 10 ? "громко" : "тихо", ".").concat(it.spread ? " Задевает до ".concat(it.spread, " врагов рядом.") : ""));
+  }
+  if (it.c === "ammo") {
+    const guns = Object.keys(ITEMS).filter((k) => ITEMS[k].ammo === e.id).map((k) => "".concat(ITEMS[k].ic, " ").concat(ITEMS[k].n));
+    if (guns.length) p.push("<b>Подходит к:</b> ".concat(guns.join(", "), "."));
+  }
+  if (it.c === "melee") p.push("Урон ".concat(it.dmg[0], "–").concat(it.dmg[1]).concat(it.dur ? ", прочность ".concat(it.dur) : "", ", шум: ").concat(it.noise >= 6 ? "заметный" : "тихо", ".").concat(it.chop ? " Рубит дрова." : "").concat(it.pry ? " Вскрывает двери." : "").concat(it.push ? " Отталкивает." : "").concat(it.reach ? " Бьёт издалека." : ""));
+  if (it.c === "wear") {
+    const sl = { body: "одежда", vest: "бронежилет", bag: "рюкзак", mask: "маска" }[it.slot] || it.slot;
+    p.push("Слот: ".concat(sl, ".").concat(it.arm ? " Броня +".concat(it.arm, ".") : "").concat(it.warm ? " Тепло +".concat(it.warm, ".") : "").concat(it.cap ? " Вместимость +".concat(it.cap, " кг.") : "").concat(it.radp ? " Радиация −".concat(Math.round(it.radp * 100), "%.") : ""));
+  }
+  if (it.c === "med" && MED_TXT[it.med]) p.push("Действие: ".concat(MED_TXT[it.med], ".").concat(it.uses ? " Хватает на ".concat(it.uses, " раз(а).") : ""));
+  if ((it.c === "food" || it.c === "drink") && (it.f || it.d)) p.push("".concat(it.f ? "Сытость +".concat(it.f, ". ") : "").concat(it.d ? "Вода +".concat(it.d, ". ") : "").concat(it.sp ? "Портится примерно за ".concat(Math.round(it.sp / 24 * 10) / 10, " сут.") : "Не портится.").concat(it.raw ? " Сырое — лучше приготовить." : "").concat(it.salt ? " Солёная — пить нельзя." : ""));
+  if (it.c === "mod" && it.mod) p.push("Модуль для ".concat(it.mod.gun ? "огнестрела" : "холодного оружия", ". Ставится кнопкой у предмета."));
+  if (["mat", "tool", "ammo"].includes(it.c) || it.c === "food") {
+    const uses = RECIPES.filter((r) => r.need[e.id]).map((r) => r.n);
+    const sts = Object.values(STRUCT).filter((S) => S.lv && S.lv.some((l) => l.c && l.c[e.id])).map((S) => S.n);
+    const all = uses.concat(sts.map((s) => "постройка: " + s));
+    if (all.length) p.push("<b>Нужно для:</b> ".concat(all.slice(0, 6).join(", ")).concat(all.length > 6 ? " и ещё ".concat(all.length - 6) : "", "."));
+  }
+  if (typeof salvageBase === "function" && salvageBase(e.id)) p.push("Можно разобрать на материалы.");
+  return p.join("<br>");
+}
+CUI.itemDesc = itemDesc;

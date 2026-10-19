@@ -406,7 +406,7 @@ const UI = /* @__PURE__ */ (() => {
     if (it.f || it.d) p.push("".concat(it.f ? "🍗+" + it.f : "", " ").concat(it.d ? "💧+" + it.d : "").trim());
     if (it.raw) p.push('<span class="warn">лучше приготовить</span>');
     if (it.dmg) p.push("урон ".concat(it.dmg[0], "–").concat(it.dmg[1]));
-    if (it.c === "gun") p.push("патроны: ".concat(cnt(G.inv, it.ammo)));
+    if (it.c === "gun") p.push("".concat(IT(it.ammo).ic, " ").concat(IT(it.ammo).n, ": ").concat(cnt(G.inv, it.ammo)));
     if (it.arm) p.push("броня +".concat(it.arm));
     if (it.warm) p.push("тепло +".concat(it.warm));
     if (it.cap) p.push("+".concat(it.cap, " кг"));
@@ -460,7 +460,7 @@ const UI = /* @__PURE__ */ (() => {
       }
       if (so === "cat" && fold[where + ":" + lastCat]) return;
       const open = st.open === key;
-      h += '<div class="row" style="flex-wrap:wrap">'.concat(ART.tile(e.id), '<div class="grow" onclick="').concat(a(() => st.open = open ? null : key), '" style="cursor:pointer"><span class="t">').concat(esc(it.n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">').concat(itemSub(e), "</span></div>").concat(st.xfer && atBase() && !open ? where === "stash" ? btn("⬆️ Взять", () => fromStash(e), "sm pri") + (e.n > 1 ? btn("1", () => fromStash(e, 1), "sm") : "") : btn("⬇️ На склад", () => toStash(e), "sm pri") + (e.n > 1 ? btn("1", () => toStash(e, 1), "sm") : "") : "").concat(open ? '<div class="acts" style="width:100%">'.concat(itemActs(e, where), "</div>") : '<button class="btn sm" onclick="'.concat(a(() => st.open = key), '">⋯</button>'), "</div>");
+      h += '<div class="row" style="flex-wrap:wrap">'.concat(ART.tile(e.id), '<div class="grow" onclick="').concat(a(() => st.open = open ? null : key), '" style="cursor:pointer"><span class="t">').concat(esc(it.n)).concat(e.n > 1 ? " ×" + e.n : "", '</span><span class="s">').concat(itemSub(e), "</span></div>").concat(st.xfer && atBase() && !open ? where === "stash" ? btn("⬆️ Взять", () => fromStash(e), "sm pri") + (e.n > 1 ? btn("1", () => fromStash(e, 1), "sm") : "") : btn("⬇️ На склад", () => toStash(e), "sm pri") + (e.n > 1 ? btn("1", () => toStash(e, 1), "sm") : "") : "").concat(open ? "".concat(typeof CUI !== "undefined" && CUI.itemDesc ? '<div class="idesc">'.concat(CUI.itemDesc(e), "</div>") : "", '<div class="acts" style="width:100%">').concat(itemActs(e, where), "</div>") : '<button class="btn sm" onclick="'.concat(a(() => st.open = key), '">⋯</button>'), "</div>");
     });
     return h || '<p class="muted">Пусто.</p>';
   }
