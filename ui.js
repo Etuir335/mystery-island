@@ -1054,10 +1054,19 @@ const UI = /* @__PURE__ */ (() => {
     $("modal").innerHTML = '<div class="overlay"><div class="sheet bad" role="dialog" aria-modal="true"><h2>🌕 Кровавая ночь</h2>'.concat(body, "</div></div>");
   }
   function showFull(html) {
+    const old = $("modal").querySelector(".full"), oldT = old && (old.querySelector(".title") || {}).textContent, sc = old ? [old.scrollTop, (old.querySelector(".inner") || {}).scrollTop || 0, window.scrollY || 0] : null;
     full = true;
     MACT = [];
-    $("modal").innerHTML = '<div class="full"><div class="inner">'.concat(html(), "</div></div>");
+    const h = html();
+    $("modal").innerHTML = '<div class="full"><div class="inner">'.concat(h, "</div></div>");
     ART.paintAll($("modal"));
+    const nw = $("modal").querySelector(".full");
+    if (sc && nw && (nw.querySelector(".title") || {}).textContent === oldT) {
+      nw.scrollTop = sc[0];
+      const inr = nw.querySelector(".inner");
+      if (inr) inr.scrollTop = sc[1];
+      if (sc[2]) window.scrollTo(0, sc[2]);
+    }
   }
   function closeFull() {
     full = null;
