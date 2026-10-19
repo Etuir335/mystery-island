@@ -2203,13 +2203,20 @@ const UIP = (() => {
   }
   return Object.assign({ emoji: true, dens: "normal", log: 2, sides: true, art: "big", swipe: true }, p);
 })();
-function uiWide() {
-  return typeof window !== "undefined" && window.innerWidth >= 1130 && UIP.sides !== false;
+function wideFits() {
+  if (typeof window === "undefined") return false;
+  const w = window.innerWidth, h = window.innerHeight;
+  return w >= 1130 || w >= 640 && w > h * 1.25;
 }
+function uiWide() {
+  return wideFits() && UIP.sides !== false;
+}
+const uiCompact = () => uiWide() && window.innerWidth < 1130;
 function uiApply() {
   if (typeof document === "undefined") return;
   const r = document.documentElement.classList;
   r.toggle("wide", uiWide());
+  r.toggle("cmp", uiCompact());
   r.toggle("noemoji", UIP.emoji === false);
   r.toggle("dens-simple", UIP.dens === "simple");
   r.toggle("dens-detailed", UIP.dens === "detailed");
@@ -2296,7 +2303,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 function uiSettingsHtml() {
   const opt = (k, list) => '<div class="toggle">'.concat(list.map(([v, n]) => '<button class="'.concat(UIP[k] === v ? "on" : "", "\" onclick='setUi(").concat(JSON.stringify(k), ", ").concat(JSON.stringify(v), ")'>").concat(n, "</button>")).join(""), "</div>");
   const row = (t, d, ctl) => '<div class="setrow"><div><b>'.concat(t, "</b>").concat(d ? '<div class="s muted">'.concat(d, "</div>") : "", "</div>").concat(ctl, "</div>");
-  const wideOk = typeof window !== "undefined" && window.innerWidth >= 1130;
+  const wideOk = wideFits();
   return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Свайпы", "Провёл пальцем влево или вправо по экрану — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал).", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n  </div></div>");
 }
 if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
@@ -2429,10 +2436,11 @@ function sideBox(P, w) {
   return b;
 }
 function sideWidth() {
-  const L2 = layGet(), max = Math.max(200, (window.innerWidth - 720) / 2 - 24), r = document.documentElement.style;
-  if (L2.wl) r.setProperty("--swl", Math.min(max, Math.max(200, L2.wl)) + "px");
+  const L2 = layGet(), max = uiCompact() ? Math.max(170, window.innerWidth * 0.36) : Math.max(200, (window.innerWidth - 720) / 2 - 24), r = document.documentElement.style;
+  const mn = uiCompact() ? 160 : 200;
+  if (L2.wl) r.setProperty("--swl", Math.min(max, Math.max(mn, L2.wl)) + "px");
   else r.removeProperty("--swl");
-  if (L2.wr) r.setProperty("--swr", Math.min(max, Math.max(200, L2.wr)) + "px");
+  if (L2.wr) r.setProperty("--swr", Math.min(max, Math.max(mn, L2.wr)) + "px");
   else r.removeProperty("--swr");
 }
 window.sideCol = (id) => {
@@ -2513,8 +2521,9 @@ window.sideDrop = (ev, target, sideHint) => {
 window.sideGrip = (ev, w) => {
   ev.preventDefault();
   const L2 = layGet(), P = document.getElementById(w === "l" ? "sideL" : "sideR"), x0 = ev.clientX, w0 = P.getBoundingClientRect().width;
+  const inv = uiCompact() ? -1 : 1;
   const mv = (e) => {
-    const d = w === "l" ? x0 - e.clientX : e.clientX - x0;
+    const d = (w === "l" ? x0 - e.clientX : e.clientX - x0) * inv;
     L2[w === "l" ? "wl" : "wr"] = Math.round(w0 + d);
     sideWidth();
   };

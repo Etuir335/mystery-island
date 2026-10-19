@@ -1123,165 +1123,163 @@ input[type=text] {
 .side {
   display: none;
 }
-@media (min-width: 1130px) {
-  .side {
-    display: block;
-    position: fixed;
-    top: 12px;
-    bottom: 12px;
-    width: calc((100vw - 720px) / 2 - 28px);
-    max-width: 360px;
-    font-size: 13px;
-    z-index: 5;
-  }
-  #sideL {
-    width: var(--swl, calc((100vw - 720px) / 2 - 28px));
-    max-width: var(--swl, 360px);
-  }
-  #sideR {
-    width: var(--swr, calc((100vw - 720px) / 2 - 28px));
-    max-width: var(--swr, 360px);
-  }
-  .side .sidein {
-    height: 100%;
-    overflow-y: auto;
-    padding: 2px;
-    box-sizing: border-box;
-  }
-  .side .sgrip {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 8px;
-    cursor: ew-resize;
-    z-index: 2;
-  }
-  #sideL .sgrip {
-    left: -6px;
-  }
-  #sideR .sgrip {
-    right: -6px;
-  }
-  .side .sgrip:hover,
-  .side .sgrip:active {
-    background: color-mix(in srgb, var(--accent) 35%, transparent);
-    border-radius: 4px;
-  }
-  .side .card {
-    transition: opacity .15s;
-  }
-  .side .card > h3.chead {
-    display: flex;
-    align-items: center;
-    grid-gap: 6px;
-    gap: 6px;
-    cursor: grab;
-  }
-  .side .cctl {
-    margin-left: auto;
-    display: flex;
-    grid-gap: 2px;
-    gap: 2px;
-    opacity: .35;
-    transition: opacity .15s;
-    text-transform: none;
-    letter-spacing: 0;
-  }
-  .side .card:hover .cctl {
-    opacity: 1;
-  }
-  .side .cctl button {
-    background: none;
-    border: 0;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0 4px;
-    line-height: 1;
-  }
-  .side .cctl button:hover {
-    color: var(--ink);
-  }
-  .side .cctl .grip {
-    cursor: grab;
-    padding: 0 3px;
-  }
-  .side .card.col > :not(h3) {
-    display: none;
-  }
-  .side .card.col > h3 {
-    margin-bottom: 0;
-  }
-  .side .card.dragging {
-    opacity: .35;
-  }
-  .side .card.over {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-  .side .sdrop {
-    min-height: 60px;
-    border-radius: 10px;
-  }
-  .side .sdrop.over {
-    outline: 2px dashed var(--accent);
-  }
-  #sideL {
-    right: calc(50% + 374px);
-  }
-  #sideR {
-    left: calc(50% + 374px);
-  }
-  .side .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
-  }
-  .side h3 {
-    margin: 0 0 6px;
-    font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .side .ln {
-    padding: 2px 0;
-    line-height: 1.35;
-  }
-  .side .ln.good {
-    color: var(--good);
-  }
-  .side .ln.bad {
-    color: var(--bad);
-  }
-  .side .ln.warn {
-    color: var(--warn);
-  }
-  .side .tm {
-    display: flex;
-    justify-content: space-between;
-    grid-gap: 6px;
-    gap: 6px;
-    padding: 4px 0;
-    border-bottom: 1px dashed var(--line);
-  }
-  .side .tm:last-child {
-    border-bottom: 0;
-  }
-  .side .mono {
-    font-family: var(--f-mono);
-    font-size: 11px;
-    color: var(--muted);
-  }
-  .side .alert {
-    background: #b0201a;
-    color: #fff;
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin: 4px 0;
-    font-weight: 600;
-  }
+.side {
+  display: block;
+  position: fixed;
+  top: 12px;
+  bottom: 12px;
+  width: calc((100vw - 720px) / 2 - 28px);
+  max-width: 360px;
+  font-size: 13px;
+  z-index: 5;
+}
+#sideL {
+  width: var(--swl, calc((100vw - 720px) / 2 - 28px));
+  max-width: var(--swl, 360px);
+}
+#sideR {
+  width: var(--swr, calc((100vw - 720px) / 2 - 28px));
+  max-width: var(--swr, 360px);
+}
+.side .sidein {
+  height: 100%;
+  overflow-y: auto;
+  padding: 2px;
+  box-sizing: border-box;
+}
+.side .sgrip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+#sideL .sgrip {
+  left: -6px;
+}
+#sideR .sgrip {
+  right: -6px;
+}
+.side .sgrip:hover,
+.side .sgrip:active {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 4px;
+}
+.side .card {
+  transition: opacity .15s;
+}
+.side .card > h3.chead {
+  display: flex;
+  align-items: center;
+  grid-gap: 6px;
+  gap: 6px;
+  cursor: grab;
+}
+.side .cctl {
+  margin-left: auto;
+  display: flex;
+  grid-gap: 2px;
+  gap: 2px;
+  opacity: .35;
+  transition: opacity .15s;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.side .card:hover .cctl {
+  opacity: 1;
+}
+.side .cctl button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.side .cctl button:hover {
+  color: var(--ink);
+}
+.side .cctl .grip {
+  cursor: grab;
+  padding: 0 3px;
+}
+.side .card.col > :not(h3) {
+  display: none;
+}
+.side .card.col > h3 {
+  margin-bottom: 0;
+}
+.side .card.dragging {
+  opacity: .35;
+}
+.side .card.over {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.side .sdrop {
+  min-height: 60px;
+  border-radius: 10px;
+}
+.side .sdrop.over {
+  outline: 2px dashed var(--accent);
+}
+#sideL {
+  right: calc(50% + 374px);
+}
+#sideR {
+  left: calc(50% + 374px);
+}
+.side .card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.side h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.side .ln {
+  padding: 2px 0;
+  line-height: 1.35;
+}
+.side .ln.good {
+  color: var(--good);
+}
+.side .ln.bad {
+  color: var(--bad);
+}
+.side .ln.warn {
+  color: var(--warn);
+}
+.side .tm {
+  display: flex;
+  justify-content: space-between;
+  grid-gap: 6px;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.side .tm:last-child {
+  border-bottom: 0;
+}
+.side .mono {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.side .alert {
+  background: #b0201a;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  font-weight: 600;
 }
 .banner.embig {
   background: #b0201a;
@@ -1904,6 +1902,60 @@ html.art-off canvas.scene {
     }
   }
 }
+html.wide.cmp {
+  --sw: clamp(190px, 27vw, 300px);
+}
+html.wide.cmp #app {
+  max-width: none;
+  margin-left: calc(var(--swl, var(--sw)) + 18px);
+  margin-right: calc(var(--swr, var(--sw)) + 18px);
+}
+html.wide.cmp #sideL {
+  left: 8px;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: auto;
+  width: var(--swl, var(--sw));
+  max-width: none;
+}
+html.wide.cmp #sideR {
+  right: 8px;
+  right: max(8px, env(safe-area-inset-right, 0px));
+  left: auto;
+  width: var(--swr, var(--sw));
+  max-width: none;
+}
+html.wide.cmp .side {
+  top: 6px;
+  bottom: 6px;
+  font-size: 12.5px;
+}
+html.wide.cmp .side .card {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+html.wide.cmp .side .card.me .clock {
+  font-size: 22px;
+}
+html.wide.cmp #main {
+  padding-top: 8px;
+}
+html.wide.cmp #sideL .sgrip {
+  left: auto;
+  right: -6px;
+}
+html.wide.cmp #sideR .sgrip {
+  right: auto;
+  left: -6px;
+}
+html.wide.cmp #tabs button {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+html.wide.cmp:not(.art-off) canvas.scene {
+  height: 140px;
+  width: 100%;
+  object-fit: cover;
+}
 </style>
 
 </head>
@@ -1917,18 +1969,18 @@ html.art-off canvas.scene {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792395832"></script>
-<script src="game.js?v=1792395832"></script>
-<script src="ext.js?v=1792395832"></script>
-<script src="content.js?v=1792395832"></script>
-<script src="art.js?v=1792395832"></script>
-<script src="audio.js?v=1792395832"></script>
-<script src="coop.js?v=1792395832"></script>
-<script src="tg.js?v=1792395832"></script>
-<script src="fbconfig.js?v=1792395832"></script>
-<script src="fbcoop.js?v=1792395832"></script>
-<script src="sync.js?v=1792395832"></script>
-<script src="ui.js?v=1792395832"></script>
+<script src="data.js?v=1792396455"></script>
+<script src="game.js?v=1792396455"></script>
+<script src="ext.js?v=1792396455"></script>
+<script src="content.js?v=1792396455"></script>
+<script src="art.js?v=1792396455"></script>
+<script src="audio.js?v=1792396455"></script>
+<script src="coop.js?v=1792396455"></script>
+<script src="tg.js?v=1792396455"></script>
+<script src="fbconfig.js?v=1792396455"></script>
+<script src="fbcoop.js?v=1792396455"></script>
+<script src="sync.js?v=1792396455"></script>
+<script src="ui.js?v=1792396455"></script>
 
 </body>
 </html>
