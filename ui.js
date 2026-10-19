@@ -1171,6 +1171,8 @@ const UI = /* @__PURE__ */ (() => {
         toast("Скопировано");
       }
     }, "pri")).concat(mbtn("💾 Скачать файл", () => {
+      const fname = "mystery-island-slot".concat(SAVE_SLOT, "-day").concat(day(), ".json");
+      if (tgDownload(raw, fname)) return;
       try {
         const a0 = document.createElement("a");
         a0.href = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
@@ -1210,7 +1212,9 @@ const UI = /* @__PURE__ */ (() => {
   function importScreen() {
     const doImport = (txt) => {
       try {
-        const s0 = JSON.parse(String(txt || "").trim());
+        let s0 = JSON.parse(String(txt || "").trim());
+        for (let k = 0; k < 3 && typeof s0 === "string"; k++) s0 = JSON.parse(s0);
+        if (s0 && typeof s0.raw === "string") s0 = JSON.parse(s0.raw);
         if (!s0 || s0.v !== 3 || !s0.ch || !s0.w) return toast("Это не сохранение игры.");
         localStorage.setItem(SAVE_KEY, JSON.stringify(s0));
         if (load()) {
@@ -1232,6 +1236,33 @@ const UI = /* @__PURE__ */ (() => {
         rd.readAsText(f.files[0]);
       } else doImport($("impd").value);
     }, "pri")).concat(mbtn("Отмена", closeFull), "</div>"));
+  }
+  function tgDownload(raw, fname) {
+    const W = window.Telegram && Telegram.WebApp;
+    let ok = false;
+    try {
+      ok = !!(W && W.downloadFile && W.isVersionAtLeast && W.isVersionAtLeast("8.0") && W.platform && W.platform !== "unknown" && window.FB && FB.init);
+    } catch (e) {
+    }
+    if (!ok) return false;
+    toast("Готовлю файл…");
+    (async () => {
+      try {
+        await FB.init();
+        const id = "X" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase(), path = "d/sync/" + id + "/_";
+        const r = firebase.database().ref(path);
+        await r.set(raw);
+        const tok = await firebase.auth().currentUser.getIdToken();
+        const url = firebase.database().app.options.databaseURL.replace(/\/$/, "") + "/" + path + ".json?auth=" + encodeURIComponent(tok);
+        W.downloadFile({ url, file_name: fname }, (accepted) => {
+          setTimeout(() => r.remove().catch(() => {
+          }), accepted ? 12e4 : 1e3);
+        });
+      } catch (e) {
+        toast("Не получилось скачать — скопируй текст и отправь себе в «Избранное».");
+      }
+    })();
+    return true;
   }
   function startScreen(cont) {
     const pts = () => cpts(sel);
