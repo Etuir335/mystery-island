@@ -1042,7 +1042,7 @@ function searchCont(k) {
     if (it.c === "bp" && G.w.bp[it.bp]) continue;
     if (it.c === "key" && (cnt(G.inv, id) || cnt(G.stash, id))) continue;
     if (id === "serum" && !F().virus && ch(0.7)) continue;
-    const amt = it.c === "ammo" ? R(3, 10) : id === "nails" ? R(4, 12) : id === "bolts" ? R(5, 10) : 1;
+    const amt = it.c === "ammo" ? R(3, 10) : id === "nails" ? R(4, 12) : id === "bolts" ? R(5, 10) : id === "wire" ? R(1, 3) : 1;
     invAdd(G.inv, id, amt);
     got.push("".concat(it.ic, " ").concat(it.n).concat(amt > 1 ? " ×" + amt : ""));
   }

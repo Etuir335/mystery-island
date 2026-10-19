@@ -4045,3 +4045,16 @@ const _workPanelS = CUI.work;
 CUI.work = function() {
   return caravanPanel() + _workPanelS.apply(this, arguments);
 };
+addLoot2("car", [["wire", 2]]);
+addLoot2("shed", [["wire", 2]]);
+addLoot2("wardrobe", [["wire", 1]]);
+addLoot2("locker", [["wire", 1]]);
+addLoot2("milcrate", [["wire", 1]]);
+addLoot2("toolbox", [["wire", 3]]);
+if (CONT.minecart) CONT.minecart.loot.push(["wire", 2]);
+RECIPES.push(
+  { id: "wire_e", n: "Выдрать проволоку из электроники", need: { elec: 1 }, out: { wire: 2 }, t: 15 },
+  { id: "wire_c", n: "Разобрать автозапчасти на проволоку", need: { carpart: 1 }, out: { wire: 2, scrap: 1 }, st: "bench", t: 25 }
+);
+if (TRADERS.semen) TRADERS.semen.stock.push(["wire", 0]);
+if (TRADERS.serg) TRADERS.serg.stock.push(["wire", 0]);
