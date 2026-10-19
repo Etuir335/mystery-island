@@ -4896,8 +4896,8 @@ MODES.nightmare = {
   n: "Кошмар",
   ic: "👁️",
   tag: "Остров видит тебя.",
-  rules: ["Всё из «Хардкора», одна жизнь", "Особые твари: Простынщик, Сросшиеся, Висельник, Плакальщица, Долговязый", "Нет подсказок, «Что дальше» и автоеды", "Выброс почти без предупреждения, враги сильнее и их больше"],
-  f: Object.assign({}, MODES.hardcore.f, { death: "perma", hints: 0, emWarn: 20, horde: 1.5, needs: 1.2, enemies: 1.2, count: 1.15, noise: 1.4, nightmare: true, noAuto: true })
+  rules: ["Всё из «Хардкора», одна жизнь", "Особые твари: Простынщик, Сросшиеся, Висельник, Плакальщица, Долговязый", "Нет подсказок и «Что дальше»", "Выброс почти без предупреждения, враги сильнее и их больше"],
+  f: Object.assign({}, MODES.hardcore.f, { death: "perma", hints: 0, emWarn: 20, horde: 1.5, needs: 1.2, enemies: 1.2, count: 1.15, noise: 1.4, nightmare: true })
 };
 const _autoEatN = autoEat;
 autoEat = function() {
