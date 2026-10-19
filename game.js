@@ -57,8 +57,8 @@ function setSlot(n) {
   G = null;
 }
 const F = () => {
-  const f = MODES[G.mode].f;
-  return G && G.custom && typeof customF === "function" ? customF(f) : f;
+  const f0 = MODES[G.mode].f, f = G && G.custom && typeof customF === "function" ? customF(f0) : f0;
+  return G && typeof dynF === "function" ? dynF(f) : f;
 };
 const IT = (id) => ITEMS[id];
 const L = (id) => LOCS[id || G.loc];

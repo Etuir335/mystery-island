@@ -4230,7 +4230,7 @@ const _spawnListT = spawnList;
 spawnList = function(spec) {
   const out = _spawnListT.apply(this, arguments);
   try {
-    if (out.length && G.room != null && !G.combat && !LOCS[G.loc].base && ch(0.05)) {
+    if (out.length && G.room != null && !G.combat && !LOCS[G.loc].base && ch(0.05 * modeK())) {
       const dg = LOCS[G.loc].dg || 1;
       const id = wpick(dg >= 2 ? [["screamer", 3], ["bloater", 2], ["sniper", 1], ["rats", 2]].map((x) => x) : [["screamer", 2], ["rats", 2], ["bloater", 1]]);
       out.push(mkEnemy(id));
@@ -4239,6 +4239,7 @@ spawnList = function(spec) {
   }
   return out;
 };
+const modeK = () => (MODES[G.mode].f.enemies || 1) >= 1.1 ? 1 : 0.5;
 const _roadEventT = roadEvent;
 roadEvent = function(to, done) {
   if (!ch(0.25)) return _roadEventT.apply(this, arguments);
@@ -4823,4 +4824,243 @@ searchCont = function(k) {
     UI.log("✨ Ещё нашлось: ".concat(IT(id).ic, " ").concat(IT(id).n).concat(n > 1 ? " ×" + n : "", "."), "good");
   }
   return r;
+};
+const DYN = { k: "", f: null, src: null };
+let DYNM = { t: -1, g: null, m: null };
+function dynMods() {
+  if (typeof G === "undefined" || !G || !G.ch || !G.w) return null;
+  if (DYNM.g === G && DYNM.t === G.time) return DYNM.m;
+  const m = dynMods0();
+  DYNM = { t: G.time, g: G, m };
+  return m;
+}
+function dynMods0() {
+  const d = Math.floor(G.time / DAY) + 1;
+  let cnt0 = 1, en = 1, needs = 1, horde = 1;
+  if (d <= 2) {
+    cnt0 = 0.75;
+    en = 0.85;
+    needs = 0.85;
+  } else if (d <= 5) {
+    cnt0 = 0.9;
+    en = 0.95;
+    needs = 0.93;
+  } else if (d >= 15) {
+    const k = Math.min(0.15, (d - 14) * 0.01);
+    cnt0 = 1 + k;
+    en = 1 + k * 0.8;
+  }
+  let n = 1;
+  try {
+    if (G.coop && window.COOP && COOP.others) n = 1 + COOP.others().filter((p) => p.online && p.alive !== false).length;
+  } catch (e) {
+  }
+  if (n > 1) {
+    cnt0 *= 1 + 0.3 * (n - 1);
+    en *= 1 + 0.1 * (n - 1);
+    horde *= 1 + 0.35 * (n - 1);
+  }
+  let mercy = 0;
+  try {
+    const c = G.ch;
+    const hp = c.parts && PARTS ? Object.keys(PARTS).reduce((a, p) => a + (c.parts[p] || 0), 0) / Object.keys(PARTS).reduce((a, p) => a + PARTS[p].max, 0) : (c.hp || 100) / 100;
+    if (hp < 0.35 || c.food < 12 || c.drink < 12) mercy = 1;
+  } catch (e) {
+  }
+  if (mercy) {
+    cnt0 *= 0.75;
+    en *= 0.9;
+  }
+  if ((MODES[G.mode].f.enemies || 1) < 1.1) {
+    cnt0 *= 0.9;
+    en *= 0.95;
+  }
+  return { d: Math.min(d, 40), n, mercy, cnt0, en, needs, horde };
+}
+function dynF(f) {
+  const m = dynMods();
+  if (!m) return f;
+  const key = "".concat(m.d, "|").concat(m.n, "|").concat(m.mercy);
+  if (DYN.src === f && DYN.k === key) return DYN.f;
+  const o = Object.assign({}, f);
+  o.count = (f.count || 1) * m.cnt0;
+  o.enemies = (f.enemies || 1) * m.en;
+  o.needs = (f.needs || 1) * m.needs;
+  o.horde = (f.horde || 1) * m.horde;
+  DYN.src = f;
+  DYN.k = key;
+  DYN.f = o;
+  return o;
+}
+MODES.nightmare = {
+  n: "Кошмар",
+  ic: "👁️",
+  tag: "Остров видит тебя.",
+  rules: ["Всё из «Хардкора», одна жизнь", "Особые твари: Простынщик, Сросшиеся, Висельник, Плакальщица, Долговязый", "Нет подсказок, «Что дальше» и автоеды", "Выброс почти без предупреждения, враги сильнее и их больше"],
+  f: Object.assign({}, MODES.hardcore.f, { death: "perma", hints: 0, emWarn: 20, horde: 1.5, needs: 1.2, enemies: 1.2, count: 1.15, noise: 1.4, nightmare: true, noAuto: true })
+};
+const _autoEatN = autoEat;
+autoEat = function() {
+  if (F().noAuto) return UI.toast("👁️ В Кошмаре — только руками: открой рюкзак.");
+  return _autoEatN.apply(this, arguments);
+};
+const _nextGoalN = nextGoal;
+nextGoal = function() {
+  if (F().nightmare) return null;
+  return _nextGoalN.apply(this, arguments);
+};
+Object.assign(ENEMY, {
+  sheet: { n: "Простынщик", ic: "👻", spr: "sci", hp: 40, dmg: [9, 14], sp: 2, acc: 0.65, inj: ["lacer", "scratch"], noVirus: 1, xp: 14, note: "Фигура под простынёй. Её не видно, пока она не окажется вплотную." },
+  fused: { n: "Сросшиеся", ic: "🫂", spr: "swamper", hp: 70, dmg: [9, 14], sp: 1, acc: 0.55, inj: ["bite", "lacer", "bruise"], xp: 18, note: "Два тела в одном. Убьёшь — распадутся на двух ползунов." },
+  hanged: { n: "Висельник", ic: "🪢", spr: "zombie", hp: 35, dmg: [12, 18], sp: 1, acc: 0.7, inj: ["bruise", "lacer"], xp: 14, note: "Висит под потолком в тёмных помещениях и бьёт первым, ещё до твоего хода. Фонарик и осторожность." },
+  weeper: { n: "Плакальщица", ic: "😢", spr: "sci", hp: 90, dmg: [18, 26], sp: 0, acc: 0.8, inj: ["lacer", "frac"], noVirus: 1, xp: 30, note: "Плачет в углу и не трогает тебя. Не стреляй и не бей её — разъярится и бросится. Тихо уйди." },
+  longarm: { n: "Долговязый", ic: "🦒", spr: "soldier", hp: 55, dmg: [10, 15], sp: 1, acc: 0.6, inj: ["lacer", "bruise"], xp: 16, note: "Длинные руки достают на шаг дальше обычного. Не стой «рядом» — либо вплотную, либо далеко." },
+  blind: { n: "Слепой", ic: "🙈", spr: "armored", hp: 70, dmg: [12, 18], sp: 1, acc: 0.35, arm: 2, inj: ["lacer", "bruise", "frac"], xp: 16, note: "Ничего не видит и почти всегда мажет — пока ты не выстрелишь или не нашумишь." },
+  spitter: { n: "Плевальщик", ic: "🤢", spr: "swamper", hp: 32, dmg: [5, 8], sp: 1, acc: 0.6, inj: ["burn", "scratch"], noVirus: 1, xp: 10, note: "Плюётся кислотой издалека. Сократи дистанцию или застрели." }
+});
+ENEMY.blind.spr = "soldier";
+const NM_POOL = [["sheet", 3], ["fused", 2], ["hanged", 2], ["weeper", 1], ["longarm", 2]];
+const _spawnListN = spawnList;
+spawnList = function(spec) {
+  const out = _spawnListN.apply(this, arguments);
+  try {
+    if (out.length && G.room != null && !G.combat && !LOCS[G.loc].base) {
+      const d = roomDef(G.room), dg = LOCS[G.loc].dg || 1;
+      if (F().nightmare && ch(isNight() ? 0.35 : 0.22)) {
+        let id = wpick(NM_POOL);
+        if (id === "hanged" && !d.dark) id = "sheet";
+        out.push(mkEnemy(id));
+      } else if (ch((0.04 + (dg >= 3 ? 0.02 : 0)) * modeK())) out.push(mkEnemy(LOCS[G.loc].zone || G.loc === "swamp" ? "spitter" : dg >= 2 ? "blind" : "spitter"));
+    }
+  } catch (e) {
+  }
+  return out;
+};
+const _mkEnemyN = mkEnemy;
+mkEnemy = function(id) {
+  const e = _mkEnemyN.apply(this, arguments);
+  if (id === "sheet") e.dist = 0;
+  if (id === "weeper") e.dist = 2;
+  return e;
+};
+const _startCombatN = startCombat;
+startCombat = function(en, opts) {
+  const r = _startCombatN.apply(this, arguments);
+  try {
+    const cb = G.combat;
+    if (cb) {
+      for (const e of cb.en) if (e.id === "hanged" && !e.dropped && e.hp > 0) {
+        e.dropped = true;
+        e.dist = 0;
+        cLog("🪢 Сверху падает Висельник!", "bad");
+        enemyHit(e, false, 1);
+        checkDeath();
+        if (G.dead) return r;
+      }
+    }
+    if (cb && cb.en.some((e) => e.id === "hanged")) UI.combat();
+  } catch (e) {
+  }
+  return r;
+};
+function combatLoud() {
+  const cb = G.combat;
+  if (!cb) return;
+  cb.loud = true;
+  for (const e of cb.en) if (e.id === "weeper" && e.hp > 0 && !e.rage) {
+    e.rage = true;
+    cLog("😢 Плач обрывается. Плакальщица поднимает голову…", "bad");
+  }
+}
+const _pShootN = pShoot;
+pShoot = function() {
+  const w = curWeapon();
+  if (G.combat && w && w.c === "gun" && !w.quiet) combatLoud();
+  return _pShootN.apply(this, arguments);
+};
+const _pAttackN = pAttack;
+pAttack = function(i) {
+  const cb = G.combat, e = cb && cb.en[i];
+  if (e && e.id === "weeper" && !e.rage) {
+    e.rage = true;
+    cLog("😢 Ты задел её. Плакальщица кричит!", "bad");
+  }
+  return _pAttackN.apply(this, arguments);
+};
+const _throwItN = throwIt;
+window.throwIt = throwIt = function(id) {
+  if (id === "molotov" || id === "flashb") combatLoud();
+  return _throwItN.apply(this, arguments);
+};
+const _enemyHitN = enemyHit;
+enemyHit = function(e, ranged, near) {
+  if (e.id === "weeper" && !e.rage) return;
+  if (e.id === "blind" && !(G.combat && G.combat.loud) && ch(0.55)) {
+    cLog("🙈 Слепой машет руками мимо — он тебя не видит.", "dim");
+    return;
+  }
+  return _enemyHitN.apply(this, arguments);
+};
+const _enemyTurnN = enemyTurn;
+enemyTurn = function() {
+  const cb = G.combat;
+  if (cb) {
+    const alive = cb.en.filter((e) => e.hp > 0);
+    if (alive.length && alive.every((e) => e.id === "weeper" && !e.rage)) {
+      for (const e of alive) {
+        e.hp = 0;
+        e.dead = true;
+        e.gone = true;
+      }
+      cLog("😢 Плакальщица так и не подняла головы. Ты тихо уходишь.", "good");
+      return endCombat("win");
+    }
+    for (const e of alive) {
+      if (e.stun > 0) continue;
+      if (e.id === "weeper" && e.rage && e.dist > 0) {
+        e.dist = 0;
+        cLog("😢 Плакальщица бросается на тебя!", "bad");
+      }
+      if (e.id === "longarm" && e.dist === 1) {
+        enemyHit(e, false, 1);
+        checkDeath();
+        if (G.dead) return UI.closeCombat("dead");
+      }
+      if (e.id === "spitter" && e.dist > 0 && ch(0.5)) {
+        if (ch(0.6)) {
+          const d = R(4, 7);
+          cLog("🤢 Плевальщик плюётся кислотой: −".concat(d), "bad");
+          const m = hitPlayer(d, "burn", null, "Плевальщик");
+          if (m) cLog(m, "bad");
+          checkDeath();
+          if (G.dead) return UI.closeCombat("dead");
+        } else cLog("🤢 Плевок пролетает мимо.", "dim");
+      }
+    }
+  }
+  return _enemyTurnN.apply(this, arguments);
+};
+const _onKillN = onKill;
+onKill = function(e) {
+  const r = _onKillN.apply(this, arguments);
+  if (e.id === "fused" && !e.gone && G.combat) {
+    for (let k = 0; k < 2; k++) {
+      const c = mkEnemy("crawler");
+      c.dist = 0;
+      c.hp = c.max = Math.ceil(c.hp * 0.8);
+      G.combat.en.push(c);
+    }
+    cLog("🫂 Сросшиеся разрываются — на тебя ползут двое!", "bad");
+  }
+  return r;
+};
+function dynHtml() {
+  const m = dynMods();
+  if (!m) return "";
+  const pc = (x) => (x >= 1 ? "+" : "") + Math.round((x - 1) * 100) + "%";
+  return '<div class="sec"><h2>📈 Сложность сейчас</h2><p class="muted" style="font-size:13px">Режим «'.concat(MODES[G.mode].n, "». День ").concat(m.d).concat(m.d <= 5 ? " — остров ещё присматривается" : m.d >= 15 ? " — остров злеет" : "").concat(m.n > 1 ? ", в отряде ".concat(m.n, " — врагов больше") : "").concat(m.mercy ? ". Ты едва живой — остров даёт передышку" : "", '.</p>\n    <div class="acts"><span class="chip">врагов ').concat(pc(m.cnt0), '</span><span class="chip">сила врагов ').concat(pc(m.en), '</span><span class="chip">голод и жажда ').concat(pc(m.needs), "</span>").concat(m.horde !== 1 ? '<span class="chip">орда '.concat(pc(m.horde), "</span>") : "", "</div></div>");
+}
+const _cuiJourD = CUI.jour;
+CUI.jour = function() {
+  return _cuiJourD.apply(this, arguments) + dynHtml();
 };
