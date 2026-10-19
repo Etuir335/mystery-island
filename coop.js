@@ -313,6 +313,8 @@ const COOP = (() => {
   const xpSum = (ch) => Object.values(ch && ch.xp || {}).reduce((a, v) => a + (+v || 0), 0);
   function remoteNewer(r) {
     if (!r || !r.ch) return false;
+    const pc = progressCmp(G, r);
+    if (pc) return pc < 0;
     if (r.ts && G.pts) return r.ts > G.pts;
     const a = G.ch || {}, b = r.ch;
     if ((b.born || 0) !== (a.born || 0)) return (b.born || 0) > (a.born || 0);

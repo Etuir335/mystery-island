@@ -98,6 +98,17 @@ const SYNC = (() => {
     try {
       const v = await fetchRemote(code);
       if (v && v.raw && v.ts > lts() + 1e3) {
+        let loc = null, rem = null;
+        try {
+          loc = JSON.parse(localStorage.getItem(SAVE_KEY));
+          rem = JSON.parse(v.raw);
+        } catch (e) {
+        }
+        if (loc && rem && progressCmp(loc, rem) > 0) {
+          dirty = true;
+          schedule(1e3);
+          return;
+        }
         localStorage.setItem(SAVE_KEY, v.raw);
         setLts(v.ts);
       }
@@ -111,6 +122,11 @@ const SYNC = (() => {
       if (!(v && v.raw && v.ts > lts() + 1e3)) return;
       const s = JSON.parse(v.raw);
       if (!s || s.v !== 3) return;
+      if (progressCmp(G, s) > 0) {
+        dirty = true;
+        schedule(1e3);
+        return;
+      }
       localStorage.setItem(SAVE_KEY, v.raw);
       setLts(v.ts);
       if (load()) {

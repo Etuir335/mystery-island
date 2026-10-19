@@ -353,6 +353,19 @@ function startKit() {
     invAdd(G.stash, "canned", 1);
   }
 }
+function progressCmp(a, b) {
+  const ca = a && a.ch, cb = b && b.ch;
+  if (!ca || !cb) return 0;
+  if ((ca.born || 0) !== (cb.born || 0) || ca.name !== cb.name) return 0;
+  const f = (ca.falls || 0) - (cb.falls || 0);
+  if (f) return f > 0 ? 1 : -1;
+  const xs = (c) => Object.values(c.xp || {}).reduce((s, v) => s + (+v || 0), 0);
+  const d = xs(ca) - xs(cb);
+  if (Math.abs(d) > 0.5) return d > 0 ? 1 : -1;
+  const k = (ca.kills || 0) - (cb.kills || 0);
+  if (k) return k > 0 ? 1 : -1;
+  return 0;
+}
 function save() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(G));
@@ -686,6 +699,7 @@ function die(cause) {
   G.combat = null;
   G.interrupt = true;
   SND("death");
+  c.falls = (c.falls || 0) + 1;
   G.w.deaths.push({ name: c.name, days, cause, kills: c.kills });
   setAct("погиб");
   FEED("💀 погиб: ".concat(cause));

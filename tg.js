@@ -170,10 +170,23 @@ const TGA = (() => {
     const raw = keys.map((k) => parts[k] || "").join("");
     try {
       const s = JSON.parse(raw);
-      if (s && s.v === 3) {
-        localStorage.setItem(SAVE_KEY, raw);
-        setLocalTs(meta.ts);
+      if (!s || s.v !== 3) return;
+      let loc = null;
+      try {
+        loc = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+      } catch (e) {
       }
+      if (loc && typeof progressCmp === "function" && progressCmp(loc, s) > 0) {
+        setLocalTs(Date.now());
+        schedule(500);
+        return;
+      }
+      try {
+        if (loc) localStorage.setItem(SAVE_KEY + "_prev", JSON.stringify(loc));
+      } catch (e) {
+      }
+      localStorage.setItem(SAVE_KEY, raw);
+      setLocalTs(meta.ts);
     } catch (e) {
     }
   }
