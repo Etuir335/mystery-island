@@ -678,6 +678,7 @@ const UI = /* @__PURE__ */ (() => {
     if (G.w.ending === "master" && !G.w.ch2) h += '<div class="sec"><h2>🔮 Глава 2 «Мастер»</h2><p class="muted">Ты забрал ядро Аппарата. Остров ждёт своего Мастера: сильнее враги, чаще Выбросы, кристаллы, лодка и путь к синему шпилю за проливом.</p><div class="acts">'.concat(btn("Начать Главу 2", startCh2, "pri"), "</div></div>");
     if (typeof CUI !== "undefined") h += CUI.jour();
     h += coopPanel();
+    if (typeof CUI !== "undefined" && CUI.botPanel) h += CUI.botPanel();
     h += lbPanel();
     h += '<div class="sec"><h2>Записки ('.concat(G.w.notes.length, "/").concat(Object.keys(NOTES).length, ')</h2><div class="list">').concat(G.w.notes.slice().reverse().map((id) => '<div class="note"><b>'.concat(esc(NOTES[id].t), "</b><br>").concat(esc(NOTES[id].x), "</div>")).join(""), "</div></div>");
     h += '<div class="sec"><h2>События</h2><div class="list" style="gap:2px">'.concat(G.log.slice(-60).reverse().map((x) => '<div class="lg '.concat(x.c, '" style="font-size:13px"><span class="mono muted">Д').concat(x.d, " ").concat(x.k, "</span> ").concat(esc(x.t), "</div>")).join(""), "</div></div>");
@@ -701,7 +702,7 @@ const UI = /* @__PURE__ */ (() => {
   function jourCat(t) {
     t = t.toLowerCase();
     if (/дневник|записки|^\W*события|справочник/.test(t)) return "diary";
-    if (/кооператив|таблица|выживших|отряд/.test(t)) return "squad";
+    if (/кооператив|таблица|выживших|отряд|🤖/.test(t)) return "squad";
     if (/достижения|статистика|бестиарий|летопись/.test(t)) return "ach";
     if (/интерфейс|тема|звук|подсказки|своя сложность|сложность сейчас|режим и модификаторы|сохранения|резервные|^\W*игра$/.test(t)) return "set";
     return "quests";
