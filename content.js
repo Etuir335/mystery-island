@@ -5064,3 +5064,183 @@ const _cuiJourD = CUI.jour;
 CUI.jour = function() {
   return _cuiJourD.apply(this, arguments) + dynHtml();
 };
+const WMODS = {
+  hungry: { n: "Голодный остров", ic: "🍽️", d: "Голод и жажда на 30% быстрее", k: 1.2 },
+  nights: { n: "Злые ночи", ic: "🌕", d: "Орда в Кровавую ночь на 50% сильнее", k: 1.25 },
+  notrade: { n: "Без торговцев", ic: "🚫", d: "Торговцы не продают и не покупают (задания и контракты остаются)", k: 1.3 },
+  glass: { n: "Стеклянные кости", ic: "🦴", d: "Переломы и вывихи случаются чаще", k: 1.15 },
+  crowds: { n: "Толпы", ic: "🧟", d: "Врагов на 40% больше, но каждый на 15% слабее", k: 1.15 },
+  rust: { n: "Ржавое железо", ic: "🔧", d: "Оружие изнашивается вдвое быстрее", k: 1.15 },
+  nomap: { n: "Без карты", ic: "🗺️", d: "Неизведанные места скрыты туманом на карте", k: 1.1 },
+  bounty: { n: "Щедрый остров", ic: "🎁", d: "В каждом обыске иногда находится ещё одна вещь (облегчение)", k: 0.85 }
+};
+const wm = (k) => !!(typeof G !== "undefined" && G && G.w && G.w.flags && G.w.flags.mods && G.w.flags.mods[k]);
+const wmScore = () => {
+  const m = G && G.w && G.w.flags && G.w.flags.mods || {};
+  return Object.keys(m).filter((k) => m[k] && WMODS[k]).reduce((a, k) => a * WMODS[k].k, 1);
+};
+const _dynFW = dynF;
+dynF = function(f) {
+  const o = _dynFW(f);
+  const m = G && G.w && G.w.flags && G.w.flags.mods || null;
+  if (!m) return o;
+  const key = JSON.stringify(m);
+  if (o.__wm === key) return o;
+  const r = Object.assign({}, o, { __wm: key });
+  if (m.hungry) r.needs = (r.needs || 1) * 1.3;
+  if (m.nights) r.horde = (r.horde || 1) * 1.5;
+  if (m.crowds) {
+    r.count = (r.count || 1) * 1.4;
+    r.enemies = (r.enemies || 1) * 0.85;
+  }
+  if (m.nomap) r.fog = true;
+  DYN.f = r;
+  return r;
+};
+CUI.startMods = (sel, m, draw) => {
+  sel.mods = sel.mods || {};
+  const sc = Object.keys(sel.mods).filter((k) => sel.mods[k]).reduce((a, k) => a * WMODS[k].k, 1);
+  const cmp = '<details class="mcmp"><summary>📊 Сравнить режимы</summary><table><tr><th></th>'.concat(Object.values(MODES).map((M) => "<th>".concat(M.ic, "</th>")).join(""), "</tr>\n    ").concat([["Части тела и раны", (f) => f.parts], ["Болезни", (f) => f.illness], ["Радиация", (f) => f.rad], ["Еда портится", (f) => f.spoil], ["Холод", (f) => f.cold], ["Вирус от укусов", (f) => f.virus], ["Смерть навсегда", (f) => f.death === "perma"], ["Подсказки на карте", (f) => f.hints > 0], ["Сила врагов", (f) => "×" + (f.enemies || 1)], ["Число врагов", (f) => "×" + (f.count || 1)], ["Орда", (f) => "×" + (f.horde || 1)], ["Предупреждение о Выбросе", (f) => (f.emWarn || 120) + " мин"]].map(([n, fn]) => "<tr><td>".concat(n, "</td>").concat(Object.values(MODES).map((M) => {
+    const v = fn(M.f);
+    return "<td>".concat(v === true ? "✓" : v === false || v == null || v === 0 ? "—" : v, "</td>");
+  }).join(""), "</tr>")).join(""), "</table></details>");
+  return cmp + '<h2>Модификаторы мира <span class="mono muted" style="font-size:12px">'.concat(Object.keys(sel.mods).some((k) => sel.mods[k]) ? "счёт ×".concat(sc.toFixed(2)) : "необязательно", '</span></h2><div class="wmods">').concat(Object.entries(WMODS).map(([k, M]) => '<button class="wmod '.concat(sel.mods[k] ? "on" : "", '" onclick="').concat(m(() => {
+    sel.mods[k] = !sel.mods[k];
+    draw();
+  }), '"><b>').concat(M.ic, " ").concat(M.n, "</b><span>").concat(M.d, "</span><i>×").concat(M.k, "</i></button>")).join(""), "</div>");
+};
+const _buyW = buy;
+buy = function() {
+  if (wm("notrade")) return UI.toast("🚫 На этом острове никто не торгует.");
+  return _buyW.apply(this, arguments);
+};
+const _sellW = sell;
+sell = function() {
+  if (wm("notrade")) return UI.toast("🚫 На этом острове никто не торгует.");
+  return _sellW.apply(this, arguments);
+};
+const _hitPlayerW = hitPlayer;
+hitPlayer = function(dmg, inj, part, why) {
+  const n0 = G.ch.inj.length, r = _hitPlayerW.apply(this, arguments);
+  if (wm("glass") && G.ch.inj.length > n0 && F().parts) {
+    const j = G.ch.inj[G.ch.inj.length - 1];
+    if ((j.t === "bruise" || j.t === "lacer") && j.part !== "torso" && ch(0.18)) {
+      j.t = j.part === "head" ? "conc" : ch(0.5) ? "frac" : "disl";
+      UI.log("🦴 Кости как стекло: ".concat(INJ[j.t].n, " (").concat(PARTS[j.part].n, ")."), "bad");
+    }
+  }
+  return r;
+};
+const _damageWeaponW = damageWeapon;
+damageWeapon = function(n) {
+  return _damageWeaponW.call(this, wm("rust") ? n * 2 : n);
+};
+const _searchContW = searchCont;
+searchCont = function(k) {
+  const d = G.room != null ? roomDef(G.room) : null, ct = d && d.cont ? d.cont[k] : null, ready = d && contReady(G.room, k);
+  const r = _searchContW.apply(this, arguments);
+  if (wm("bounty") && ready && ct && CONT[ct] && !G.dead && !G.combat && ch(0.35)) {
+    const id = wpick(CONT[ct].loot);
+    if (IT(id).c !== "key" && IT(id).c !== "bp") {
+      invAdd(G.inv, id, IT(id).c === "ammo" ? R(3, 8) : 1);
+      UI.log("🎁 Остров щедр: ещё ".concat(IT(id).ic, " ").concat(IT(id).n, "."), "good");
+    }
+  }
+  return r;
+};
+if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("load", () => {
+  if (!(window.FB && FB.lb && FB.lb.submit) || FB.lb._wm) return;
+  FB.lb._wm = 1;
+  const _lbSub = FB.lb.submit;
+  FB.lb.submit = function(e) {
+    try {
+      const m = G.w.flags.mods || {};
+      const ks = Object.keys(m).filter((k) => m[k]);
+      if (ks.length) e = Object.assign({}, e, { mods: ks.map((k) => WMODS[k].ic).join(""), mult: +wmScore().toFixed(2) });
+      if (G.w.flags.modeChanged) e = Object.assign({}, e, { changed: 1 });
+    } catch (x) {
+    }
+    return _lbSub.call(this, e);
+  };
+});
+const _enemyTurnS = enemyTurn;
+enemyTurn = function() {
+  const cb = G.combat;
+  if (cb) {
+    for (const e of cb.en) {
+      if (e.hp <= 0 || e.stun > 0) continue;
+      const D = ENEMY[e.id];
+      if (D.human && !D.boss && e.hp < e.max * 0.3 && !e.triedFlee) {
+        e.triedFlee = true;
+        if (ch(0.4)) {
+          e.hp = 0;
+          e.dead = true;
+          e.gone = true;
+          cLog("🏃 ".concat(D.n, " зажимает рану и убегает."), "dim");
+        }
+      }
+      if ((e.id === "dog" || e.id === "pdog" || e.id === "rats") && e.burn > 0 && ch(0.5)) {
+        e.hp = 0;
+        e.dead = true;
+        e.gone = true;
+        cLog("🔥 ".concat(D.n, " в ужасе бежит от огня."), "good");
+      }
+    }
+    if (cb.en.every((e) => e.hp <= 0)) return endCombat("win");
+    if (cb.loud && !cb.reinf && !cb.opts.road && G.room != null && ch(0.2)) {
+      cb.reinf = true;
+      const id = isNight() ? "runner" : "zombie";
+      const z = mkEnemy(id);
+      z.dist = 2;
+      cb.en.push(z);
+      cLog("👂 На шум из соседнего помещения идёт ".concat(ENEMY[id].n, "."), "bad");
+    }
+  }
+  return _enemyTurnS.apply(this, arguments);
+};
+const _pShootS = pShoot;
+pShoot = function(i) {
+  const cb = G.combat, e = cb && cb.en[i], D = e && ENEMY[e.id], w = curWeapon();
+  if (G.combat && w && w.c === "gun" && !w.quiet) G.combat.loud = true;
+  if (e && D && D.human && e.dist >= 1 && e.gear && IT(e.gear).c === "gun" && ch(0.2) && w && w.c === "gun" && cnt(G.inv, w.ammo)) {
+    take(G.inv, w.ammo, 1);
+    SND("shot");
+    cLog("🧱 ".concat(D.n, " пригнулся за укрытием — пуля ушла в стену."), "dim");
+    return endPlayerTurn();
+  }
+  return _pShootS.apply(this, arguments);
+};
+function setMode(k) {
+  if (!G || G.coop) return UI.toast("В кооперативе сложность меняет только создатель мира — в одиночной игре.");
+  const cur = G.mode, perma = ["hardcore", "last", "nightmare"];
+  if (perma.includes(k) && !perma.includes(cur)) return UI.toast("Включить смертельный режим посреди игры нельзя — начни новый мир.");
+  G.mode = k;
+  if (perma.includes(cur) && !perma.includes(k)) G.w.flags.modeChanged = true;
+  UI.log("🎚️ Сложность изменена: ".concat(MODES[k].ic, " ").concat(MODES[k].n, "."), "sys");
+  save();
+  UI.render();
+}
+window.setModeW = setMode;
+function modeHtml() {
+  const perma = ["hardcore", "last", "nightmare"], cur = G.mode;
+  const opts = Object.entries(MODES).filter(([k]) => k === cur || !perma.includes(k));
+  const m = G.w.flags.mods || {}, ks = Object.keys(m).filter((k) => m[k] && WMODS[k]);
+  return '<div class="sec"><h2>🎚️ Режим и модификаторы</h2><div class="toggle">'.concat(opts.map(([k, M]) => '<button class="'.concat(cur === k ? "on" : "", '" onclick="setModeW(\'').concat(k, "')\">").concat(M.ic, " ").concat(M.n, "</button>")).join(""), '</div>\n    <p class="muted" style="font-size:13px">').concat(G.coop ? "В кооперативе режим общий для мира и здесь не меняется." : "Можно облегчить или усложнить игру в любой момент. Смертельные режимы (Хардкор, Последний выживший, Кошмар) включаются только при создании мира; если уйти с них — в таблице выживших будет пометка.", "</p>\n    ").concat(ks.length ? '<div class="acts">'.concat(ks.map((k) => '<span class="chip">'.concat(WMODS[k].ic, " ").concat(WMODS[k].n, "</span>")).join(""), '<span class="chip">счёт ×').concat(wmScore().toFixed(2), "</span></div>") : '<p class="muted" style="font-size:13px">Модификаторы мира выбираются при создании нового мира.</p>', "</div>");
+}
+const _cuiJourM = CUI.jour;
+CUI.jour = function() {
+  return _cuiJourM.apply(this, arguments) + modeHtml();
+};
+const _doFishW = doFish;
+doFish = function() {
+  if (G.weather && G.weather.id === "storm") return UI.toast("⛈️ В грозу у воды делать нечего — молнии бьют в воду.");
+  return _doFishW.apply(this, arguments);
+};
+const _roadEventW = roadEvent;
+roadEvent = function(to, done) {
+  if (G.weather && G.weather.id === "fog" && ch(0.3)) {
+    UI.log("🌫️ В тумане ты прошёл мимо чего-то — оно тебя не заметило.", "dim");
+    return done();
+  }
+  return _roadEventW.apply(this, arguments);
+};

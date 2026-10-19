@@ -703,7 +703,7 @@ const UI = /* @__PURE__ */ (() => {
     if (/дневник|записки|^\W*события|справочник/.test(t)) return "diary";
     if (/кооператив|таблица|выживших|отряд/.test(t)) return "squad";
     if (/достижения|статистика|бестиарий|летопись/.test(t)) return "ach";
-    if (/интерфейс|тема|звук|подсказки|своя сложность|сложность сейчас|сохранения|резервные|^\W*игра$/.test(t)) return "set";
+    if (/интерфейс|тема|звук|подсказки|своя сложность|сложность сейчас|режим и модификаторы|сохранения|резервные|^\W*игра$/.test(t)) return "set";
     return "quests";
   }
   function jourTabs(h, nAct) {
@@ -1207,6 +1207,7 @@ const UI = /* @__PURE__ */ (() => {
           sel.mode = k;
           draw();
         }), '"><span class="sechead"><h3>').concat(M.ic, " ").concat(M.n, '</h3><span class="muted" style="font-size:12.5px">').concat(M.tag, "</span></span><ul>").concat(M.rules.map((r) => "<li>".concat(esc(r), "</li>")).join(""), "</ul></button>")).join(""), "</div>");
+        if (typeof CUI !== "undefined" && CUI.startMods) h += CUI.startMods(sel, m, draw);
       } else h += '<p class="muted">Прошлый выживший погиб. Мир остался прежним: база, склад и всё построенное ждут тебя.</p>';
       h += '<h2>Имя</h2><input type="text" id="pname" maxlength="24" placeholder="Как тебя звать?" value="'.concat(esc(sel.name), '" oninput="UI._name(this.value)">');
       h += charBuilder(sel, draw);
@@ -1222,6 +1223,10 @@ const UI = /* @__PURE__ */ (() => {
           continueWorld(nm, sel.traits.slice(), sel.prof);
         } else {
           newGame(sel.mode, nm, sel.traits.slice(), sel.prof);
+          if (sel.mods && Object.keys(sel.mods).length) {
+            G.w.flags.mods = Object.assign({}, sel.mods);
+            save();
+          }
           intro();
         }
         setTimeout(checkPerks, 300);
