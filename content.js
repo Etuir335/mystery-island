@@ -2964,3 +2964,32 @@ if (typeof document !== "undefined") (() => {
     }
   }, { passive: true });
 })();
+if (typeof window !== "undefined" && window.__BUILD && typeof fetch === "function") (() => {
+  const check = () => {
+    if (typeof G !== "undefined" && G && (G.combat || G.traveling)) return;
+    fetch("version.json?t=" + Date.now(), { cache: "no-store" }).then((r) => r.ok ? r.json() : null).then((j) => {
+      if (!j || !j.v || j.v === window.__BUILD) return;
+      let last = 0;
+      try {
+        last = +sessionStorage.getItem("moti3_upd") || 0;
+      } catch (e) {
+      }
+      if (last === j.v) return;
+      try {
+        sessionStorage.setItem("moti3_upd", String(j.v));
+      } catch (e) {
+      }
+      try {
+        if (typeof G !== "undefined" && G) save();
+      } catch (e) {
+      }
+      const u = location.href.replace(/([?&])upd=\d+&?/, "$1").replace(/[?&]$/, "");
+      location.replace(u + (u.indexOf("?") < 0 ? "?" : "&") + "upd=" + j.v + location.hash);
+    }).catch(() => {
+    });
+  };
+  setTimeout(check, 4e3);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) check();
+  });
+})();
