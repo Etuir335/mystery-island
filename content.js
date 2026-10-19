@@ -5244,3 +5244,851 @@ roadEvent = function(to, done) {
   }
   return _roadEventW.apply(this, arguments);
 };
+const BOT_NAMES = ["Артём", "Вика", "Глеб", "Даша", "Егор", "Женя", "Кирилл", "Лена", "Миша", "Ника", "Олег", "Полина", "Рома", "Соня", "Тимур", "Ульяна", "Фёдор", "Яна"];
+const BKEEP = { water: 4, canned: 2, ration: 2, cfish: 2, cmeat: 2, smoked: 3, jerky: 3, omelet: 2, crackers: 2, bandage: 3, dband: 3, medkit: 1, antibio: 1, painkill: 1, lighter: 1, bottle: 3, wood: 2 };
+const bot = () => G.w.bot && G.w.bot.on ? G.w.bot : null;
+function botNew(name) {
+  const B = {
+    on: true,
+    alive: true,
+    name: name || pick(BOT_NAMES),
+    hp: 100,
+    food: 80,
+    drink: 80,
+    energy: 90,
+    bleed: 0,
+    loc: "base",
+    trav: null,
+    task: null,
+    mode: "auto",
+    style: "normal",
+    inv: [],
+    eq: { w: { id: "knife", n: 1, dur: 45 }, a: null, b: { id: "bag1", n: 1 } },
+    sk: { fight: 1, search: 1, surv: 1, craft: 1 },
+    kills: 0,
+    trips: 0,
+    found: 0,
+    built: 0,
+    log: [],
+    born: G.time,
+    gen: (G.w.bot && G.w.bot.gen || 0) + 1,
+    emN: G.em ? G.em.next : 0,
+    seen: {}
+  };
+  for (const [k, v] of [["water", 2], ["canned", 1], ["bandage", 1], ["lighter", 1], ["bottle", 1]]) invAdd(B.inv, k, v);
+  return B;
+}
+const bW = (B) => B.inv.reduce((a, e) => a + (IT(e.id).w || 0) * (e.n || 1), 0) + (B.eq.w ? IT(B.eq.w.id).w : 0) + (B.eq.a ? IT(B.eq.a.id).w : 0);
+const bCap = (B) => 14 + (B.eq.b ? IT(B.eq.b.id).cap || 0 : 0) + B.sk.surv;
+const bArm = (B) => B.eq.a ? IT(B.eq.a.id).arm || 0 : 0;
+const bWeapon = (B) => B.eq.w ? IT(B.eq.w.id) : null;
+const bGun = (B) => {
+  const w = bWeapon(B);
+  return w && w.c === "gun" && cnt(B.inv, w.ammo) > 0;
+};
+function bPower(B) {
+  const w = bWeapon(B);
+  let p = 1 + B.sk.fight * 0.15 + bArm(B) * 0.25;
+  if (w && w.dmg) p += (w.dmg[0] + w.dmg[1]) / 2 / (bGun(B) ? 7 : w.c === "gun" ? 40 : 10);
+  return p;
+}
+function bLog(B, t, loud, c) {
+  B.log = (B.log || []).concat([{ d: day(), k: clock(), t }]).slice(-60);
+  if (loud) UI.log("🤖 ".concat(B.name, ": ").concat(t), c || "sys");
+}
+const bShelter = (loc) => !!(LOCS[loc] && LOCS[loc].shelter);
+function bSkill(B, k, a) {
+  const v = B.sk[k] || 0, b = Math.floor(v);
+  B.sk[k] = Math.min(10, v + a * 0.1 * Math.max(0.15, 1 - v / 11));
+  if (Math.floor(B.sk[k]) > b) bLog(B, "навык «".concat({ fight: "бой", search: "обыск", surv: "выживание", craft: "ремесло" }[k], "» — уровень ").concat(Math.floor(B.sk[k])), true, "good");
+}
+function bUse(B, id) {
+  const it = IT(id);
+  take(B.inv, id, 1);
+  if (it.f) B.food = Math.min(100, B.food + it.f);
+  if (it.d) B.drink = Math.min(100, B.drink + it.d);
+  if (it.btl) invAdd(B.inv, "bottle", 1);
+}
+function bSelfCare(B) {
+  for (let g = 0; g < 4 && B.drink < 60; g++) {
+    const e = bestOf(B.inv.filter((x) => {
+      const it = IT(x.id);
+      return it.c === "drink" && (it.d || 0) > 0 && !it.salt && !it.raw && x.id !== "vodka" && !(it.sp && F().spoil && freshness(x) >= 1);
+    }), (x) => IT(x.id).d || 0);
+    if (!e) break;
+    bUse(B, e.id);
+  }
+  if (B.drink < 15 && cnt(B.inv, "dwater")) {
+    bUse(B, "dwater");
+    if (ch(0.4)) {
+      B.hp -= 8;
+      bLog(B, "выпил грязную воду — скрутило живот");
+    }
+  }
+  for (let g = 0; g < 4 && B.food < 55; g++) {
+    const e = bestOf(B.inv.filter((x) => {
+      const it = IT(x.id);
+      return it.c === "food" && (it.f || 0) > 0 && !it.raw && !it.smoke && !(it.sp && F().spoil && freshness(x) >= 1);
+    }), (x) => (IT(x.id).sp ? 50 + freshness(x) * 50 : 0) - (IT(x.id).v || 0) / 10);
+    if (!e) break;
+    bUse(B, e.id);
+  }
+  if (B.food < 12) {
+    const e = B.inv.find((x) => IT(x.id).c === "food" && (IT(x.id).f || 0) > 0 && !IT(x.id).smoke);
+    if (e) {
+      bUse(B, e.id);
+      if (IT(e.id).raw && ch(0.35)) B.hp -= 6;
+    }
+  }
+  if (B.bleed > 0) {
+    const atB = LOCS[B.loc].base && !B.trav, src = ["bandage", "dband", "medkit"].map((x) => cnt(B.inv, x) ? [B.inv, x] : atB && cnt(G.stash, x) ? [G.stash, x] : null).find(Boolean);
+    if (src) {
+      take(src[0], src[1], 1);
+      B.bleed = 0;
+      if (src[1] === "medkit") B.hp = Math.min(100, B.hp + 25);
+    } else if (cnt(B.inv, "rag") || atB && cnt(G.stash, "rag")) {
+      take(cnt(B.inv, "rag") ? B.inv : G.stash, "rag", 1);
+      B.bleed = 0;
+      bLog(B, "перевязал рану тряпкой");
+    }
+  }
+  if (B.hp < 45 && cnt(B.inv, "medkit")) {
+    take(B.inv, "medkit", 1);
+    B.hp = Math.min(100, B.hp + 30);
+    bLog(B, "воспользовался аптечкой");
+  }
+}
+function bFight(B, en, retreatAt) {
+  let rounds = 0;
+  const w = bWeapon(B), arm = bArm(B);
+  let shots = 0;
+  const alive = () => en.filter((e) => e.hp > 0);
+  for (const e of en) if (e.dist == null) e.dist = 1;
+  while (alive().length && rounds++ < 40 && B.hp > 0) {
+    const t = alive().sort((a, b) => a.hp - b.hp)[0], D = ENEMY[t.id];
+    const gun = bGun(B);
+    if (gun) {
+      take(B.inv, w.ammo, 1);
+      shots++;
+    }
+    const acc = gun ? (w.acc || 0.7) + B.sk.fight * 0.03 : 0.7 + B.sk.fight * 0.04;
+    if (ch(acc)) {
+      const dmg = w && w.dmg ? R(w.dmg[0], w.dmg[1]) * (gun ? 1 : 1 + B.sk.fight * 0.06) : R(3, 6);
+      t.hp -= Math.max(1, Math.round(dmg - (D.arm || 0) * (gun ? 0.5 : 1)));
+      if (t.hp <= 0) {
+        B.kills++;
+        bSkill(B, "fight", D.boss ? 6 : 1.2);
+        if (G.best) {
+          G.best[t.id] = G.best[t.id] || { s: 1, k: 0 };
+        }
+        if (D.loot && CONT[D.loot] && ch(0.5)) {
+          const id = wpick(CONT[D.loot].loot);
+          if (IT(id).c !== "key" && IT(id).c !== "bp") invAdd(B.inv, id, IT(id).c === "ammo" ? R(2, 6) : 1);
+        }
+        if (D.drop) for (const [id, n] of D.drop) invAdd(B.inv, id, n);
+      }
+    }
+    if (B.eq.w && B.eq.w.dur != null && !gun) {
+      B.eq.w.dur -= ch(0.5) ? 1 : 0;
+      if (B.eq.w.dur <= 0) {
+        bLog(B, "сломалось оружие: ".concat(w.n), true, "warn");
+        B.eq.w = null;
+      }
+    }
+    for (const e of alive()) {
+      const E = ENEMY[e.id];
+      if (e.id === "weeper" && !e.rage) {
+        if (gun && !w.quiet) e.rage = true;
+        else continue;
+      }
+      if (e.dist > 0) {
+        e.dist = Math.max(0, e.dist - Math.max(1, E.sp));
+        if (!(E.human && e.gear && IT(e.gear).c === "gun")) continue;
+      }
+      if (ch(E.acc - arm * 0.03)) {
+        const d = Math.max(1, Math.round(R(E.dmg[0], E.dmg[1]) * (E.boss ? 1 : F().enemies) - arm));
+        B.hp -= d * 0.9;
+        if (ch(0.3)) B.bleed = 1;
+      }
+    }
+    if (B.hp < retreatAt && alive().length) {
+      if (ch(0.6 + B.sk.surv * 0.03)) return { fled: true, shots };
+    }
+  }
+  return { fled: false, won: !alive().length, shots };
+}
+const bReady = (loc, i, k) => {
+  const s = G.w.locs[loc].rooms[i], d = LOCS[loc].rooms[i], last = s.cont[k];
+  if (last == null) return true;
+  if (d.once || LOCS[loc].base) return false;
+  return G.time - last > 72 * H;
+};
+function bRoomValue(loc, i) {
+  const d = LOCS[loc].rooms[i], s = G.w.locs[loc].rooms[i];
+  if (!d || d.final || d.trader || d.lock && !s.open) return 0;
+  return (d.cont || []).filter((_, k) => bReady(loc, i, k)).length;
+}
+function bSearchRoom(B, i) {
+  const loc = B.loc, d = LOCS[loc].rooms[i], s = G.w.locs[loc].rooms[i];
+  if (d.en && G.time - s.enAt > 48 * H) {
+    s.en = (typeof _spawnListT === "function" ? _spawnListT : spawnList)(d.en);
+    s.enAt = G.time;
+  }
+  const foes = (s.en || []).filter((e) => e.hp > 0);
+  let mins = 6;
+  if (foes.length) {
+    const ret = B.style === "careful" ? 60 : B.style === "bold" ? 30 : 45;
+    const r = bFight(B, foes, ret);
+    mins += 10 + foes.length * 4;
+    s.en = s.en.filter((e) => e.hp > 0);
+    if (B.hp <= 0) return { mins, dead: true };
+    if (r.fled || !r.won) {
+      bLog(B, "отступил из «".concat(d.n, "» (").concat(LOCS[loc].n, ")"));
+      return { mins, fled: true };
+    }
+  }
+  const got = [];
+  (d.cont || []).forEach((ct, k) => {
+    if (!bReady(loc, i, k)) return;
+    const C = CONT[ct];
+    if (!C) return;
+    s.cont[k] = G.time;
+    mins += Math.round((C.t || 10) * (1 - B.sk.search * 0.04));
+    let n = Math.round((R(C.roll[0], C.roll[1]) + (d.dark && isNight() ? -1 : 0)) * (0.5 + B.sk.search * 0.03));
+    for (let j = 0; j < n; j++) {
+      const id = wpick(C.loot), it = IT(id);
+      if (!it || it.c === "quest") continue;
+      if (it.c === "key" && (cnt(G.stash, id) || cnt(G.inv, id))) continue;
+      const amt = it.c === "ammo" ? R(3, 10) : id === "nails" ? R(4, 12) : id === "wire" ? R(1, 3) : 1;
+      invAdd(B.inv, id, amt);
+      got.push(it.ic);
+    }
+  });
+  bSkill(B, "search", 1);
+  B.found += got.length;
+  if (got.length) bLog(B, "".concat(LOCS[loc].ic, " ").concat(d.n, ": ").concat(got.join("")));
+  return { mins, got };
+}
+function bUnload(B) {
+  const kept = {};
+  let moved = 0;
+  for (const e of B.inv.slice()) {
+    const it = IT(e.id), keep = BKEEP[e.id] || (bWeapon(B) && bWeapon(B).ammo === e.id ? 40 : 0);
+    const have = kept[e.id] || 0, n = e.n || 1;
+    if (have + n <= keep) {
+      kept[e.id] = have + n;
+      continue;
+    }
+    const give = n - Math.max(0, keep - have);
+    kept[e.id] = Math.max(have, keep);
+    const copy = Object.assign({}, e, { n: give });
+    if (give >= n) B.inv.splice(B.inv.indexOf(e), 1);
+    else e.n -= give;
+    G.stash.push(copy);
+    moved += give;
+  }
+  if (moved) {
+    G.stash = sMerge(G.stash);
+    if (typeof stLog === "function") try {
+      stLog("+", "bot", moved);
+    } catch (x) {
+    }
+  }
+  return moved;
+}
+const sMerge = (list) => {
+  const out = [];
+  for (const e of list) {
+    const s = out.find((x) => x.id === e.id && x.dur == null && e.dur == null && !x.mods && !e.mods && x.born === e.born);
+    if (s) s.n += e.n || 1;
+    else out.push(e);
+  }
+  return out;
+};
+function bResupply(B) {
+  const want = { water: 3, bandage: 2, lighter: 1, bottle: 2 };
+  const okFood = (e) => {
+    const it = IT(e.id);
+    return it.c === "food" && !it.raw && !it.smoke && (it.f || 0) >= 5 && !(it.sp && F().spoil && freshness(e) >= 1);
+  };
+  let need = Math.max(0, 3 - B.inv.filter(okFood).reduce((a, e) => a + e.n, 0));
+  const cands = G.stash.filter(okFood).sort((a, b) => (IT(a.id).sp ? 0 : 1) - (IT(b.id).sp ? 0 : 1) || (IT(b.id).f || 0) - (IT(a.id).f || 0));
+  for (const e of cands) {
+    if (!need) break;
+    const n = Math.min(need, e.n || 1);
+    take(G.stash, e.id, n);
+    invAdd(B.inv, e.id, n);
+    need -= n;
+  }
+  for (const [id, n0] of Object.entries(want)) {
+    const n = Math.min(n0 - cnt(B.inv, id), cnt(G.stash, id));
+    if (n > 0) {
+      take(G.stash, id, n);
+      invAdd(B.inv, id, n);
+    }
+  }
+  if (!cnt(B.inv, "bandage") && !cnt(B.inv, "dband") && cnt(G.stash, "dband")) {
+    take(G.stash, "dband", 1);
+    invAdd(B.inv, "dband", 1);
+  }
+  const w = bWeapon(B);
+  if (w && w.c === "gun") {
+    const n = Math.min(30 - cnt(B.inv, w.ammo), cnt(G.stash, w.ammo));
+    if (n > 0) {
+      take(G.stash, w.ammo, n);
+      invAdd(B.inv, w.ammo, n);
+    }
+  }
+}
+function bGear(B) {
+  const score = (e) => {
+    const it = IT(e.id);
+    if (it.c === "melee") return (it.dmg[0] + it.dmg[1]) / 2 * (e.dur != null && it.dur ? Math.min(1, 0.4 + e.dur / it.dur) : 1);
+    if (it.c === "gun") return cnt(G.stash, it.ammo) + cnt(B.inv, it.ammo) >= 8 ? (it.dmg[0] + it.dmg[1]) / 2 * it.acc + 3 : -1;
+    return -1;
+  };
+  const pool = G.stash.concat(B.inv);
+  const cur = B.eq.w ? score(B.eq.w) : 0, best = bestOf(pool.filter((e) => ["melee", "gun"].includes(IT(e.id).c) && !(G.eq.weapon === e)), score);
+  if (best && score(best) > cur + 1) {
+    const src = G.stash.includes(best) ? G.stash : B.inv;
+    const one = Object.assign({}, best, { n: 1 });
+    if ((best.n || 1) > 1) best.n--;
+    else src.splice(src.indexOf(best), 1);
+    if (B.eq.w) G.stash.push(B.eq.w);
+    B.eq.w = one;
+    bLog(B, "взял оружие: ".concat(IT(one.id).n));
+  }
+  const arm = (e) => IT(e.id).c === "wear" && (IT(e.id).slot === "vest" || IT(e.id).slot === "body") ? IT(e.id).arm || 0 : -1;
+  const ba = bestOf(G.stash.filter((e) => arm(e) > 0), arm);
+  if (ba && arm(ba) > bArm(B)) {
+    const one = Object.assign({}, ba, { n: 1 });
+    if ((ba.n || 1) > 1) ba.n--;
+    else G.stash.splice(G.stash.indexOf(ba), 1);
+    if (B.eq.a) G.stash.push(B.eq.a);
+    B.eq.a = one;
+    bLog(B, "надел: ".concat(IT(one.id).n));
+  }
+  const cap = (e) => IT(e.id).c === "wear" && IT(e.id).slot === "bag" ? IT(e.id).cap || 0 : -1;
+  const bb = bestOf(G.stash.filter((e) => cap(e) > 0), cap);
+  if (bb && cap(bb) > (B.eq.b ? IT(B.eq.b.id).cap || 0 : 0)) {
+    const one = Object.assign({}, bb, { n: 1 });
+    if ((bb.n || 1) > 1) bb.n--;
+    else G.stash.splice(G.stash.indexOf(bb), 1);
+    if (B.eq.b) G.stash.push(B.eq.b);
+    B.eq.b = one;
+  }
+  if (B.eq.w && B.eq.w.dur != null && IT(B.eq.w.id).dur && B.eq.w.dur / IT(B.eq.w.id).dur < 0.35 && cnt(G.stash, "tape")) {
+    take(G.stash, "tape", 1);
+    B.eq.w.dur = Math.min(IT(B.eq.w.id).dur, B.eq.w.dur + 25);
+    bLog(B, "подлатал оружие скотчем");
+  }
+}
+const BOT_CRAFT = ["water", "desal", "cfish", "cmeat", "cmush", "bandage", "dband", "planks", "omelet", "smoked", "jerky"];
+function bCraft(B) {
+  let mins = 0;
+  for (const id of BOT_CRAFT) {
+    const r = RECIPES.find((x) => x.id === id);
+    if (!r || !baseSt(r.st) || r.bp && !G.w.bp[r.bp]) continue;
+    if (id === "planks" && cnt(G.stash, "planks") >= 12) continue;
+    if (id === "dband" && cnt(G.stash, "dband") + cnt(G.stash, "bandage") >= 6) continue;
+    for (let k = 0; k < 4; k++) {
+      if (!Object.entries(r.need).every(([i, n]) => cnt(G.stash, i) >= n)) break;
+      for (const [i, n] of Object.entries(r.need)) take(G.stash, i, n);
+      for (const [i, n] of Object.entries(r.out)) invAdd(G.stash, i, n);
+      mins += Math.round(r.t * (1 - B.sk.craft * 0.05));
+      bSkill(B, "craft", 0.5);
+      if (mins > 120) return mins;
+    }
+  }
+  return mins;
+}
+const BOT_BUILD = ["fire", "bed", "rain", "bench", "walls", "distill", "smoke", "traps", "garden", "stove", "bunks", "walls", "traps"];
+function bBuild(B) {
+  for (const id of BOT_BUILD) {
+    const S = STRUCT[id];
+    if (!S) continue;
+    const lv = G.w.struct[id] || 0, nx = S.lv[lv + 1];
+    if (!nx || S.bp && !G.w.bp[S.bp] || S.ch2 && !CH2() || S.need && !G.w.struct[S.need] || S.npc && npcs().length < S.npc) continue;
+    const cost = buildCost(nx.c || {});
+    if (!Object.entries(cost).every(([k, v]) => cnt(G.stash, k) >= v)) continue;
+    for (const [k, v] of Object.entries(cost)) take(G.stash, k, v);
+    G.w.struct[id] = lv + 1;
+    if (id === "walls") G.w.wallHp = 100;
+    B.built++;
+    bSkill(B, "craft", 3);
+    bLog(B, "построил: ".concat(S.ic, " ").concat(nx.n), true, "good");
+    FEED("🤖 ".concat(B.name, " построил ").concat(S.ic, " ").concat(nx.n));
+    return 60 + lv * 30;
+  }
+  if (G.w.struct.walls && G.w.wallHp < 80 && cnt(G.stash, "planks") >= 1 && cnt(G.stash, "nails") >= 2) {
+    take(G.stash, "planks", 1);
+    take(G.stash, "nails", 2);
+    G.w.wallHp = Math.min(100, G.w.wallHp + 25);
+    bLog(B, "подлатал стены");
+    return 40;
+  }
+  return 0;
+}
+function bTarget(B) {
+  const P = bPower(B), hrs = hour(), left = (hrs < 6 ? 6 - hrs : 21 - hrs) * 60;
+  let best = null, bs = -1e9;
+  for (const id of Object.keys(LOCS)) {
+    const L2 = LOCS[id];
+    if (id === B.loc || L2.base || !L2.rooms || !L2.rooms.length || L2.ch2 && !CH2()) continue;
+    const r = route(B.loc, id);
+    if (!r) continue;
+    const back = route(id, "base"), shelterBack = bShelter(id) ? 0 : back ? back.mins : 999;
+    if (r.mins + 60 + Math.min(shelterBack, 120) > left) continue;
+    const val = L2.rooms.reduce((a, _, i) => a + bRoomValue(id, i), 0);
+    if (!val) continue;
+    const dg = L2.dg || 0, need = dg <= 1 ? 0 : dg === 2 ? 2.2 : 3.2;
+    if (P < need * (B.style === "bold" ? 0.8 : B.style === "careful" ? 1.2 : 1)) continue;
+    const sc = val * 3 - r.mins / 25 - dg * (B.style === "careful" ? 3 : 1.5) + (B.seen[id] ? 0 : 4) + (L2.water && L2.water !== "sea" ? 1 : 0);
+    if (sc > bs) {
+      bs = sc;
+      best = id;
+    }
+  }
+  return best;
+}
+const bNearestShelter = (from) => {
+  let best = null;
+  for (const k of SHELTERS()) {
+    const r = route(from, k);
+    if (r && (!best || r.mins < best.mins)) best = { loc: k, mins: r.mins };
+  }
+  return best;
+};
+const bWaterLoc = (from) => {
+  let best = null;
+  for (const k of Object.keys(LOCS)) {
+    const L2 = LOCS[k];
+    if (!L2.water || L2.water === "sea" || L2.ch2 && !CH2()) continue;
+    const r = route(from, k);
+    if (r && (!best || r.mins < best.mins)) best = { loc: k, mins: r.mins };
+  }
+  return best;
+};
+function bGo(B, to, why) {
+  if (to === B.loc) return false;
+  const r = route(B.loc, to);
+  if (!r) return false;
+  if (G.em && !bShelter(to) && G.em.next > G.time && G.em.next < G.time + r.mins + 90) return false;
+  B.trav = { from: B.loc, to, at: G.time };
+  B.task = { t: "travel", until: G.time + Math.round(r.mins * (bW(B) > bCap(B) ? 1.4 : 1)), why };
+  return true;
+}
+function bSet(B, t, mins, extra) {
+  B.task = Object.assign({ t, until: G.time + Math.max(5, Math.round(mins)) }, extra || {});
+}
+function bDecide(B) {
+  bSelfCare(B);
+  const d = day(), h = hour(), bn = d % BNP() === 0, atB = LOCS[B.loc].base, shelter = bShelter(B.loc);
+  const emSoon = G.em && G.em.next - G.time < 200 && G.em.next > G.time;
+  if (B.mode === "rest") {
+    if (!atB) return bGo(B, "base", "отдыхать") || bSet(B, "wait", 60);
+    return bSet(B, "sleep", 120);
+  }
+  if (B.mode === "follow") {
+    if (!G.traveling && G.loc !== B.loc) {
+      const r = route(B.loc, G.loc);
+      if (r) {
+        B.trav = { from: B.loc, to: G.loc, at: G.time };
+        B.task = { t: "travel", until: G.time + Math.round(r.mins * 0.6), why: "догоняет тебя" };
+        return;
+      }
+    }
+    return bSet(B, "guard", 30);
+  }
+  if (emSoon && !shelter) {
+    const s = bNearestShelter(B.loc);
+    if (s && bGo(B, s.loc, "прячется от Выброса")) return;
+  }
+  if (emSoon && shelter) return bSet(B, "wait", 60, { why: "пережидает Выброс" });
+  if (bn && h >= 14 && !atB) {
+    if (bGo(B, "base", "спешит на базу к Кровавой ночи")) return;
+  }
+  if (bn && h >= 20 && atB) return bSet(B, "guard", 60, { why: "держит оборону в Кровавую ночь" });
+  if (isNight() && !shelter) {
+    const s = bNearestShelter(B.loc);
+    if (s && bGo(B, s.loc, "ищет укрытие на ночь")) return;
+  }
+  if (isNight() && shelter) {
+    if (atB && B.mode === "auto") {
+      const m = bCraft(B) + bBuild(B);
+      if (m && B.energy > 40) return bSet(B, "work", m, { why: "мастерит на базе" });
+    }
+    return bSet(B, "sleep", Math.max(60, (h >= 21 ? 24 - h + 6 : 6 - h) * 60), { why: "спит" });
+  }
+  if ((B.hp < 40 || B.bleed) && !atB) {
+    if (bGo(B, "base", "ранен — возвращается")) return;
+  }
+  if (B.hp < 65 && atB && B.mode !== "follow") return bSet(B, "sleep", 120, { why: "отлёживается" });
+  if (B.energy < 25) {
+    if (shelter) return bSet(B, "sleep", 240, { why: "отсыпается" });
+    const s = bNearestShelter(B.loc);
+    if (s && bGo(B, s.loc, "идёт отдохнуть")) return;
+  }
+  const drinks = B.inv.filter((e) => IT(e.id).c === "drink" && !IT(e.id).raw && !IT(e.id).salt).reduce((a, e) => a + e.n, 0);
+  const foods = B.inv.filter((e) => IT(e.id).c === "food" && !IT(e.id).raw && (IT(e.id).f || 0) > 5).reduce((a, e) => a + e.n, 0);
+  const L2 = LOCS[B.loc];
+  const fresh = L2.water && L2.water !== "sea";
+  if (fresh && B.drink < 75) {
+    const gulp = 100 - B.drink;
+    B.drink = 100;
+    bSkill(B, "surv", 0.3);
+    if (ch(0.2 - B.sk.surv * 0.015)) {
+      B.hp -= 5;
+      bLog(B, "напился сырой воды — немного мутит");
+    }
+    return bSet(B, "work", 10 + gulp / 10, { why: "пьёт из источника" });
+  }
+  if (!fresh && drinks < 1 && B.drink < 45 && !cnt(B.inv, "dwater")) {
+    const w = bWaterLoc(B.loc), rb = route(B.loc, "base"), stashW = cnt(G.stash, "water") + cnt(G.stash, "dwater") * (baseSt("fire") ? 1 : 0);
+    if (w && (atB ? !stashW : !rb || w.mins < rb.mins + 20 || !stashW)) {
+      if (bGo(B, w.loc, "хочет пить — идёт к воде")) return;
+    }
+  }
+  if (B.food < 40 && foods < 1 && L2.forage && !atB) {
+    let n = 0;
+    for (let k = R(2, 4) + Math.floor(B.sk.surv / 3); k > 0; k--) {
+      const id = wpick([["berries", 4], ["mushroom", 3], ["herbs", 1], ["wood", 2]]);
+      invAdd(B.inv, id, 1);
+      n++;
+    }
+    bSkill(B, "surv", 0.6);
+    return bSet(B, "work", 45, { why: "собирает ягоды и грибы" });
+  }
+  if (drinks < 2 && fresh && cnt(B.inv, "bottle")) {
+    const n = cnt(B.inv, "bottle");
+    take(B.inv, "bottle", n);
+    invAdd(B.inv, "dwater", n);
+    bLog(B, "набрал воды (".concat(n, ")"));
+  }
+  if (cnt(B.inv, "dwater") && (atB ? baseSt("fire") : cnt(B.inv, "lighter") && cnt(B.inv, "wood") >= 2)) {
+    const n = cnt(B.inv, "dwater");
+    if (!atB) take(B.inv, "wood", 2);
+    take(B.inv, "dwater", n);
+    invAdd(B.inv, "water", n);
+    bSkill(B, "surv", 0.5);
+    return bSet(B, "work", 15 + n * 5, { why: "кипятит воду" });
+  }
+  if (!atB && (drinks < 1 || foods < 1 || bW(B) > bCap(B) * 0.85 || B.hp < 60)) {
+    if (drinks < 1 && !cnt(B.inv, "dwater")) {
+      const w = bWaterLoc(B.loc), rb = route(B.loc, "base");
+      if (w && rb && w.mins + 30 < rb.mins && cnt(B.inv, "bottle")) {
+        if (bGo(B, w.loc, "идёт за водой")) return;
+      }
+    }
+    if (bGo(B, "base", bW(B) > bCap(B) * 0.85 ? "несёт добычу на базу" : "возвращается пополнить запасы")) return;
+  }
+  if (atB) {
+    const moved = bUnload(B);
+    bGear(B);
+    bResupply(B);
+    bSelfCare(B);
+    let m = moved ? 10 : 0;
+    if (G.w.struct.distill && cnt(G.stash, "bottle") && cnt(G.stash, "water") < 6) {
+      const n = Math.min(4, cnt(G.stash, "bottle"));
+      take(G.stash, "bottle", n);
+      invAdd(G.stash, "seawater", n);
+      m += 10;
+    }
+    if (!G.w.struct.fire && cnt(G.stash, "wood") < 3 || G.w.struct.fire && cnt(G.stash, "wood") < 2 && cnt(G.stash, "dwater") + cnt(G.stash, "meat") + cnt(G.stash, "fish") > 0) {
+      invAdd(G.stash, "wood", R(2, 4));
+      bSkill(B, "surv", 0.4);
+      return bSet(B, "work", 50, { why: "собирает хворост у базы" });
+    }
+    const cm = bCraft(B);
+    const bm = bBuild(B);
+    m += cm + bm;
+    if (m) return bSet(B, "work", m, { why: bm ? "строит" : cm ? "мастерит" : "разбирает добычу" });
+    const foods2 = B.inv.filter((e) => IT(e.id).c === "food" && !IT(e.id).raw && (IT(e.id).f || 0) >= 5).reduce((a, e) => a + e.n, 0);
+    if (foods2 < 1 && B.food < 60) {
+      if (L2.fish && baseSt("fire")) {
+        const rod = cnt(B.inv, "rod") || cnt(G.stash, "rod");
+        let n = 0;
+        for (let k = 0; k < 3; k++) if (ch((rod ? 0.55 : 0.3) + B.sk.surv * 0.03)) n++;
+        if (n) invAdd(G.stash, "fish", n);
+        bSkill(B, "surv", 0.5);
+        bLog(B, n ? "наловил рыбы: ".concat(n) : "рыба не клюёт");
+        return bSet(B, "work", 90, { why: "рыбачит у базы" });
+      }
+      let fz = null;
+      for (const k of Object.keys(LOCS)) {
+        if (!LOCS[k].forage || LOCS[k].ch2 && !CH2()) continue;
+        const r = route(B.loc, k);
+        if (r && (!fz || r.mins < fz.mins)) fz = { loc: k, mins: r.mins };
+      }
+      if (fz && bGo(B, fz.loc, "голоден — идёт за ягодами и грибами")) return;
+    }
+    const drinks2 = B.inv.filter((e) => IT(e.id).c === "drink" && !IT(e.id).raw && !IT(e.id).salt).reduce((a, e) => a + e.n, 0);
+    if (drinks2 < 1) {
+      const w = bWaterLoc(B.loc);
+      if (w && cnt(B.inv, "bottle") && bGo(B, w.loc, "идёт за водой")) return;
+    }
+    if (B.mode === "base") return bSet(B, "guard", 60, { why: "сторожит базу" });
+  }
+  if (B.mode === "base") {
+    if (bGo(B, "base", "возвращается на базу")) return;
+  }
+  if (!bn || h < 10) {
+    const here = L2.rooms ? L2.rooms.map((_, i) => i).filter((i) => bRoomValue(B.loc, i) > 0) : [];
+    if (here.length && !L2.base) {
+      const i = here[0];
+      return bSet(B, "search", 1, { room: i, why: "обыскивает «".concat(L2.rooms[i].n, "»") });
+    }
+    const tg = bTarget(B);
+    if (tg && bGo(B, tg, "идёт: ".concat(LOCS[tg].ic, " ").concat(LOCS[tg].n))) return;
+  }
+  if (L2.fish && cnt(B.inv, "rod")) {
+    if (ch(0.5)) invAdd(B.inv, "fish", R(1, 2));
+    return bSet(B, "work", 60, { why: "рыбачит" });
+  }
+  if (L2.forage && !atB) {
+    for (let k = R(1, 2); k > 0; k--) invAdd(B.inv, wpick([["berries", 3], ["mushroom", 3], ["herbs", 2], ["wood", 3]]), 1);
+    bSkill(B, "surv", 0.5);
+    return bSet(B, "work", 40, { why: "собирает в округе" });
+  }
+  if (!atB) {
+    if (bGo(B, "base", "возвращается на базу")) return;
+  }
+  return bSet(B, "guard", 60, { why: "сторожит базу" });
+}
+function bFinish(B) {
+  const t = B.task;
+  B.task = null;
+  if (!t) return;
+  if (t.t === "travel" && B.trav) {
+    const to = B.trav.to;
+    B.loc = to;
+    B.trav = null;
+    B.seen[to] = 1;
+    B.trips++;
+    if (!LOCS[to].base && ch(0.12 + (LOCS[to].dg || 0) * 0.03)) {
+      const en = (typeof _spawnListT === "function" ? _spawnListT : spawnList)([["zombie", 1, 2]]);
+      const r = bFight(B, en, 40);
+      bLog(B, "по дороге напали заражённые".concat(r.won ? " — отбился" : ""));
+    }
+    if (B.mode !== "follow") bLog(B, "пришёл: ".concat(LOCS[to].ic, " ").concat(LOCS[to].n));
+    if (LOCS[to].base && B.found) {
+      const n = B.inv.filter((e) => !BKEEP[e.id]).reduce((a, e) => a + e.n, 0);
+      if (n) bLog(B, "вернулся на базу с добычей (".concat(n, " шт.)"), true, "good");
+    }
+  }
+  if (t.t === "search") {
+    const r = bSearchRoom(B, t.room);
+    if (r.dead) return;
+    B.task = { t: "busy", until: G.time + r.mins, why: t.why };
+  }
+}
+function bDie(B, cause) {
+  B.alive = false;
+  const loc = B.trav ? B.trav.to : B.loc;
+  const items = B.inv.splice(0);
+  for (const k of ["w", "a", "b"]) if (B.eq[k]) items.push(B.eq[k]);
+  if (items.length) G.w.corpses.push({ loc, items, name: B.name, at: G.time });
+  B.respawn = G.time + DAY;
+  B.task = null;
+  B.trav = null;
+  bLog(B, "погиб (".concat(cause, ") — ").concat(LOCS[loc].n, ". Его вещи остались на теле."), true, "bad");
+  FEED("⚰️ ИИ-выживший ".concat(B.name, " погиб"));
+  try {
+    SND("death");
+  } catch (e) {
+  }
+}
+function botTick(st) {
+  if (!worldAuth()) return;
+  const B = bot();
+  if (!B) return;
+  if (!B.alive) {
+    if (G.time >= (B.respawn || 0)) {
+      const nb = botNew();
+      nb.gen = (B.gen || 1) + 1;
+      nb.style = B.style;
+      nb.log = (B.log || []).slice(-10);
+      G.w.bot = nb;
+      bLog(nb, "новый выживший пришёл на остров и обосновался на базе", true, "good");
+    }
+    return;
+  }
+  const t = st / 60, sleeping = B.task && B.task.t === "sleep", nr = F().needs;
+  B.food = Math.max(0, B.food - 2.6 * t * nr);
+  B.drink = Math.max(0, B.drink - 3.4 * t * nr * (season() === 3 ? 1.2 : 1));
+  B.energy = sleeping ? Math.min(100, B.energy + (LOCS[B.loc].base && G.w.struct.bed ? 13 : 9) * t) : Math.max(0, B.energy - 3.2 * t);
+  if (B.bleed) {
+    B.hp -= 3 * t;
+    if (ch(0.3 * t)) B.bleed = 0;
+  }
+  if (B.food <= 0) B.hp -= 2 * t;
+  if (B.drink <= 0) B.hp -= 5 * t;
+  if (B.food > 25 && B.drink > 25 && !B.bleed) B.hp = Math.min(100, B.hp + (sleeping ? 6 : 1.5) * t);
+  if (G.em && B.emN && G.em.next !== B.emN) {
+    if (B.emN <= G.time && !bShelter(B.loc) && G.em.next > B.emN) {
+      B.hp -= 55;
+      bLog(B, "попал под Выброс!", true, "bad");
+    }
+    B.emN = G.em.next;
+  } else if (G.em && !B.emN) B.emN = G.em.next;
+  if (B.hp <= 0) return bDie(B, B.drink <= 0 ? "жажда" : B.food <= 0 ? "голод" : "раны");
+  let guard = 0;
+  while (guard++ < 12 && B.alive) {
+    if (B.task && G.time < B.task.until) break;
+    if (B.task && B.task.t === "busy") B.task = null;
+    if (B.task) {
+      bFinish(B);
+      if (B.hp <= 0) return bDie(B, "бой");
+      if (B.task) continue;
+    }
+    bDecide(B);
+    if (B.hp <= 0) return bDie(B, "бой");
+  }
+  if (B.task && B.task.t === "sleep" && !isNight() && B.energy >= 95 && B.hp >= 60) B.task.until = G.time;
+}
+const _tickBot = tick;
+tick = function(st, o) {
+  _tickBot.apply(this, arguments);
+  try {
+    if (G && !G.dead) botTick(st);
+  } catch (e) {
+    console.warn("bot", e);
+  }
+};
+const _defenseBot = defense;
+defense = function() {
+  const d = _defenseBot.apply(this, arguments), B = bot();
+  return d + (B && B.alive && LOCS[B.loc].base && !B.trav ? 12 + Math.round(bPower(B) * 4) : 0);
+};
+const _petTurnBot = petTurn;
+petTurn = function(cb) {
+  let acted = _petTurnBot.apply(this, arguments);
+  const B = bot();
+  if (B && B.alive && !B.trav && B.loc === G.loc && !G.traveling && cb && !cb.opts.road || B && B.alive && B.mode === "follow" && cb) {
+    const w = bWeapon(B), gun = bGun(B), tg = cb.en.filter((e2) => e2.hp > 0 && (gun || e2.dist <= 1));
+    if (!tg.length) return acted;
+    const e = tg.sort((a, b) => a.hp - b.hp)[0], D = ENEMY[e.id];
+    if (gun) take(B.inv, w.ammo, 1);
+    if (ch(0.68 + B.sk.fight * 0.03)) {
+      const d = Math.max(1, Math.round((w && w.dmg ? R(w.dmg[0], w.dmg[1]) : R(3, 6)) * (1 + B.sk.fight * 0.05) - (D.arm || 0) * 0.6));
+      e.hp -= d;
+      cLog("🤖 ".concat(B.name, " ").concat(gun ? "стреляет в" : "бьёт", " ").concat(D.ic, " ").concat(D.n, ": −").concat(d), "good");
+      if (e.hp <= 0) {
+        B.kills++;
+        bSkill(B, "fight", 1);
+      }
+    } else cLog("🤖 ".concat(B.name, " промахивается по ").concat(D.n, "."), "dim");
+    acted = true;
+  }
+  return acted;
+};
+const _enemyHitBot = enemyHit;
+enemyHit = function(e, ranged, near) {
+  const B = bot();
+  if (B && B.alive && !B.trav && B.loc === G.loc && !G.traveling && ch(0.28)) {
+    const D = ENEMY[e.id];
+    if (!ch(D.acc - bArm(B) * 0.03)) {
+      cLog("".concat(D.ic, " ").concat(D.n, " промахивается по ").concat(B.name, "."), "dim");
+      return;
+    }
+    const d = Math.max(1, Math.round(R(D.dmg[0], D.dmg[1]) * F().enemies - bArm(B)));
+    B.hp -= d;
+    cLog("💢 ".concat(D.ic, " ").concat(D.n, " бьёт ").concat(B.name, ": −").concat(d), "bad");
+    if (B.hp <= 0) {
+      bDie(B, D.n);
+      cLog("⚰️ ".concat(B.name, " погиб."), "bad");
+    }
+    return;
+  }
+  return _enemyHitBot.apply(this, arguments);
+};
+const bTaskText = (B) => {
+  if (!B.alive) return "погиб · новый придёт через ~".concat(Math.max(1, Math.round((B.respawn - G.time) / H)), " ч");
+  const t = B.task;
+  if (!t) return "думает";
+  if (t.t === "travel" && B.trav) return "в пути: ".concat(LOCS[B.trav.from].n, " → ").concat(LOCS[B.trav.to].n, " (~").concat(Math.max(1, t.until - G.time), " мин)").concat(t.why ? " · " + t.why : "");
+  return t.why || { sleep: "спит", work: "работает", guard: "на посту", wait: "ждёт", search: "обыскивает", busy: "занят" }[t.t] || t.t;
+};
+function botCmd(v) {
+  const B = bot();
+  if (!B) return;
+  B.mode = v;
+  B.cmdAt = Date.now();
+  if (B.task && B.task.t !== "travel") B.task.until = G.time;
+  bLog(B, { auto: "живёт сам", base: "держится базы", rest: "отдыхает", follow: "идёт с тобой" }[v]);
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+window.botCmd = botCmd;
+window.botStyle = (v) => {
+  const B = bot();
+  if (!B) return;
+  B.style = v;
+  B.cmdAt = Date.now();
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+};
+window.botCreate = () => {
+  if (!worldAuth()) return UI.toast("Позвать ИИ-выжившего может хозяин мира.");
+  const nm = (document.getElementById("botname") || {}).value;
+  G.w.bot = botNew((nm || "").trim().slice(0, 20) || null);
+  bLog(G.w.bot, "обосновался на базе. Будет выживать сам.", true, "good");
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+};
+window.botOff = () => {
+  if (!worldAuth()) return UI.toast("Отпустить ИИ-выжившего может хозяин мира.");
+  const B = G.w.bot;
+  if (!B) return;
+  if (B.alive) {
+    for (const e of B.inv) G.stash.push(e);
+    for (const k of ["w", "a", "b"]) if (B.eq[k]) G.stash.push(B.eq[k]);
+  }
+  G.w.bot = null;
+  UI.log("🤖 ИИ-выживший ушёл с острова. Его вещи оставлены на складе.");
+  save();
+  UI.render();
+};
+function botTrade(dir) {
+  const B = bot();
+  if (!B || B.loc !== G.loc || B.trav) return;
+  if (!worldAuth()) return UI.toast("Обмениваться с ИИ-выжившим может только хозяин мира.");
+  const src = dir === "give" ? G.inv : B.inv, dst = dir === "give" ? B.inv : G.inv;
+  if (!src.length) return UI.toast("Нечего передать.");
+  UI.event({ title: dir === "give" ? "🎁 Отдать ".concat(B.name) : "🤲 Взять у ".concat(B.name), text: "Выбери вещь (передаётся вся пачка).", choices: src.slice(0, 24).map((e) => ({ t: "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(e.n > 1 ? " ×" + e.n : ""), fn: () => {
+    const i = src.indexOf(e);
+    if (i < 0) return;
+    src.splice(i, 1);
+    dst.push(e);
+    save();
+    UI.render();
+  } })).concat([{ t: "Готово" }]) });
+}
+window.botTrade = botTrade;
+function botPanel() {
+  const B = G.w.bot;
+  if (!B || !B.on) return '<div class="sec"><h2>🤖 ИИ-выживший</h2><p class="muted" style="font-size:13px">Второй выживший, который живёт сам: исследует остров, обыскивает постройки, носит добычу на склад, крафтит и строит, защищает базу в Кровавую ночь. Вы можете встречаться, меняться вещами и драться вместе.</p><div class="acts"><input id="botname" maxlength="20" placeholder="Имя (необязательно)" style="flex:1;min-width:120px"><button class="btn pri" onclick="botCreate()">🤖 Позвать на остров</button></div></div>';
+  const w = B.eq.w ? IT(B.eq.w.id) : null, a = B.eq.a ? IT(B.eq.a.id) : null, bar0 = (v, cls) => '<div class="mbar"><i style="width:'.concat(Math.max(0, Math.min(100, v)), '%" class="').concat(v < 25 ? "bad" : v < 50 ? "warn" : "", '"></i></div>');
+  const inv = B.inv.slice(0, 18).map((e) => "".concat(IT(e.id).ic).concat(e.n > 1 ? "×" + e.n : "")).join(" ");
+  return '<div class="sec botp"><div class="sechead"><h2>🤖 '.concat(esc2(B.name)).concat(B.gen > 1 ? ' <span class="mono muted" style="font-size:12px">№'.concat(B.gen, "</span>") : "", '</h2><span class="mono muted">').concat(B.alive ? "".concat(LOCS[B.trav ? B.trav.to : B.loc].ic, " ").concat(LOCS[B.trav ? B.trav.to : B.loc].n) : "⚰️", '</span></div>\n    <div class="wnow">').concat(esc2(bTaskText(B)), "</div>\n    ").concat(B.alive ? '<div class="botv"><span>❤️ '.concat(Math.round(B.hp), "</span>").concat(bar0(B.hp), "<span>🍗 ").concat(Math.round(B.food), "</span>").concat(bar0(B.food), "<span>💧 ").concat(Math.round(B.drink), "</span>").concat(bar0(B.drink), "<span>⚡ ").concat(Math.round(B.energy), "</span>").concat(bar0(B.energy), '</div>\n    <div class="s muted">Оружие: ').concat(w ? w.ic + " " + w.n : "кулаки").concat(a ? " · броня: ".concat(a.ic, " ").concat(a.n) : "", " · сила ").concat(bPower(B).toFixed(1), " · навыки: бой ").concat(Math.floor(B.sk.fight), ", обыск ").concat(Math.floor(B.sk.search), ", выживание ").concat(Math.floor(B.sk.surv), ", ремесло ").concat(Math.floor(B.sk.craft), '</div>\n    <div class="s muted">Рюкзак (').concat(bW(B).toFixed(1), "/").concat(bCap(B), " кг): ").concat(inv || "пусто", '</div>\n    <div class="s muted">Убито: ').concat(B.kills, " · походов: ").concat(B.trips, " · найдено вещей: ").concat(B.found, " · построек: ").concat(B.built, '</div>\n    <div class="toggle nshift">').concat([["auto", "🧭 Живёт сам"], ["base", "🏚️ Держится базы"], ["rest", "🛌 Отдых"], ["follow", "👣 Со мной"]].map(([k, n]) => '<button class="'.concat(B.mode === k ? "on" : "", '" onclick="botCmd(\'').concat(k, "')\">").concat(n, "</button>")).join(""), '</div>\n    <div class="toggle nshift">').concat([["careful", "🐢 Осторожный"], ["normal", "🚶 Обычный"], ["bold", "🔥 Смелый"]].map(([k, n]) => '<button class="'.concat(B.style === k ? "on" : "", '" onclick="botStyle(\'').concat(k, "')\">").concat(n, "</button>")).join(""), "</div>\n    ").concat(B.loc === G.loc && !B.trav && !G.traveling ? '<div class="acts"><button class="btn sm" onclick="botTrade(\'give\')">🎁 Отдать вещь</button><button class="btn sm" onclick="botTrade(\'take\')">🤲 Взять вещь</button></div>' : "") : "", '\n    <details class="nsk"><summary>📜 Журнал выжившего</summary>').concat((B.log || []).slice(-15).reverse().map((x) => '<div class="lg" style="font-size:12.5px"><span class="mono muted">Д'.concat(x.d, " ").concat(x.k, "</span> ").concat(esc2(x.t), "</div>")).join(""), '</details>\n    <div class="acts" style="justify-content:flex-end"><button class="btn sm" onclick="botOff()">Отпустить</button></div></div>');
+}
+const _workPanelBot = CUI.work;
+CUI.work = function() {
+  return botPanel() + _workPanelBot.apply(this, arguments);
+};
+const _sideRightBot = sideRight;
+sideRight = function() {
+  const B = bot();
+  const h = _sideRightBot.apply(this, arguments);
+  if (!B) return h;
+  return '<div class="card"><h3>🤖 '.concat(cesc(B.name), '</h3><div class="ln">').concat(B.alive ? "".concat(LOCS[B.trav ? B.trav.to : B.loc].ic, " ").concat(cesc(LOCS[B.trav ? B.trav.to : B.loc].n)) : "⚰️ погиб", '</div><div class="ln mono" style="white-space:normal">').concat(cesc(bTaskText(B)), "</div>").concat(B.alive ? '<div class="ln mono">❤️ '.concat(Math.round(B.hp), " · 🍗 ").concat(Math.round(B.food), " · 💧 ").concat(Math.round(B.drink), " · ⚡ ").concat(Math.round(B.energy), "</div>") : "", "</div>") + h;
+};
+const _locRowsBot = EXTUI.locRows;
+EXTUI.locRows = function() {
+  const h = _locRowsBot.apply(this, arguments), B = bot();
+  if (!B || !B.alive || B.loc !== G.loc || B.trav || G.room != null) return h;
+  return h + '<div class="row"><span class="ic">🤖</span><div class="grow"><span class="t">'.concat(esc2(B.name), ' здесь</span><span class="s">').concat(esc2(bTaskText(B)), " · ❤️ ").concat(Math.round(B.hp), ' · поможет в бою</span></div><div class="acts"><button class="btn sm" onclick="botTrade(\'give\')">🎁</button><button class="btn sm" onclick="botTrade(\'take\')">🤲</button><button class="btn sm" onclick="botCmd(\'').concat(B.mode === "follow" ? "auto" : "follow", "')\">").concat(B.mode === "follow" ? "Отпустить" : "👣 Со мной", "</button></div></div>");
+};

@@ -118,7 +118,7 @@ const COOP = (() => {
   function parts() {
     const w = G.w;
     const o = {
-      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null, power: w.power || 0 },
+      base: { struct: w.struct, wallHp: w.wallHp, bp: w.bp, prod: w.prod, catAt: w.catAt, catLove: w.catLove || 0, catAway: !!w.catAway, car: w.car || null, power: w.power || 0, bot: w.bot || null },
       story: {
         mode: G.mode,
         flags: w.flags,
@@ -163,6 +163,8 @@ const COOP = (() => {
       Object.assign(G.w, { struct: data.struct, wallHp: data.wallHp, bp: data.bp || {}, prod: data.prod, catAt: data.catAt, catLove: data.catLove || 0, catAway: !!data.catAway });
       if (data.car) G.w.car = data.car;
       G.w.power = data.power || 0;
+      if (!COOP.isAuth || !COOP.isAuth()) G.w.bot = data.bot || null;
+      else if (data.bot && G.w.bot && (data.bot.cmdAt || 0) > (G.w.bot.cmdAt || 0)) Object.assign(G.w.bot, { mode: data.bot.mode, style: data.bot.style, cmdAt: data.bot.cmdAt });
       if (stashBase === null && Array.isArray(data.stash) && data.stash.length && !G.stash.length) G.stash = data.stash;
     } else if (n === "story") {
       for (const k of ["flags", "quests", "qstart", "rep", "notes", "counters", "corpses", "deaths", "events"]) G.w[k] = data[k] || (Array.isArray(G.w[k]) ? [] : {});
