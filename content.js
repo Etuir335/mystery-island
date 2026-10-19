@@ -2314,7 +2314,7 @@ function uiSettingsHtml() {
   const opt = (k, list) => '<div class="toggle">'.concat(list.map(([v, n]) => '<button class="'.concat(UIP[k] === v ? "on" : "", "\" onclick='setUi(").concat(JSON.stringify(k), ", ").concat(JSON.stringify(v), ")'>").concat(n, "</button>")).join(""), "</div>");
   const row = (t, d, ctl) => '<div class="setrow"><div><b>'.concat(t, "</b>").concat(d ? '<div class="s muted">'.concat(d, "</div>") : "", "</div>").concat(ctl, "</div>");
   const wideOk = wideFits();
-  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Масштаб", "Размер всего интерфейса. «Авто» уменьшает его, когда телефон повёрнут боком.", opt("zoom", [["auto", "Авто"], ["0.7", "70%"], ["0.8", "80%"], ["0.9", "90%"], ["1", "100%"], ["1.1", "110%"]])), "\n    ").concat(row("Свайпы", "Провёл пальцем влево или вправо по экрану — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал).", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n    ").concat(typeof G !== "undefined" && G ? row("Испорченная еда", "Сама уходит в компост (удобрение для огорода) и приманку (рыбалка, силки). Иначе — кнопкой у предмета.", '<div class="toggle"><button class="'.concat(G.w.autoRot !== false ? "on" : "", '" onclick="setAutoRot(true)">Авто</button><button class="').concat(G.w.autoRot === false ? "on" : "", '" onclick="setAutoRot(false)">Вручную</button></div>')) : "", "\n  </div></div>");
+  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Масштаб", "Размер всего интерфейса. «Авто» уменьшает его, когда телефон повёрнут боком.", opt("zoom", [["auto", "Авто"], ["0.7", "70%"], ["0.8", "80%"], ["0.9", "90%"], ["1", "100%"], ["1.1", "110%"]])), "\n    ").concat(row("Свайпы", "Свайп по нижней половине экрана — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал). По верхней — подраздел (например, База: Обзор ↔ Стройка ↔ Крафт…). Если подразделов нет, верхний свайп тоже листает разделы.", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n    ").concat(typeof G !== "undefined" && G ? row("Испорченная еда", "Сама уходит в компост (удобрение для огорода) и приманку (рыбалка, силки). Иначе — кнопкой у предмета.", '<div class="toggle"><button class="'.concat(G.w.autoRot !== false ? "on" : "", '" onclick="setAutoRot(true)">Авто</button><button class="').concat(G.w.autoRot === false ? "on" : "", '" onclick="setAutoRot(false)">Вручную</button></div>')) : "", "\n  </div></div>");
 }
 if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
   const strip = (root) => {
@@ -2967,10 +2967,39 @@ if (typeof document !== "undefined") (() => {
   }, { passive: true });
   document.addEventListener("touchend", (e) => {
     if (!s) return;
-    const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y, dt = Date.now() - s.at;
+    const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y, dt = Date.now() - s.at, s0y = s.y;
     s = null;
     if (dt > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
     if (G.combat || G.traveling) return;
+    const vv = window.visualViewport, mid = vv ? vv.offsetTop + vv.height / 2 : window.innerHeight / 2, top = s0y < mid, haptic = () => {
+      try {
+        if (window.TGA && TGA.tg && TGA.tg.HapticFeedback) TGA.tg.HapticFeedback.selectionChanged();
+      } catch (x) {
+      }
+    };
+    if (top) {
+      const bar = document.querySelector("#main .toggle.subtabs");
+      if (bar) {
+        const bs = [...bar.querySelectorAll("button")].filter((b) => !b.disabled), i0 = bs.findIndex((b) => b.classList.contains("on"));
+        const nb = bs[(i0 < 0 ? 0 : i0) + (dx < 0 ? 1 : -1)];
+        if (nb) {
+          nb.click();
+          const mn2 = document.getElementById("main");
+          if (mn2) {
+            mn2.classList.remove("swl", "swr");
+            void mn2.offsetWidth;
+            mn2.classList.add(dx < 0 ? "swl" : "swr");
+            setTimeout(() => mn2.classList.remove("swl", "swr"), 260);
+          }
+          haptic();
+          setTimeout(() => {
+            const nb2 = document.querySelector("#main .toggle.subtabs button.on");
+            if (nb2 && nb2.scrollIntoView) nb2.scrollIntoView({ block: "nearest", inline: "center" });
+          }, 30);
+        }
+        return;
+      }
+    }
     const st = UI._st, i = SWIPE_TABS.indexOf(st.tab === "room" ? "loc" : st.tab);
     if (i < 0) return;
     const j = i + (dx < 0 ? 1 : -1);
@@ -2985,10 +3014,7 @@ if (typeof document !== "undefined") (() => {
     st.open = null;
     if (SWIPE_TABS[j] !== "loc") st.trader = null;
     UI.go(SWIPE_TABS[j]);
-    try {
-      if (window.TGA && TGA.tg && TGA.tg.HapticFeedback) TGA.tg.HapticFeedback.selectionChanged();
-    } catch (x) {
-    }
+    haptic();
   }, { passive: true });
 })();
 if (typeof window !== "undefined" && window.__BUILD && typeof fetch === "function") (() => {
