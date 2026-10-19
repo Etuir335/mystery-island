@@ -478,9 +478,16 @@ const UI = /* @__PURE__ */ (() => {
     if (atBase()) b.push(btn("📦 Сложить материалы", stashAllMats, "sm"));
     return '<div class="quick">'.concat(b.join(""), "</div>");
   }
+  const WCAT = { all: "📋 Все", ready: "✅ Можно", food: "🍳 Еда и вода", med: "💊 Медицина", war: "⚔️ Оружие", mat: "🪵 Материалы" };
+  function wcatOf(r) {
+    const c = IT(Object.keys(r.out)[0]).c;
+    return c === "food" || c === "drink" ? "food" : c === "med" ? "med" : ["melee", "gun", "ammo", "raid", "wear", "mod"].includes(c) || r.id === "bolts" ? "war" : "mat";
+  }
   function workshop() {
-    const rs = RECIPES.map((r) => ({ r, w: recipeState(r) })).filter((x) => x.w !== "bp").sort((x, y) => (x.w ? 1 : 0) - (y.w ? 1 : 0));
-    return '<div class="sec"><h2>Мастерская</h2><div class="list">'.concat(rs.map(({ r, w }) => '<div class="row '.concat(w ? "dim" : "", '"><div class="grow"><span class="t">').concat(esc(r.n), '</span><span class="s">').concat(Object.entries(r.need).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v)).join(", ")).concat(r.st ? " · нужен ".concat(STATION_N[r.st]) : "", " · ").concat(r.t, ' мин</span></div><div class="acts">').concat(btn("Сделать", () => craft(r), "sm", !!w)).concat(!w && canMake(r) > 1 ? btn("×".concat(canMake(r)), () => craftMax(r), "sm") : "", "</div></div>")).join(""), '</div><p class="muted" style="font-size:13px">Чертежи из лута открывают новые постройки и рецепты. Изучи чертёж в рюкзаке.</p></div>');
+    const all = RECIPES.map((r) => ({ r, w: recipeState(r) })).filter((x) => x.w !== "bp").sort((x, y) => (x.w ? 1 : 0) - (y.w ? 1 : 0));
+    const cur2 = WCAT[st.wcat] ? st.wcat : "all", rs = all.filter((x) => cur2 === "ready" ? !x.w : wcatOf(x.r) === cur2 || cur2 === "all");
+    const nIn = (k) => all.filter((x) => k === "ready" ? !x.w : k === "all" || wcatOf(x.r) === k).length;
+    return '<div class="sec"><h2>Мастерская</h2><div class="toggle filt wcat">'.concat(Object.entries(WCAT).map(([k, n]) => '<button class="'.concat(cur2 === k ? "on" : "", '" onclick="').concat(a(() => st.wcat = k), '">').concat(n, ' <span class="mono muted">').concat(nIn(k), "</span></button>")).join(""), '</div><div class="list">').concat(rs.length ? "" : '<p class="muted">Здесь пока ничего нельзя сделать.</p>').concat(rs.map(({ r, w }) => '<div class="row '.concat(w ? "dim" : "", '"><div class="grow"><span class="t">').concat(esc(r.n), '</span><span class="s">').concat(Object.entries(r.need).map(([k, v]) => "".concat(IT(k).ic).concat(IT(k).n, " ").concat(allCnt(k), "/").concat(v)).join(", ")).concat(r.st ? " · нужен ".concat(STATION_N[r.st]) : "", " · ").concat(r.t, ' мин</span></div><div class="acts">').concat(btn("Сделать", () => craft(r), "sm", !!w)).concat(!w && canMake(r) > 1 ? btn("×".concat(canMake(r)), () => craftMax(r), "sm") : "", "</div></div>")).join(""), '</div><p class="muted" style="font-size:13px">Чертежи из лута открывают новые постройки и рецепты. Изучи чертёж в рюкзаке.</p></div>');
   }
   const INV_FL = { all: ["Всё", null], food: ["Еда", ["food", "drink"]], med: ["Медицина", ["med"]], war: ["Оружие", ["melee", "gun", "ammo", "wear", "mod"]], mat: ["Прочее", ["mat", "tool", "bp", "key", "quest", "val", "art"]] };
   function filtered(list, key) {
@@ -1103,19 +1110,14 @@ const UI = /* @__PURE__ */ (() => {
       const g = TRAITS[k].g;
       return !o.traits.includes(k) && !(g && o.traits.some((x) => TRAITS[x].g === g));
     };
-    const neg = sh(Object.keys(TRAITS).filter((k) => TRAITS[k].cost < 0)), pos = sh(Object.keys(TRAITS).filter((k) => TRAITS[k].cost > 0));
-    const nNeg = Math.floor(Math.random() * 3);
-    for (const k of neg) {
-      if (o.traits.length >= nNeg) break;
-      if (fits(k)) o.traits.push(k);
+    const want = Math.floor(Math.random() * 10);
+    for (const k of sh(Object.keys(TRAITS))) {
+      if (o.traits.length >= want) break;
+      if (fits(k) && cpts(o) - TRAITS[k].cost >= 0) o.traits.push(k);
     }
-    let nPos = 1 + Math.floor(Math.random() * 3);
-    for (const k of pos) {
-      if (!nPos) break;
-      if (fits(k) && cpts(o) - TRAITS[k].cost >= 0) {
-        o.traits.push(k);
-        nPos--;
-      }
+    if (o.traits.length < want) for (const k of sh(Object.keys(TRAITS).filter((k2) => TRAITS[k2].cost > 0))) {
+      if (o.traits.length >= want) break;
+      if (fits(k) && cpts(o) - TRAITS[k].cost >= 0) o.traits.push(k);
     }
     if (cpts(o) < 0) o.traits = [];
   }
@@ -1123,7 +1125,11 @@ const UI = /* @__PURE__ */ (() => {
     o.prof = o.prof || "unemployed";
     const P = PROFS[o.prof], left = cpts(o);
     const skl = (sk) => Object.entries(sk || {}).map(([k, v]) => "".concat(SKILLS[k].ic).concat(v > 0 ? "+" : "").concat(v)).join(" ");
-    const tbtn = ([k, T2]) => '<button class="trait '.concat(o.traits.includes(k) ? "on" : "", '" onclick="').concat(m(() => {
+    const opp = (k) => {
+      const g = TRAITS[k].g;
+      return g ? o.traits.find((x) => x !== k && TRAITS[x].g === g) : null;
+    };
+    const tbtn = ([k, T2]) => opp(k) ? '<button class="trait lock" disabled title="Несовместимо с «'.concat(esc(TRAITS[opp(k)].n), '»"><span class="tn"><span>').concat(T2.ic, " ").concat(T2.n, '</span><span class="mono muted">🔒</span></span><span class="muted">Несовместимо с «').concat(esc(TRAITS[opp(k)].n), "» — сними её, чтобы выбрать эту.</span></button>") : '<button class="trait '.concat(o.traits.includes(k) ? "on" : "", '" onclick="').concat(m(() => {
       toggleTrait(o, k);
       draw();
     }), '"><span class="tn"><span>').concat(T2.ic, " ").concat(T2.n, '</span><span class="mono ').concat(T2.cost > 0 ? "warn" : "good", '">').concat(T2.cost > 0 ? "−" + T2.cost : "+" + -T2.cost, '</span></span><span class="muted">').concat(esc(T2.d)).concat(T2.sk ? " · " + skl(T2.sk) : "", "</span></button>");

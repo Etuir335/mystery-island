@@ -5279,7 +5279,7 @@ function botNew(name) {
   return B;
 }
 const bW = (B) => B.inv.reduce((a, e) => a + (IT(e.id).w || 0) * (e.n || 1), 0) + (B.eq.w ? IT(B.eq.w.id).w : 0) + (B.eq.a ? IT(B.eq.a.id).w : 0);
-const bCap = (B) => 14 + (B.eq.b ? IT(B.eq.b.id).cap || 0 : 0) + B.sk.surv;
+const bCap = (B) => 14 + (B.eq.b ? IT(B.eq.b.id).cap || 0 : 0) + Math.floor(B.sk.surv);
 const bArm = (B) => B.eq.a ? IT(B.eq.a.id).arm || 0 : 0;
 const bWeapon = (B) => B.eq.w ? IT(B.eq.w.id) : null;
 const bGun = (B) => {
