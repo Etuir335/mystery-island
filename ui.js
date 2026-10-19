@@ -1086,6 +1086,38 @@ const UI = /* @__PURE__ */ (() => {
       o.traits = o.traits.filter((x) => !g || TRAITS[x].g !== g).concat(k);
     }
   }
+  function randBuild(o) {
+    const sh = (a2) => {
+      a2 = a2.slice();
+      for (let i = a2.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a2[i], a2[j]] = [a2[j], a2[i]];
+      }
+      return a2;
+    };
+    const pk = Object.keys(PROFS);
+    o.prof = pk[Math.floor(Math.random() * pk.length)];
+    o.traits = [];
+    const fits = (k) => {
+      const g = TRAITS[k].g;
+      return !o.traits.includes(k) && !(g && o.traits.some((x) => TRAITS[x].g === g));
+    };
+    const neg = sh(Object.keys(TRAITS).filter((k) => TRAITS[k].cost < 0)), pos = sh(Object.keys(TRAITS).filter((k) => TRAITS[k].cost > 0));
+    const nNeg = Math.floor(Math.random() * 3);
+    for (const k of neg) {
+      if (o.traits.length >= nNeg) break;
+      if (fits(k)) o.traits.push(k);
+    }
+    let nPos = 1 + Math.floor(Math.random() * 3);
+    for (const k of pos) {
+      if (!nPos) break;
+      if (fits(k) && cpts(o) - TRAITS[k].cost >= 0) {
+        o.traits.push(k);
+        nPos--;
+      }
+    }
+    if (cpts(o) < 0) o.traits = [];
+  }
   function charBuilder(o, draw) {
     o.prof = o.prof || "unemployed";
     const P = PROFS[o.prof], left = cpts(o);
@@ -1094,7 +1126,10 @@ const UI = /* @__PURE__ */ (() => {
       toggleTrait(o, k);
       draw();
     }), '"><span class="tn"><span>').concat(T2.ic, " ").concat(T2.n, '</span><span class="mono ').concat(T2.cost > 0 ? "warn" : "good", '">').concat(T2.cost > 0 ? "−" + T2.cost : "+" + -T2.cost, '</span></span><span class="muted">').concat(esc(T2.d)).concat(T2.sk ? " · " + skl(T2.sk) : "", "</span></button>");
-    let h = '<h2>Профессия</h2><div class="traits">'.concat(Object.entries(PROFS).map(([k, Q]) => '<button class="trait '.concat(o.prof === k ? "on" : "", '" onclick="').concat(m(() => {
+    let h = '<div class="acts" style="justify-content:center;margin:6px 0"><button class="btn" onclick="'.concat(m(() => {
+      randBuild(o);
+      draw();
+    }), '">🎲 Случайный билд</button></div><h2>Профессия</h2><div class="traits">').concat(Object.entries(PROFS).map(([k, Q]) => '<button class="trait '.concat(o.prof === k ? "on" : "", '" onclick="').concat(m(() => {
       o.prof = k;
       draw();
     }), '"><span class="tn"><span>').concat(Q.ic, " ").concat(Q.n, '</span><span class="mono ').concat(Q.pts >= 4 ? "good" : Q.pts < 0 ? "bad" : "", '">').concat(Q.pts, ' оч.</span></span><span class="muted">').concat(esc(Q.d)).concat(Q.sk ? " · " + skl(Q.sk) : "", "</span></button>")).join(""), "</div>");
