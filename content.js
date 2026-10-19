@@ -2583,11 +2583,18 @@ window.setAutoSmoke = (v) => {
   save();
   UI.render();
 };
+function virusCard() {
+  const c = G.ch;
+  if (!F().virus || !c.virus) return "";
+  const left = Math.max(0, Math.round((96 * H - (G.time - c.virus)) / H)), have = G.inv.find((e) => e.id === "serum") || atBase() && G.stash.find((e) => e.id === "serum");
+  return '<div class="viruscard '.concat(left <= 24 ? "crit" : "", '"><div><b>🦠 Ты заражён вирусом</b> — через ~').concat(left, " ч обратишься (").concat(Math.floor(left / 24), " сут. ").concat(left % 24, ' ч).</div><div class="s">Заражение было от укуса. Лечится только сывороткой: у Левина, у кочевого торговца или в лабораториях.</div>').concat(have ? '<div class="acts">'.concat(UI.btn("🧪 Вколоть сыворотку", () => useItem("serum"), "pri sm"), "</div>") : "", "</div>");
+}
 const _extChar = EXTUI.charPanel;
 EXTUI.charPanel = function() {
   const v = G.ch.autoSmoke | 0, n = G.inv.filter((e) => IT(e.id).smoke).reduce((a, e) => a + e.n, 0);
   return '<div class="sec"><h2>🚬 Автокурение</h2><div class="toggle">'.concat([[0, "Выкл"], [40, "Стресс 40+"], [60, "60+"], [80, "80+"]].map(([k, t]) => '<button class="'.concat(v === k ? "on" : "", '" onclick="setAutoSmoke(').concat(k, ')">').concat(t, "</button>")).join(""), '</div><p class="muted" style="font-size:13px">Закурит сам, когда стресс дойдёт до порога').concat(hasTrait("smoker") ? " или начнётся ломка" : "", ". Не в бою и не во сне. Сигарет в рюкзаке: ").concat(n).concat(atBase() ? ", на складе: " + G.stash.filter((e) => IT(e.id).smoke).reduce((a, e) => a + e.n, 0) : "", ".</p></div>") + _extChar.apply(this, arguments);
 };
+window.virusCard = virusCard;
 NPC_ROLES.cook = { n: "Повар", ic: "🍳", d: "готовит еду со склада по заказам: жарит, коптит, варит" };
 NPC_ROLES.crafter.d = "выполняет заказы: доски, вещи, постройки; латает стены";
 const WORKERS = { cook: 1, crafter: 1 };
@@ -3005,3 +3012,140 @@ if (typeof window !== "undefined" && window.__BUILD && typeof fetch === "functio
     if (!document.hidden) check();
   });
 })();
+const SALVAGE = {
+  stick: { wood: 1 },
+  knife: { scrap: 1 },
+  crowbar: { scrap: 2 },
+  bat: { wood: 2 },
+  axe: { scrap: 1, wood: 1 },
+  machete: { scrap: 2 },
+  spear: { stick: 1, scrap: 1 },
+  nailbat: { planks: 1, nails: 4 },
+  cblade: { cshard: 2, scrap: 1 },
+  staff: { cshard: 3, wood: 2 },
+  tusk: { scrap: 2, rag: 1 },
+  pm: { scrap: 2, wire: 1 },
+  sawn: { scrap: 3, wood: 1 },
+  ak: { scrap: 4, wire: 1 },
+  jacket: { rag: 3 },
+  parka: { rag: 4 },
+  mjacket: { rag: 4, wire: 1 },
+  wolfpelt: { rag: 4 },
+  vest: { scrap: 3, rag: 2 },
+  vest2: { scrap: 4, rag: 3 },
+  cvest: { cshard: 3, scrap: 2 },
+  gasmask: { rag: 1, scrap: 1 },
+  bag1: { rag: 2 },
+  bag2: { rag: 3, rope: 1 },
+  bag3: { rag: 4, rope: 1, wire: 1 },
+  flash: { battery: 1, scrap: 1 },
+  rod: { stick: 1, wire: 1 },
+  detector: { elec: 3, battery: 2 },
+  tools: { scrap: 3 },
+  snare: { rope: 1 },
+  picks: { wire: 1 },
+  scope: { elec: 1, scrap: 1 },
+  silencer: { scrap: 2 },
+  stock: { planks: 1 },
+  extmag: { scrap: 2 },
+  spikes: { nails: 5 },
+  grip: { rag: 1 },
+  bottlesil: { tape: 1 }
+};
+const SALV_CATS = { melee: 1, gun: 1, wear: 1, mod: 1, tool: 1 };
+function salvageBase(id) {
+  if (SALVAGE[id]) return SALVAGE[id];
+  const it = IT(id);
+  if (!it || !SALV_CATS[it.c] || id === "bottle" || id === "lighter" || id === "bolts") return null;
+  const r = RECIPES.find((x) => x.out[id]);
+  if (r) {
+    const o = {};
+    for (const [k, v] of Object.entries(r.need)) {
+      const n2 = Math.floor(v / 2);
+      if (n2 > 0 && IT(k).c !== "quest") o[k] = n2;
+    }
+    if (Object.keys(o).length) return o;
+  }
+  const n = Math.max(1, Math.min(5, Math.round((it.v || 10) / 60)));
+  return it.c === "wear" ? { rag: Math.max(1, n), scrap: it.arm > 2 ? 1 : 0 } : { scrap: n };
+}
+function salvageYield(e) {
+  const base = salvageBase(e.id);
+  if (!base) return null;
+  const it = IT(e.id), out = {};
+  const wear = e.dur != null && it.dur ? e.dur / it.dur : 1;
+  for (const [k, v] of Object.entries(base)) {
+    const n = Math.max(0, Math.round(v * (wear < 0.3 ? 0.5 : wear < 0.6 ? 0.75 : 1)));
+    if (n) out[k] = n;
+  }
+  if (!Object.keys(out).length) {
+    const [k] = Object.keys(base);
+    if (k) out[k] = 1;
+  }
+  for (const m of e.mods || []) out[m] = (out[m] || 0) + 1;
+  return out;
+}
+const salvTxt = (y) => Object.entries(y).map(([k, v]) => "".concat(IT(k).ic, " ").concat(IT(k).n, " ×").concat(v)).join(", ");
+const salvRare = (id) => (IT(id).v || 0) >= 350;
+function salvage(e, where, all) {
+  const list = where === "stash" ? G.stash : G.inv;
+  if (!list.includes(e)) return UI.toast("Предмета уже нет.");
+  if (where === "stash" && !atBase()) return UI.toast("Склад — только на базе.");
+  if (G.combat) return;
+  const ents = all ? list.filter((x) => x.id === e.id) : [e];
+  const tot = {};
+  let n = 0;
+  for (const x of ents) {
+    const y = salvageYield(x);
+    if (!y) continue;
+    const k0 = all ? x.n || 1 : 1;
+    n += k0;
+    for (let i = 0; i < k0; i++) for (const [k, v] of Object.entries(y)) tot[k] = (tot[k] || 0) + v;
+  }
+  if (!n) return;
+  for (const x of ents) {
+    if (!all && (x.n || 1) > 1) x.n -= 1;
+    else list.splice(list.indexOf(x), 1);
+  }
+  const bonus = skill("craft") >= 3 && ch(0.4), [first] = Object.keys(tot);
+  if (bonus && first) tot[first]++;
+  for (const [k, v] of Object.entries(tot)) invAdd(list, k, v);
+  xp("craft", Math.min(10, n));
+  advance(10 * n);
+  SND("craft");
+  UI.log("🔧 Разобрал: ".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(n > 1 ? " ×" + n : "", " → ").concat(salvTxt(tot)).concat(bonus ? " (руки помнят — +1)" : "", "."), "good");
+  if (where === "stash" && typeof stLog === "function") try {
+    stLog("-", e.id, n);
+  } catch (x) {
+  }
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+const salvCount = (e, where) => (where === "stash" ? G.stash : G.inv).filter((x) => x.id === e.id).reduce((a, x) => a + (x.n || 1), 0);
+function salvageAsk(e, where, all) {
+  const list = where === "stash" ? G.stash : G.inv, ents = all ? list.filter((x) => x.id === e.id) : [e];
+  const tot = {};
+  let n = 0;
+  for (const x of ents) {
+    const y = salvageYield(x);
+    if (!y) continue;
+    const k0 = all ? x.n || 1 : 1;
+    n += k0;
+    for (let i = 0; i < k0; i++) for (const [k, v] of Object.entries(y)) tot[k] = (tot[k] || 0) + v;
+  }
+  if (!n) return;
+  const mods = ents.some((x) => x.mods && x.mods.length);
+  UI.event({
+    title: "🔧 Разобрать: ".concat(IT(e.id).n).concat(n > 1 ? " ×" + n : ""),
+    cls: salvRare(e.id) ? "bad" : "",
+    text: "Получишь: ".concat(salvTxt(tot), ".\nЗаймёт ").concat(10 * n, " мин.").concat(mods ? "\nУстановленные модули вернутся целыми." : "").concat(salvRare(e.id) ? "\n\n⚠️ Это ценная вещь — назад её не собрать." : ""),
+    choices: [{ t: "🔧 Разобрать", fn: () => salvage(e, where, all) }, { t: "Отмена" }]
+  });
+}
+CUI.salvageBtn = (e, where) => {
+  if (!salvageBase(e.id)) return "";
+  if (where === "stash" && !atBase()) return "";
+  const c = salvCount(e, where);
+  return UI.btn("🔧 Разобрать", () => salvageAsk(e, where, false), "sm") + (c > 1 ? UI.btn("🔧 Разобрать все такие ×".concat(c), () => salvageAsk(e, where, true), "sm") : "");
+};

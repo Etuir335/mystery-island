@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
 <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
-<script>window.__BUILD=1792396970</script>
+<script>window.__BUILD=1792397883</script>
 <script>
 /* заплатки для старых движков (Edge 18 в Telegram Desktop) */
 if (!Object.fromEntries) Object.fromEntries = function (it) { var o = {}; Array.from(it).forEach(function (kv) { o[kv[0]] = kv[1]; }); return o; };
@@ -1957,6 +1957,23 @@ html.wide.cmp:not(.art-off) canvas.scene {
   width: 100%;
   object-fit: cover;
 }
+.viruscard {
+  display: grid;
+  grid-gap: 6px;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  border: 2px solid var(--warn);
+  background: var(--panel);
+  font-size: 14px;
+}
+.viruscard.crit {
+  border-color: var(--bad);
+}
+.viruscard .s {
+  font-size: 12.5px;
+  color: var(--muted);
+}
 </style>
 
 </head>
@@ -1970,18 +1987,18 @@ html.wide.cmp:not(.art-off) canvas.scene {
 <div id="modal"></div>
 <div id="toast" hidden></div>
 
-<script src="data.js?v=1792396970"></script>
-<script src="game.js?v=1792396970"></script>
-<script src="ext.js?v=1792396970"></script>
-<script src="content.js?v=1792396970"></script>
-<script src="art.js?v=1792396970"></script>
-<script src="audio.js?v=1792396970"></script>
-<script src="coop.js?v=1792396970"></script>
-<script src="tg.js?v=1792396970"></script>
-<script src="fbconfig.js?v=1792396970"></script>
-<script src="fbcoop.js?v=1792396970"></script>
-<script src="sync.js?v=1792396970"></script>
-<script src="ui.js?v=1792396970"></script>
+<script src="data.js?v=1792397883"></script>
+<script src="game.js?v=1792397883"></script>
+<script src="ext.js?v=1792397883"></script>
+<script src="content.js?v=1792397883"></script>
+<script src="art.js?v=1792397883"></script>
+<script src="audio.js?v=1792397883"></script>
+<script src="coop.js?v=1792397883"></script>
+<script src="tg.js?v=1792397883"></script>
+<script src="fbconfig.js?v=1792397883"></script>
+<script src="fbcoop.js?v=1792397883"></script>
+<script src="sync.js?v=1792397883"></script>
+<script src="ui.js?v=1792397883"></script>
 
 </body>
 </html>

@@ -434,6 +434,7 @@ const UI = /* @__PURE__ */ (() => {
         drop(e);
       }, "sm"));
     } else out.push(btn(e.n > 1 ? "Взять все" : "Взять", () => fromStash(e), "pri sm"), e.n > 1 ? btn("Взять 1", () => fromStash(e, 1), "sm") : "", it.c === "food" || it.c === "drink" || it.c === "med" ? btn("Использовать", () => useItem(e.id), "sm") : "");
+    if (typeof CUI !== "undefined" && CUI.salvageBtn) out.push(CUI.salvageBtn(e, where));
     return out.join("");
   }
   function itemList(list, where) {
@@ -574,6 +575,7 @@ const UI = /* @__PURE__ */ (() => {
   function renderChar() {
     const c = G.ch, f = F();
     let h = "".concat(logLast(2), '<div class="sec"><div class="eyebrow">').concat(MODES[G.mode].ic, " ").concat(MODES[G.mode].n).concat(G.w.gen > 1 ? " · выживший №".concat(G.w.gen) : "", "</div><h1>").concat(esc(c.name), '</h1><div class="acts"><span class="chip good">').concat((PROFS[c.prof] || PROFS.unemployed).ic, " ").concat((PROFS[c.prof] || PROFS.unemployed).n, "</span>").concat(c.traits.filter((t) => TRAITS[t]).map((t) => '<span class="chip" title="'.concat(esc(TRAITS[t].d), '">').concat(TRAITS[t].ic, " ").concat(TRAITS[t].n, "</span>")).join("") || '<span class="muted">без черт</span>', "</div>").concat((c.perks || []).length ? '<div class="acts">'.concat(c.perks.map((id) => PERK_BY[id] ? '<span class="chip warn" title="'.concat(esc(PERK_BY[id].d), '">⭐ ').concat(PERK_BY[id].ic, " ").concat(PERK_BY[id].n, "</span>") : "").join(""), "</div>") : "", '<p class="muted mono">Жив ').concat(Math.floor((G.time - c.born) / DAY), " дн. · убито ").concat(c.kills, " · ").concat(G.w.deaths.length ? "смертей: ".concat(G.w.deaths.length) : "ни разу не умирал", "</p></div>");
+    if (typeof virusCard === "function") h += virusCard();
     if (f.parts) {
       const kinds = [["bandage", "dband"], ["antisep", "alcohol"], ["splint"]];
       const have = (k) => kinds[k].find((id) => cnt(G.inv, id));
