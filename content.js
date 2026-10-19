@@ -969,9 +969,9 @@ CUI.basePanel = function() {
   const c = G.ch, need = c.energy < 99 || c.food < 92 || c.drink < 92;
   return '<div class="sec"><div class="acts">'.concat(UI.btn("🛌 Полностью отдохнуть", fullRest, "pri", !need), '</div><p class="muted" style="font-size:12.5px;margin:4px 0 0">Поесть и попить досыта (экономно), выспаться до полной выносливости и снова подкрепиться.').concat(G.coop ? " Общее время пойдёт вперёд и у друга." : "", "</p></div>") + _cuiBase.apply(this, arguments);
 };
-function stLog(act, id, n) {
-  if (!n) return;
-  const e = { who: G.ch.name, act, id, n, d: day(), k: clock(), at: Date.now() };
+function stLog(act, id, n, who) {
+  if (!n || id && !ITEMS[id]) return;
+  const e = { who: who || G.ch.name, act, id, n, d: day(), k: clock(), at: Date.now() };
   if (G.coop && window.COOP && COOP.logStash) COOP.logStash(e);
   else {
     G.w.stashLog = (G.w.stashLog || []).concat([e]).slice(-60);
@@ -1099,7 +1099,7 @@ function todoHtml() {
 }
 function stashLogHtml() {
   const l = stashLogList().slice(-25).reverse();
-  return '<div class="sec"><h2>🧾 Журнал склада</h2>'.concat(l.length ? '<div class="list" style="gap:2px">'.concat(l.map((x) => '<div class="lg" style="font-size:13px"><span class="mono muted">Д'.concat(x.d, " ").concat(x.k, "</span> <b>").concat(cesc(x.who), "</b> ").concat(x.act === "+" ? '<span class="good">положил</span>' : '<span class="bad">взял</span>', " ").concat(x.id ? "".concat(IT(x.id).ic, " ").concat(cesc(IT(x.id).n)).concat(x.n > 1 ? " ×" + x.n : "") : cesc(x.txt || ""), "</div>")).join(""), "</div>") : '<p class="muted">Пока пусто.</p>', "</div>");
+  return '<div class="sec"><h2>🧾 Журнал склада</h2>'.concat(l.length ? '<div class="list" style="gap:2px">'.concat(l.map((x) => '<div class="lg" style="font-size:13px"><span class="mono muted">Д'.concat(x.d, " ").concat(x.k, "</span> <b>").concat(cesc(x.who), "</b> ").concat(x.act === "+" ? '<span class="good">положил</span>' : '<span class="bad">взял</span>', " ").concat(x.id && ITEMS[x.id] ? "".concat(IT(x.id).ic, " ").concat(cesc(IT(x.id).n)).concat(x.n > 1 ? " ×" + x.n : "") : cesc(x.txt || ""), "</div>")).join(""), "</div>") : '<p class="muted">Пока пусто.</p>', "</div>");
 }
 function backupsHtml() {
   const b = UI.btn, coop = G.coop && window.COOP;
@@ -5496,7 +5496,7 @@ function bSearchRoom(B, i) {
   return { mins, got };
 }
 function bUnload(B) {
-  const kept = {};
+  const kept = {}, bMoved = {};
   let moved = 0;
   for (const e of B.inv.slice()) {
     const it = IT(e.id), keep = BKEEP[e.id] || (bWeapon(B) && bWeapon(B).ammo === e.id ? 40 : 0);
@@ -5512,11 +5512,12 @@ function bUnload(B) {
     else e.n -= give;
     G.stash.push(copy);
     moved += give;
+    bMoved[e.id] = (bMoved[e.id] || 0) + give;
   }
   if (moved) {
     G.stash = sMerge(G.stash);
-    if (typeof stLog === "function") try {
-      stLog("+", "bot", moved);
+    try {
+      for (const [id, n] of Object.entries(bMoved)) stLog("+", id, n, "🤖 " + B.name);
     } catch (x) {
     }
   }
