@@ -2314,7 +2314,7 @@ function uiSettingsHtml() {
   const opt = (k, list) => '<div class="toggle">'.concat(list.map(([v, n]) => '<button class="'.concat(UIP[k] === v ? "on" : "", "\" onclick='setUi(").concat(JSON.stringify(k), ", ").concat(JSON.stringify(v), ")'>").concat(n, "</button>")).join(""), "</div>");
   const row = (t, d, ctl) => '<div class="setrow"><div><b>'.concat(t, "</b>").concat(d ? '<div class="s muted">'.concat(d, "</div>") : "", "</div>").concat(ctl, "</div>");
   const wideOk = wideFits();
-  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Масштаб", "Размер всего интерфейса. «Авто» уменьшает его, когда телефон повёрнут боком.", opt("zoom", [["auto", "Авто"], ["0.7", "70%"], ["0.8", "80%"], ["0.9", "90%"], ["1", "100%"], ["1.1", "110%"]])), "\n    ").concat(row("Свайпы", "Провёл пальцем влево или вправо по экрану — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал).", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n  </div></div>");
+  return '<div class="sec"><h2>🖥️ Интерфейс</h2><div class="setlist">\n    '.concat(row("Подробность", "Простой — меньше пояснений и мелкого текста. Подробный — всё сразу.", opt("dens", [["simple", "Простой"], ["normal", "Обычный"], ["detailed", "Подробный"]])), "\n    ").concat(row("Эмодзи", "Убирает значки из текста и кнопок — меньше пестроты.", opt("emoji", [[true, "Показывать"], [false, "Скрыть"]])), "\n    ").concat(row("Лог действий на экранах", "Последние события над экраном. На широком экране они всегда в левой панели.", opt("log", [[0, "Скрыть"], [2, "2 строки"], [4, "4 строки"]])), "\n    ").concat(row("Масштаб", "Размер всего интерфейса. «Авто» уменьшает его, когда телефон повёрнут боком.", opt("zoom", [["auto", "Авто"], ["0.7", "70%"], ["0.8", "80%"], ["0.9", "90%"], ["1", "100%"], ["1.1", "110%"]])), "\n    ").concat(row("Свайпы", "Провёл пальцем влево или вправо по экрану — соседний раздел (Карта ↔ Место ↔ Вещи ↔ Тело ↔ База ↔ Журнал).", opt("swipe", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(row("Картинки мест", "Маленькие или скрытые — больше места для дела, особенно на телефоне.", opt("art", [["big", "Большие"], ["small", "Маленькие"], ["off", "Скрыть"]])), "\n    ").concat(row("Боковые панели", wideOk ? "Часы, полоски, предупреждения и отряд — по бокам, центр свободнее." : "Работают на широком экране (ПК или телефон боком).", opt("sides", [[true, "Вкл"], [false, "Выкл"]])), "\n    ").concat(sideSettingsHtml(), "\n    ").concat(typeof G !== "undefined" && G ? row("Испорченная еда", "Сама уходит в компост (удобрение для огорода) и приманку (рыбалка, силки). Иначе — кнопкой у предмета.", '<div class="toggle"><button class="'.concat(G.w.autoRot !== false ? "on" : "", '" onclick="setAutoRot(true)">Авто</button><button class="').concat(G.w.autoRot === false ? "on" : "", '" onclick="setAutoRot(false)">Вручную</button></div>')) : "", "\n  </div></div>");
 }
 if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
   const strip = (root) => {
@@ -3148,4 +3148,130 @@ CUI.salvageBtn = (e, where) => {
   if (where === "stash" && !atBase()) return "";
   const c = salvCount(e, where);
   return UI.btn("🔧 Разобрать", () => salvageAsk(e, where, false), "sm") + (c > 1 ? UI.btn("🔧 Разобрать все такие ×".concat(c), () => salvageAsk(e, where, true), "sm") : "");
+};
+Object.assign(ITEMS, {
+  compost: { n: "Компост", ic: "🟤", c: "mat", w: 0.3, v: 2, info: "Удобрение: пока на складе есть компост, огород раз в день даёт лишний урожай." },
+  bait: { n: "Тухлая приманка", ic: "🪱", c: "mat", w: 0.1, v: 3, info: "С приманкой в рюкзаке рыбалка удачнее, а силок с приманкой ловит чаще." }
+});
+const BAIT_SRC = { meat: 1, fish: 1, cmeat: 1, cfish: 1, smoked: 1, jerky: 1, ukha: 1, stew: 1 };
+const isRot = (e) => {
+  const it = IT(e.id);
+  return it && it.sp && (it.c === "food" || it.c === "drink") && F().spoil && freshness(e) >= 1;
+};
+const rotOut = (id) => BAIT_SRC[id] ? "bait" : "compost";
+function recycleRot(list, quiet) {
+  const got = {};
+  let n = 0;
+  for (const e of list.slice()) {
+    if (!isRot(e)) continue;
+    const k = e.n || 1, o = rotOut(e.id);
+    got[o] = (got[o] || 0) + k;
+    n += k;
+    list.splice(list.indexOf(e), 1);
+  }
+  for (const [k, v] of Object.entries(got)) invAdd(list, k, v);
+  if (n && !quiet) UI.log("♻️ Испорченное переработано (".concat(n, " шт.): ").concat(Object.entries(got).map(([k, v]) => "".concat(IT(k).ic, " ").concat(IT(k).n, " ×").concat(v)).join(", "), "."), "sys");
+  return n;
+}
+function recycleRotUi(where) {
+  const list = where === "stash" ? G.stash : G.inv;
+  if (where === "stash" && !atBase()) return;
+  const n = recycleRot(list);
+  if (!n) return UI.toast("Испорченного нет.");
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+const _salvBtnR = CUI.salvageBtn;
+CUI.salvageBtn = (e, where) => {
+  const h = _salvBtnR(e, where);
+  if (!isRot(e) || where === "stash" && !atBase()) return h;
+  const list = where === "stash" ? G.stash : G.inv, all = list.filter(isRot).reduce((a, x) => a + (x.n || 1), 0);
+  return h + UI.btn("♻️ ".concat(rotOut(e.id) === "bait" ? "В приманку" : "В компост"), () => {
+    const o = rotOut(e.id), k = e.n || 1;
+    list.splice(list.indexOf(e), 1);
+    invAdd(list, o, k);
+    UI.log("♻️ ".concat(IT(e.id).n, " ×").concat(k, " → ").concat(IT(o).ic, " ").concat(IT(o).n, " ×").concat(k, "."));
+    if (G.coop && window.COOP) COOP.sync();
+    save();
+    UI.render();
+  }, "sm") + (all > (e.n || 1) ? UI.btn("♻️ Всё испорченное (".concat(all, ")"), () => recycleRotUi(where), "sm") : "");
+};
+window.setAutoRot = (v) => {
+  G.w.autoRot = v;
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+};
+let rotHour = -1;
+function rotTick() {
+  const hr = Math.floor(G.time / H);
+  if (hr === rotHour) return;
+  rotHour = hr;
+  if (G.w.autoRot === false) return;
+  let n = 0;
+  if (worldAuth()) n += recycleRot(G.stash, true);
+  n += recycleRot(G.inv, true);
+  if (n) UI.log("♻️ Испорченная еда (".concat(n, " шт.) ушла в компост и приманку."), "dim");
+  if (worldAuth() && G.w.struct.garden && G.w.compDay !== day() && season() !== 1 && cnt(G.stash, "compost") && hour() >= 8) {
+    G.w.compDay = day();
+    take(G.stash, "compost", 1);
+    invAdd(G.stash, "veg", 1);
+    const h2 = ch(0.35);
+    if (h2) invAdd(G.stash, "herbs", 1);
+    UI.log("🌱 Компост пошёл в огород: лишний урожай — 🥕 овощи".concat(h2 ? " и 🌿 травы" : "", "."), "good");
+  }
+}
+const _tickRot = tick;
+tick = function(st, o) {
+  _tickRot.apply(this, arguments);
+  try {
+    if (G && !G.dead && !G.combat) rotTick();
+  } catch (e) {
+    console.warn(e);
+  }
+};
+const _doFishB = doFish;
+doFish = function() {
+  const has = cnt(G.inv, "bait") && cnt(G.inv, "rod"), b = cnt(G.inv, "fish");
+  const r = _doFishB.apply(this, arguments);
+  if (has && !G.dead) {
+    take(G.inv, "bait", 1);
+    const d = cnt(G.inv, "fish") - b;
+    if (d > 0 || ch(0.55)) {
+      invAdd(G.inv, "fish", 1);
+      UI.log("🪱 На приманку клюнуло лучше: +1 рыба.", "good");
+    } else UI.log("🪱 Приманку объели, но без толку.", "dim");
+    UI.render();
+  }
+  return r;
+};
+const _setSnareB = setSnare;
+setSnare = function() {
+  const before = (G.w.snares || []).length, r = _setSnareB.apply(this, arguments);
+  const sn = G.w.snares || [];
+  if (sn.length > before && cnt(G.inv, "bait")) {
+    take(G.inv, "bait", 1);
+    sn[sn.length - 1].bait = true;
+    UI.log("🪱 Положил приманку в силок — шанс выше.");
+    save();
+    UI.render();
+  }
+  return r;
+};
+const _checkSnareB = checkSnare;
+checkSnare = function(id) {
+  const s = (G.w.snares || []).find((x) => x.id === id), bait = s && s.bait && G.time - s.at >= 8 * H, m0 = cnt(G.inv, "meat");
+  const r = _checkSnareB.apply(this, arguments);
+  if (bait) {
+    const s2 = (G.w.snares || []).find((x) => x.id === id);
+    if (s2) s2.bait = false;
+    if (cnt(G.inv, "meat") === m0 && ch(0.6)) {
+      invAdd(G.inv, "meat", 1);
+      UI.log("🪱 Приманка сработала: 🥩 мясо ×1.", "good");
+    }
+    save();
+    UI.render();
+  }
+  return r;
 };
