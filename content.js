@@ -3662,9 +3662,7 @@ const addLoot2 = (ct, list) => {
 };
 addLoot2("shed", [["pipe", 2], ["hammer", 2], ["fireaxe", 1]]);
 addLoot2("toolbox", [["hammer", 3], ["pipe", 1]]);
-addLoot2("car", [["pipe", 1], ["fireaxe", 1]]);
 addLoot2("tent", [["bow", 1], ["arrow", 2]]);
-addLoot2("backpack", [["arrow", 1], ["knuckles", 1]]);
 addLoot2("milcrate", [["xbolt", 1]]);
 addLoot2("armory", [["cbow", 1], ["xbolt", 2]]);
 Object.assign(SALVAGE, { pipe: { scrap: 2 }, hammer: { scrap: 1, wood: 1 }, knuckles: { scrap: 1 }, fireaxe: { scrap: 2, wood: 1 }, bow: { stick: 1, rope: 1 }, cbow: { wire: 1, scrap: 1, planks: 1 } });
@@ -4045,11 +4043,6 @@ const _workPanelS = CUI.work;
 CUI.work = function() {
   return caravanPanel() + _workPanelS.apply(this, arguments);
 };
-addLoot2("car", [["wire", 2]]);
-addLoot2("shed", [["wire", 2]]);
-addLoot2("wardrobe", [["wire", 1]]);
-addLoot2("locker", [["wire", 1]]);
-addLoot2("milcrate", [["wire", 1]]);
 addLoot2("toolbox", [["wire", 3]]);
 if (CONT.minecart) CONT.minecart.loot.push(["wire", 2]);
 RECIPES.push(
@@ -4058,3 +4051,776 @@ RECIPES.push(
 );
 if (TRADERS.semen) TRADERS.semen.stock.push(["wire", 0]);
 if (TRADERS.serg) TRADERS.serg.stock.push(["wire", 0]);
+Object.assign(ITEMS, {
+  molotov: { n: "Коктейль Молотова", ic: "🍾", c: "raid", w: 0.6, v: 35, info: "В бою: поджигает всех вплотную и рядом. Горят ещё 2 хода." },
+  smokeb: { n: "Дымовая шашка", ic: "💨", c: "raid", w: 0.3, v: 25, info: "В бою: 2 хода враги часто промахиваются, сбежать легче." },
+  flashb: { n: "Светошумовая граната", ic: "💥", c: "raid", w: 0.3, v: 60, info: "В бою: оглушает всех врагов на 2 хода (боссов — на 1)." },
+  noisem: { n: "Шумелка", ic: "⏰", c: "raid", w: 0.3, v: 20, info: "В бою: те, кто ещё не подошёл вплотную, уходят на звук." },
+  egg: { n: "Яйца", ic: "🥚", c: "food", w: 0.1, v: 6, f: 8, raw: 0.3, cook: "omelet", sp: 96 },
+  omelet: { n: "Яичница", ic: "🍳", c: "food", w: 0.2, v: 14, f: 26, sp: 36 },
+  milk: { n: "Козье молоко", ic: "🥛", c: "drink", w: 0.5, v: 10, f: 6, d: 18, sp: 30 },
+  honey: { n: "Мёд", ic: "🍯", c: "food", w: 0.3, v: 30, f: 10, stress: -6, info: "Не портится. Успокаивает." },
+  hen: { n: "Курица (живая)", ic: "🐔", c: "mat", w: 2, v: 60, info: "Для курятника на базе (2 штуки)." },
+  goat: { n: "Коза", ic: "🐐", c: "mat", w: 8, v: 150, info: "Для загона на базе." },
+  bees: { n: "Рой в ловушке", ic: "🐝", c: "mat", w: 2, v: 90, info: "Для улья на базе." },
+  tmap: { n: "Карта тайника", ic: "🗺️", c: "tool", w: 0.05, v: 40, info: "Изучи — и на острове появится метка тайника." }
+});
+RECIPES.push(
+  { id: "molotov", n: "Коктейль Молотова", need: { bottle: 1, rag: 1, fuel: 1 }, out: { molotov: 2 }, t: 15 },
+  { id: "molotov2", n: "Коктейль Молотова (на водке)", need: { vodka: 1, rag: 1 }, out: { molotov: 1, bottle: 0 }, t: 10 },
+  { id: "smokeb", n: "Дымовая шашка", need: { rag: 2, herbs: 2, tape: 1 }, out: { smokeb: 1 }, t: 20 },
+  { id: "noisem", n: "Шумелка", need: { watch: 1, scrap: 1 }, out: { noisem: 2 }, st: "bench", t: 20 },
+  { id: "omelet", n: "Пожарить яичницу", need: { egg: 2 }, out: { omelet: 1 }, st: "fire", t: 10 }
+);
+RECIPES.find((r) => r.id === "molotov2").out = { molotov: 1 };
+addLoot2("milcrate", [["flashb", 1], ["smokeb", 1]]);
+addLoot2("armory", [["flashb", 1]]);
+if (TRADERS.semen) TRADERS.semen.stock.push(["hen", 1], ["goat", 2]);
+Object.assign(SALVAGE, { noisem: { scrap: 1 } });
+const THROWS = ["molotov", "smokeb", "flashb", "noisem", "bomb"];
+function throwIt(id) {
+  const cb = G.combat;
+  if (!cb || !cnt(G.inv, id) || id === "bomb") return;
+  take(G.inv, id, 1);
+  G.ch.st = G.ch.st || {};
+  G.ch.st.thrown = (G.ch.st.thrown || 0) + 1;
+  const alive = cb.en.filter((e) => e.hp > 0);
+  if (id === "molotov") {
+    noise(10);
+    SND("fire");
+    let n = 0;
+    for (const e of alive) if (e.dist <= 1) {
+      const D = ENEMY[e.id];
+      const d = Math.max(2, Math.round(R(10, 18) * (D.boss ? 0.5 : 1) - (D.arm || 0) * 0.5));
+      e.hp -= d;
+      e.burn = 2;
+      n++;
+    }
+    cLog(n ? "🍾 Бутылка разбилась — огонь охватил ".concat(n, " врагов!") : "🍾 Бутылка разбилась вдалеке — никого не задело.", n ? "good" : "dim");
+  }
+  if (id === "smokeb") {
+    cb.smoke = 2;
+    cLog("💨 Всё затянуло дымом: враги бьют вслепую, уйти будет проще.", "good");
+  }
+  if (id === "flashb") {
+    noise(15);
+    SND("shotgun");
+    for (const e of alive) e.stun = Math.max(e.stun || 0, ENEMY[e.id].boss ? 1 : 2);
+    cLog("💥 Вспышка и грохот — враги оглушены!", "good");
+  }
+  if (id === "noisem") {
+    let n = 0;
+    for (const e of alive) if (e.dist >= 1 && !ENEMY[e.id].boss && !ENEMY[e.id].human && ch(0.75)) {
+      e.hp = 0;
+      e.dead = true;
+      e.gone = true;
+      n++;
+    }
+    cLog(n ? "⏰ Шумелка затрезвонила — ".concat(n, " ушли на звук.") : "⏰ Шумелка звенит, но им не до неё.", n ? "good" : "dim");
+  }
+  endPlayerTurn();
+}
+window.throwIt = throwIt;
+function wrapCombatUi() {
+  if (typeof UI === "undefined" || !UI.combat || UI.combat._thr) return;
+  const _uiCombatT = UI.combat;
+  UI.combat = function() {
+    const r = _uiCombatT.apply(this, arguments);
+    try {
+      const sh = document.querySelector("#modal .sheet.combat");
+      if (sh && G.combat) {
+        const have = THROWS.filter((id) => id !== "bomb" && cnt(G.inv, id));
+        if (have.length) {
+          const d = document.createElement("div");
+          d.className = "acts throws";
+          d.innerHTML = '<span class="mono muted" style="font-size:12px">Бросить:</span>' + have.map((id) => '<button class="btn sm" onclick="throwIt(\''.concat(id, '\')" title="').concat((IT(id).info || "").replace(/"/g, ""), '">').concat(IT(id).ic, " ").concat(IT(id).n, " ×").concat(cnt(G.inv, id), "</button>")).join("");
+          const L2 = sh.querySelector(".list");
+          if (L2) L2.after(d);
+        }
+      }
+    } catch (e) {
+    }
+    return r;
+  };
+  UI.combat._thr = 1;
+}
+if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("load", wrapCombatUi);
+const _enemyTurnT = enemyTurn;
+enemyTurn = function() {
+  const cb = G.combat;
+  if (cb) {
+    for (const e of cb.en) if (e.hp > 0 && e.burn > 0) {
+      const d = R(4, 7);
+      e.hp -= d;
+      e.burn--;
+      cLog("🔥 ".concat(ENEMY[e.id].n, " горит: −").concat(d), "good");
+      if (e.hp <= 0 && !e.dead) {
+        e.dead = true;
+        onKill(e);
+      }
+    }
+    if (cb.en.every((e) => e.hp <= 0)) return endCombat("win");
+    for (const e of cb.en.slice()) if (e.hp > 0 && e.id === "screamer" && (e.calls || 0) < 2 && !e.stun && ch(0.35)) {
+      e.calls = (e.calls || 0) + 1;
+      const z = mkEnemy(ch(0.5) ? "zombie" : "runner");
+      z.dist = 2;
+      cb.en.push(z);
+      noise(8);
+      cLog("😱 Крикун визжит — на крик идёт ".concat(ENEMY[z.id].n, "!"), "bad");
+    }
+  }
+  const r = _enemyTurnT.apply(this, arguments);
+  if (G.combat && G.combat.smoke > 0) G.combat.smoke--;
+  return r;
+};
+const _enemyHitT = enemyHit;
+enemyHit = function(e, ranged, near) {
+  if (G.combat && G.combat.smoke > 0 && ch(0.5)) {
+    cLog("💨 ".concat(ENEMY[e.id].n, " бьёт вслепую и промахивается."), "dim");
+    return;
+  }
+  return _enemyHitT.apply(this, arguments);
+};
+const _fleeChanceT = fleeChance;
+fleeChance = function() {
+  let p = _fleeChanceT.apply(this, arguments);
+  const c = G.ch;
+  if (G.combat && G.combat.smoke > 0) p += 0.35;
+  if (c.inj.some((j) => j.t === "disl" && (j.part === "lleg" || j.part === "rleg"))) p -= 0.15;
+  return clamp(p, 0.05, 0.95);
+};
+Object.assign(ENEMY, {
+  screamer: { n: "Крикун", ic: "😱", spr: "zombie", hp: 20, dmg: [3, 6], sp: 1, acc: 0.5, inj: ["scratch", "bite"], loot: "body", xp: 8, note: "Сам слабый, но визжит и зовёт других. Убей первым — или оглуши." },
+  bloater: { n: "Толстяк", ic: "🤮", spr: "swamper", hp: 55, dmg: [5, 9], sp: 1, acc: 0.5, inj: ["bruise", "bite"], loot: "body", xp: 10, note: "Если убить его вплотную — лопнет и обожжёт кислотой. Стреляй издалека или оттолкни." },
+  sniper: { n: "Снайпер-мародёр", ic: "🎯", spr: "raider", hp: 34, dmg: [7, 11], sp: 1, acc: 0.62, arm: 1, human: 1, inj: ["bullet", "bruise"], loot: "locker", xp: 14, noVirus: 1, gear: [["ak", 2], ["pm", 1]], note: "Начинает издалека и стреляет, пока ты подходишь. Огнестрел, лук или дым." },
+  rats: { n: "Рой крыс", ic: "🐀", spr: "dog", hp: 26, dmg: [2, 4], sp: 2, acc: 0.8, inj: ["bite", "scratch"], noVirus: 1, xp: 6, note: "Почти всегда попадают, но бьют слабо. Огонь разгоняет их лучше всего." }
+});
+const _mkEnemyT = mkEnemy;
+mkEnemy = function(id) {
+  const e = _mkEnemyT.apply(this, arguments);
+  if (id === "sniper") e.dist = 2;
+  return e;
+};
+const _onKillT = onKill;
+onKill = function(e) {
+  if (e.gone) return;
+  const r = _onKillT.apply(this, arguments);
+  G.best = G.best || {};
+  const b = G.best[e.id] = G.best[e.id] || { s: 1, k: 0 };
+  b.k++;
+  if (e.id === "bloater" && e.dist === 0 && G.combat) {
+    const d = R(6, 11);
+    const msg = hitPlayer(d, ch(0.5) ? "burn" : "bruise", null, "Толстяк");
+    cLog("🤮 Толстяк лопнул — кислота обжигает: −".concat(d), "bad");
+    if (msg) cLog(msg, "bad");
+  }
+  return r;
+};
+const _startCombatT = startCombat;
+startCombat = function(en) {
+  wrapCombatUi();
+  G.best = G.best || {};
+  for (const e of en || []) {
+    const b = G.best[e.id] = G.best[e.id] || { s: 0, k: 0 };
+    b.s = 1;
+  }
+  return _startCombatT.apply(this, arguments);
+};
+const _spawnListT = spawnList;
+spawnList = function(spec) {
+  const out = _spawnListT.apply(this, arguments);
+  try {
+    if (out.length && G.room != null && !G.combat && !LOCS[G.loc].base && ch(0.05)) {
+      const dg = LOCS[G.loc].dg || 1;
+      const id = wpick(dg >= 2 ? [["screamer", 3], ["bloater", 2], ["sniper", 1], ["rats", 2]].map((x) => x) : [["screamer", 2], ["rats", 2], ["bloater", 1]]);
+      out.push(mkEnemy(id));
+    }
+  } catch (e) {
+  }
+  return out;
+};
+const _roadEventT = roadEvent;
+roadEvent = function(to, done) {
+  if (!ch(0.25)) return _roadEventT.apply(this, arguments);
+  const evs = [
+    [() => {
+      const hasB = G.inv.find((e) => IT(e.id).med === "band");
+      UI.event({ title: "🧳 Раненый торговец", text: "У обочины сидит мужик с огромным рюкзаком. Нога в крови.\n«Друг, перевяжи — в долгу не останусь».", choices: [
+        { t: hasB ? "🩹 Перевязать" : "🩹 Перевязать (нечем)", fn: () => {
+          if (!hasB) {
+            UI.log("Нечем перевязать. Торговец выругался и захромал прочь.");
+            return done();
+          }
+          take(G.inv, hasB.id, 1);
+          advance(10);
+          const T = pick(Object.values(TRADERS));
+          const it = pick(T.stock.filter((x) => x[1] <= 2).map((x) => x[0]).filter((id) => ITEMS[id] && IT(id).c !== "bp"));
+          invAdd(G.inv, it, IT(it).c === "ammo" ? R(8, 15) : 1);
+          G.money += R(30, 80);
+          UI.log("🤝 Торговец отблагодарил: ".concat(IT(it).ic, " ").concat(IT(it).n, " и немного денег."), "good");
+          done();
+        } },
+        { t: "🚶 Пройти мимо", fn: done }
+      ] });
+    }, 3],
+    [() => {
+      const en = [mkEnemy("sniper"), mkEnemy("raider")];
+      const p = Math.max(0.1, stealthChance() - 0.1);
+      UI.event({ title: "🎯 Засада", cls: "bad", text: "Пуля выбивает щепки из дерева у твоей головы. Где-то на холме — снайпер, а из кустов выходит его напарник.", choices: [
+        { t: "🌿 Уйти перебежками (".concat(Math.round(p * 100), "%)"), fn: () => {
+          if (ch(p)) {
+            UI.log("🐾 Ты ушёл от засады.", "good");
+            advance(20);
+            done();
+          } else {
+            UI.log("Не вышло — бой!", "bad");
+            startCombat(en, { onEnd: done, road: true });
+          }
+        } },
+        { t: "⚔️ Принять бой", fn: () => startCombat(en, { onEnd: done, road: true }) }
+      ] });
+    }, 1],
+    [() => UI.event({ title: "🚚 Брошенный грузовик", text: "Посреди дороги стоит грузовик с распахнутыми дверями. Кузов накрыт брезентом.", choices: [
+      { t: "🔍 Обыскать (30 мин)", fn: () => {
+        advance(30);
+        if (G.dead) return;
+        if (ch(0.25)) {
+          UI.log("Под брезентом кто-то шевелится!", "bad");
+          return startCombat(spawnList([["zombie", 1, 2], ["bloater", 0, 1]]), { onEnd: () => {
+            truckLoot();
+            done();
+          }, road: true });
+        }
+        truckLoot();
+        done();
+      } },
+      { t: "🚶 Не рисковать", fn: done }
+    ] }), 3],
+    [() => UI.event({ title: "🐕 Пёс зовёт за собой", text: "Худой пёс лает, отбегает и оглядывается — будто зовёт куда-то.", choices: [
+      { t: "🐾 Пойти за ним (40 мин)", fn: () => {
+        advance(40);
+        if (G.dead) return;
+        if (ch(0.2)) {
+          UI.log("Пёс привёл прямо к стае!", "bad");
+          return startCombat(spawnList([["pdog", 1, 2]]), { onEnd: done, road: true });
+        }
+        const C = CONT.stash || CONT.backpack, got = [];
+        for (let k = R(2, 4); k > 0; k--) {
+          const id = wpick(C.loot);
+          if (IT(id).c === "key" || IT(id).c === "bp") continue;
+          invAdd(G.inv, id, IT(id).c === "ammo" ? R(4, 10) : 1);
+          got.push(IT(id).ic + " " + IT(id).n);
+        }
+        UI.event({ title: "🐕 Тайник!", cls: "good", text: "Пёс привёл к старому схрону под корнями: ".concat(got.join(", ") || "пусто", "."), choices: [{ t: "Погладить пса и идти дальше", fn: done }] });
+      } },
+      { t: "🚶 Идти своей дорогой", fn: done }
+    ] }), 2],
+    [() => {
+      const has = G.inv.find((e) => ["canned", "ration", "smoked", "jerky"].includes(e.id));
+      UI.event({ title: "🧙 Отшельник", text: "Старик в лохмотьях греется у костерка. «Еды не найдётся? Травами отплачу».", choices: [
+        { t: has ? "🥫 Отдать: ".concat(IT(has.id).n) : "🥫 Отдать еду (нет)", fn: () => {
+          if (!has) return done();
+          take(G.inv, has.id, 1);
+          const gifts = [["herbs", 3], ["antisep", 1], ["coldpill", 1], ["painkill", 1], ["tmap", 1]];
+          const [id, n] = pick(gifts);
+          invAdd(G.inv, id, n);
+          UI.log("🧙 Отшельник дал: ".concat(IT(id).ic, " ").concat(IT(id).n).concat(n > 1 ? " ×" + n : "", "."), "good");
+          done();
+        } },
+        { t: "🚶 Пройти мимо", fn: done }
+      ] });
+    }, 2]
+  ];
+  wpick(evs)();
+};
+function truckLoot() {
+  const got = [];
+  for (let i = 0; i < 2; i++) for (let k = R(1, 3); k > 0; k--) {
+    const id = wpick(CONT.car.loot);
+    invAdd(G.inv, id, IT(id).c === "ammo" ? R(3, 8) : id === "wire" ? R(1, 3) : 1);
+    got.push(IT(id).ic);
+  }
+  UI.log("🚚 В грузовике: ".concat(got.join(" ") || "ничего", "."), got.length ? "good" : "dim");
+}
+function bestiaryHtml() {
+  const B = G.best || {}, ids = Object.keys(ENEMY), seen = ids.filter((id) => B[id]);
+  const row = (id) => {
+    const D = ENEMY[id], b = B[id];
+    const drop2 = [D.loot && CONT[D.loot] ? "обыск: ".concat(CONT[D.loot].n.toLowerCase()) : "", D.drop ? D.drop.map(([k]) => IT(k).ic + IT(k).n).join(", ") : "", D.gear ? "может быть вооружён" : ""].filter(Boolean).join(" · ");
+    const flags = [D.boss ? "👑 босс" : "", D.human ? "человек" : "", D.sp >= 2 ? "быстрый" : D.sp === 0 ? "держит дистанцию" : "", D.arm ? "броня ".concat(D.arm) : "", D.acid ? "кислота портит броню" : "", D.cloak ? "прячется" : "", D.noVirus ? "" : "укус может заразить"].filter(Boolean).join(", ");
+    return '<div class="row"><span class="ic">'.concat(D.ic, '</span><div class="grow"><span class="t">').concat(D.n, ' <span class="mono muted">убито: ').concat(b.k, '</span></span><span class="s">❤️ ').concat(D.hp, " · урон ").concat(D.dmg[0], "–").concat(D.dmg[1], " · меткость ").concat(Math.round(D.acc * 100), "%").concat(flags ? " · " + flags : "", "</span>").concat(D.note ? '<span class="s">💡 '.concat(D.note, "</span>") : "").concat(drop2 ? '<span class="s">🎁 '.concat(drop2, "</span>") : "", "</div></div>");
+  };
+  return '<div class="sec"><div class="sechead"><h2>📖 Бестиарий</h2><span class="mono">'.concat(seen.length, "/").concat(ids.length, '</span></div><div class="list">').concat(seen.map(row).join("") || '<p class="muted">Пока никого. Записи появляются после первой встречи.</p>', "</div>").concat(seen.length < ids.length ? '<p class="muted" style="font-size:13px">Ещё не встречено: '.concat(ids.length - seen.length, ".</p>") : "", "</div>");
+}
+Object.assign(ENEMY.zombie, { note: "Медленный и слабый поодиночке. Опасен толпой — не дай окружить." });
+Object.assign(ENEMY.runner, { note: "Быстро сокращает дистанцию. Встречай ударом, не убегай." });
+Object.assign(ENEMY.dog, { note: "Ходит стаями. Мясо или рыба могут приручить." });
+Object.assign(ENEMY.raider, { note: "Может быть с огнестрелом. Иногда можно договориться." });
+Object.assign(ENEMY.swamper, { note: "Прячется в тумане болота. Бьёт сильно — держи аптечку." });
+Object.assign(ENEMY.pdog, { note: "Быстрый мутант аномальных зон." });
+if (ENEMY.acid) ENEMY.acid.note = "Кислота разъедает бронежилет — снимай его или бей издалека.";
+if (ENEMY.armored) ENEMY.armored.note = "Толстая броня: огнестрел и тяжёлое оружие.";
+Object.assign(STRUCT, {
+  coop: { n: "Курятник", ic: "🐔", lv: [{ n: "Нет" }, { n: "Курятник", c: { planks: 6, nails: 10, hen: 2 } }] },
+  goatpen: { n: "Загон для козы", ic: "🐐", lv: [{ n: "Нет" }, { n: "Загон с козой", c: { planks: 8, rope: 2, goat: 1 } }] },
+  hive: { n: "Улей", ic: "🐝", lv: [{ n: "Нет" }, { n: "Улей с пчёлами", c: { planks: 4, nails: 6, bees: 1 } }] }
+});
+function animalsDaily() {
+  const s = G.w.struct, win = season() === 1, out = [];
+  if (s.coop) {
+    const feed = ["compost", "berries", "veg", "seeds", "mushroom"].find((id) => cnt(G.stash, id));
+    if (feed) {
+      take(G.stash, feed, 1);
+      const k = R(1, 3) - (win ? 1 : 0);
+      if (k > 0) {
+        invAdd(G.stash, "egg", k);
+        out.push("🥚×".concat(k));
+      }
+    } else out.push("🐔 куры голодные (компост, ягоды, овощи, семена)");
+  }
+  if (s.goatpen) {
+    if (win) {
+      const feed = ["veg", "berries", "herbs"].find((id) => cnt(G.stash, id));
+      if (feed) take(G.stash, feed, 1);
+      else {
+        out.push("🐐 козе нечего есть зимой");
+      }
+    }
+    const k = R(1, 2);
+    invAdd(G.stash, "milk", k);
+    out.push("🥛×".concat(k));
+  }
+  if (s.hive && !win && day() % 2 === 0) {
+    invAdd(G.stash, "honey", 1);
+    out.push("🍯×1");
+    if (s.garden) G.w.prod.garden += 3;
+  }
+  if (out.length) UI.log("🏡 Хозяйство: " + out.join(" · "), "sys");
+}
+const _hordeTickA = hordeTick;
+hordeTick = function(o) {
+  const d = day(), was = !!(G.w.hordeDone && G.w.hordeDone[d]);
+  const r = _hordeTickA.apply(this, arguments);
+  if (!was && G.w.hordeDone && G.w.hordeDone[d] && worldAuth()) {
+    const power = Math.round((25 + d * 2.5) * F().horde), an = ["coop", "goatpen", "hive"].filter((k) => G.w.struct[k]);
+    if (an.length && defense() < power && ch(0.5)) {
+      const k = pick(an);
+      G.w.struct[k] = 0;
+      UI.log("🩸 Орда добралась до хозяйства: ".concat(STRUCT[k].n, " разорён."), "bad");
+    }
+  }
+  return r;
+};
+let animDayDone = -1;
+function dailyMisc() {
+  const d = day();
+  if (G.w.animDay === d || animDayDone === d) return;
+  if (hour() < 7) return;
+  animDayDone = d;
+  if (!worldAuth()) return;
+  G.w.animDay = d;
+  animalsDaily();
+}
+INJ.disl = { n: "Вывих", bleed: 0, heal: 30 };
+INJ.conc = { n: "Сотрясение", bleed: 0, heal: 16 };
+const _hitPlayerT = hitPlayer;
+hitPlayer = function(dmg, inj, part, why) {
+  const n0 = G.ch.inj.length, r = _hitPlayerT.apply(this, arguments);
+  const j = G.ch.inj.length > n0 ? G.ch.inj[G.ch.inj.length - 1] : null;
+  if (j && j.t === "bruise" && F().parts) {
+    if (j.part === "head" && ch(0.2)) {
+      j.t = "conc";
+      UI.log("💫 Удар по голове — сотрясение. Мутит, руки не слушаются.", "warn");
+    } else if (j.part !== "head" && j.part !== "torso" && ch(0.08)) {
+      j.t = "disl";
+      UI.log("🦴 Вывих: ".concat(PARTS[j.part].n, ". Нужно вправить."), "warn");
+    }
+  }
+  return r;
+};
+window.reduceDisl = (j) => {
+  if (!G.ch.inj.includes(j)) return;
+  const pk = G.inv.find((e) => IT(e.id).med === "pain"), p = pk ? 0.85 : 0.6;
+  if (pk) take(G.inv, pk.id, 1);
+  advance(5);
+  if (ch(p)) {
+    G.ch.inj.splice(G.ch.inj.indexOf(j), 1);
+    UI.log("🦴 Хрусь — сустав встал на место".concat(pk ? " (с обезболивающим было терпимо)" : "", "."), "good");
+  } else {
+    G.ch.parts[j.part] = Math.max(1, G.ch.parts[j.part] - 3);
+    G.ch.stress = clamp(G.ch.stress + 10, 0, 100);
+    UI.log("🦴 Не вышло — только больнее. Попробуй ещё раз или найди медика.", "warn");
+  }
+  UI.render();
+};
+const _accModsT = accMods;
+accMods = function() {
+  let a = _accModsT.apply(this, arguments);
+  const c = G.ch;
+  if (c.inj.some((j) => j.t === "conc")) a -= 0.12;
+  if (c.inj.some((j) => j.t === "disl" && (j.part === "larm" || j.part === "rarm"))) a -= 0.1;
+  if (c.addict && G.time - (c.pkAt || 0) > 12 * H) a -= 0.05;
+  return a;
+};
+const _useItemT = useItem;
+useItem = function(id, quick, target) {
+  const c = G.ch, it = IT(id), had = cnt(G.inv, id) + (atBase() ? cnt(G.stash, id) : 0);
+  const r = _useItemT.apply(this, arguments);
+  const used = cnt(G.inv, id) + (atBase() ? cnt(G.stash, id) : 0) < had;
+  if (used) {
+    c.st = c.st || {};
+    if (it.c === "food" || it.c === "drink") c.st.ate = (c.st.ate || 0) + 1;
+    if (it.c === "med") c.st.healed = (c.st.healed || 0) + 1;
+    if (it.med === "pain") {
+      c.pkLog = (c.pkLog || []).filter((t) => G.time - t < 48 * H).concat([G.time]);
+      c.pkAt = G.time;
+      if (!c.addict && c.pkLog.length >= 4) {
+        c.addict = G.time;
+        UI.log("💊 Слишком часто глушишь боль таблетками — тянет ещё. Без них будет ломка.", "warn");
+      }
+    }
+    if (id === "tmap") {
+    }
+  }
+  return r;
+};
+let addictHour = -1;
+function addictTick() {
+  const c = G.ch;
+  if (!c.addict) return;
+  const hr = Math.floor(G.time / H);
+  if (hr === addictHour) return;
+  addictHour = hr;
+  const since = G.time - (c.pkAt || 0);
+  if (since > 96 * H) {
+    delete c.addict;
+    c.pkLog = [];
+    UI.log("💊 Ломка отпустила. Тяга к таблеткам прошла.", "good");
+    return;
+  }
+  if (since > 12 * H) c.stress = clamp(c.stress + 2, 0, 100);
+}
+const _moodlesT = moodles;
+moodles = function() {
+  const m = _moodlesT.apply(this, arguments), c = G.ch, add = (ic, n, l, d) => m.push({ ic, n, l, d });
+  if (c.inj.some((j) => j.t === "conc")) add("💫", "Сотрясение", 2, "Хуже целишься. Пройдёт за сутки, сон ускоряет.");
+  if (c.inj.some((j) => j.t === "disl")) add("🦴", "Вывих", 2, "Вправь на вкладке «Тело» (с обезболивающим проще) или у медика на базе.");
+  if (c.addict && G.time - (c.pkAt || 0) > 12 * H) add("💊", "Ломка", 2, "Тянет к обезболивающим: растёт стресс. Перетерпи ~4 суток.");
+  return m;
+};
+const _medicTickT = medicTick;
+medicTick = function() {
+  const hr0 = medHour;
+  _medicTickT.apply(this, arguments);
+  if (!atBase()) return;
+  const m = npcs().find((n) => n.role === "medic" && !n.exp && !n.car && n.shift !== "off");
+  const j = m && G.ch.inj.find((x) => x.t === "disl");
+  if (j && ch(0.9)) {
+    G.ch.inj.splice(G.ch.inj.indexOf(j), 1);
+    UI.log("⛑️ ".concat(m.name, " вправил тебе вывих."), "good");
+  }
+};
+function readMap(where) {
+  const list = where === "stash" ? G.stash : G.inv;
+  if (!take(list, "tmap", 1) && !cnt(list, "tmap")) {
+  }
+  const locs = Object.keys(LOCS).filter((id) => id !== "base" && !LOCS[id].ch2 && LOCS[id].rooms && !LOCS[id].trader);
+  const loc = pick(locs);
+  G.w.caches = (G.w.caches || []).concat([{ loc, id: Date.now() % 1e9 }]);
+  const hints = ["под приметным камнем", "у старого дерева с зарубкой", "в нише под крыльцом", "за ржавой бочкой", "под половицей"];
+  UI.event({ title: "🗺️ Карта тайника", text: "На обороте — грубо нарисованная схема: ".concat(LOCS[loc].ic, " ").concat(LOCS[loc].n, ", ").concat(pick(hints), ".\n\nМетка появится в этом месте: «Копать тайник»."), choices: [{ t: "Понятно" }] });
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+const _salvBtnM = CUI.salvageBtn;
+CUI.salvageBtn = (e, where) => {
+  let h = _salvBtnM(e, where);
+  if (e.id === "tmap" && (where === "inv" || atBase())) h = UI.btn("🗺️ Изучить карту", () => readMap(where), "pri sm") + h;
+  return h;
+};
+function digCache(id) {
+  const cs = G.w.caches || [], c = cs.find((x) => x.id === id && x.loc === G.loc);
+  if (!c) return;
+  advance(40);
+  if (G.dead) return;
+  G.w.caches = cs.filter((x) => x !== c);
+  const got = [];
+  const pool = [CONT.stash, CONT.safe, CONT.milcrate].filter(Boolean);
+  for (let k = R(3, 5); k > 0; k--) {
+    const C = pick(pool), id2 = wpick(C.loot);
+    if (IT(id2).c === "key" || IT(id2).c === "bp") continue;
+    invAdd(G.inv, id2, IT(id2).c === "ammo" ? R(6, 14) : 1);
+    got.push(IT(id2).ic + " " + IT(id2).n);
+  }
+  const m = R(50, 150);
+  G.money += m;
+  G.ch.st = G.ch.st || {};
+  G.ch.st.caches = (G.ch.st.caches || 0) + 1;
+  UI.event({ title: "🗺️ Тайник найден!", cls: "good", text: "Под землёй — обмотанный плёнкой ящик: ".concat(got.join(", "), " и ").concat(m, "₽."), choices: [{ t: "Отлично" }] });
+  if (G.coop && window.COOP) COOP.sync();
+  save();
+  UI.render();
+}
+window.digCache = digCache;
+const _locRowsM = EXTUI.locRows;
+EXTUI.locRows = function() {
+  let h = _locRowsM.apply(this, arguments);
+  for (const c of (G.w.caches || []).filter((x) => x.loc === G.loc)) h += '<div class="row evt"><span class="ic">🗺️</span><div class="grow"><span class="t">Тайник по карте</span><span class="s">где-то здесь, по схеме · 40 мин</span></div><button class="btn sm pri" onclick="digCache('.concat(c.id, ')">⛏️ Копать</button></div>');
+  return h;
+};
+const _craftT = craft;
+craft = function(r) {
+  const before = JSON.stringify(G.inv.length) + cnt(G.inv, Object.keys(r.out)[0]);
+  const res = _craftT.apply(this, arguments);
+  if (before !== JSON.stringify(G.inv.length) + cnt(G.inv, Object.keys(r.out)[0])) {
+    G.ch.st = G.ch.st || {};
+    G.ch.st.crafted = (G.ch.st.crafted || 0) + 1;
+  }
+  return res;
+};
+const _searchContT = searchCont;
+searchCont = function(k) {
+  const r = _searchContT.apply(this, arguments);
+  G.ch.st = G.ch.st || {};
+  G.ch.st.searched = (G.ch.st.searched || 0) + 1;
+  return r;
+};
+const _goToT = goTo;
+goTo = function(dest) {
+  G.ch.st = G.ch.st || {};
+  G.ch.st.trips = (G.ch.st.trips || 0) + 1;
+  return _goToT.apply(this, arguments);
+};
+function chronicle() {
+  const c = G.ch, st = c.st || {}, days = Math.floor((G.time - (c.born || 0)) / DAY), B = G.best || {};
+  const fav = Object.entries(B).sort((a, b) => b[1].k - a[1].k)[0];
+  const bosses = Object.keys(ENEMY).filter((id) => ENEMY[id].boss && B[id] && B[id].k).map((id) => ENEMY[id].n);
+  return {
+    name: c.name,
+    mode: MODES[G.mode].n,
+    days,
+    kills: c.kills || 0,
+    cause: G.lastHurt || "",
+    at: Date.now(),
+    crafted: st.crafted || 0,
+    searched: st.searched || 0,
+    trips: st.trips || 0,
+    ate: st.ate || 0,
+    caches: st.caches || 0,
+    thrown: st.thrown || 0,
+    fav: fav ? "".concat(ENEMY[fav[0]].ic, " ").concat(ENEMY[fav[0]].n, " (").concat(fav[1].k, ")") : "",
+    bosses,
+    best: Object.keys(B).length,
+    prof: (PROFS[c.prof] || {}).n || ""
+  };
+}
+const chronText = (x) => "".concat(x.name).concat(x.prof ? ", " + x.prof : "", " · ").concat(x.mode, "\nПрожил ").concat(x.days, " дн. Убито: ").concat(x.kills).concat(x.fav ? " (чаще всего — ".concat(x.fav, ")") : "", ".\n").concat(x.bosses.length ? "Повержены: ".concat(x.bosses.join(", "), ".\n") : "", "Обысков: ").concat(x.searched, ", походов: ").concat(x.trips, ", сделано вещей: ").concat(x.crafted, ", съедено: ").concat(x.ate, ".").concat(x.caches ? " Тайников найдено: ".concat(x.caches, ".") : "", "\nВ бестиарии: ").concat(x.best, " видов.").concat(x.cause ? "\nПричина гибели: ".concat(x.cause, ".") : "");
+const _dieT = die;
+die = function(cause) {
+  const was = G.dead, r = _dieT.apply(this, arguments);
+  if (!was && G.dead) {
+    try {
+      const x = chronicle();
+      x.cause = cause || x.cause;
+      let L2 = [];
+      try {
+        L2 = JSON.parse(localStorage.getItem("moti3_chron") || "[]");
+      } catch (e) {
+      }
+      L2.unshift(x);
+      localStorage.setItem("moti3_chron", JSON.stringify(L2.slice(0, 15)));
+      UI.log("📜 История этого выжившего записана в Журнал → Итоги → Летопись.", "sys");
+    } catch (e) {
+    }
+  }
+  return r;
+};
+function chronHtml() {
+  let L2 = [];
+  try {
+    L2 = JSON.parse(localStorage.getItem("moti3_chron") || "[]");
+  } catch (e) {
+  }
+  const cur = chronicle();
+  return '<div class="sec"><h2>📜 Летопись</h2><div class="note" style="white-space:pre-line"><b>Сейчас:</b> '.concat(esc2(chronText(Object.assign({}, cur, { cause: "" }))), "</div>").concat(L2.length ? '<div class="list">'.concat(L2.map((x) => '<div class="note" style="white-space:pre-line;opacity:.9">'.concat(new Date(x.at).toLocaleDateString("ru-RU"), " — ").concat(esc2(chronText(x)), "</div>")).join(""), "</div>") : '<p class="muted" style="font-size:13px">Здесь будут истории погибших выживших.</p>', "</div>");
+}
+ACH.push(
+  { id: "bestiary10", ic: "📖", n: "Натуралист", d: "Встретить 10 видов врагов", ok: () => Object.keys(G.best || {}).length >= 10 },
+  { id: "thrower", ic: "🍾", n: "Метатель", d: "Бросить 10 гранат, бутылок или шашек", ok: () => ((G.ch.st || {}).thrown || 0) >= 10 },
+  { id: "farmer", ic: "🐐", n: "Фермер", d: "Курятник, загон и улей на базе", ok: () => G.w.struct.coop && G.w.struct.goatpen && G.w.struct.hive },
+  { id: "treasure", ic: "🗺️", n: "Кладоискатель", d: "Найти 3 тайника по картам", ok: () => ((G.ch.st || {}).caches || 0) >= 3 },
+  { id: "explorer2", ic: "🧭", n: "Белые пятна", d: "Побывать в аэродроме, психбольнице, затопленной деревне и на радиовышке", ok: () => ["airfield", "asylum", "flooded", "radiotower"].every((id) => G.w.locs[id] && G.w.locs[id].visited) }
+);
+const _cuiJourZ = CUI.jour;
+CUI.jour = function() {
+  return _cuiJourZ.apply(this, arguments) + bestiaryHtml() + chronHtml();
+};
+Object.assign(LOCS, {
+  airfield: {
+    n: "Аэродром",
+    ic: "🛩️",
+    x: 60,
+    y: 9,
+    dg: 2,
+    d: "Заросшая взлётка, ангары и сбитый транспортник. Мародёры устроили тут наблюдательный пункт.",
+    links: { meteo: 60, nii: 70, swamp: 70 },
+    rooms: [
+      { n: "Взлётная полоса", cont: ["car", "body"], en: [["zombie", 1, 2], ["sniper", 0, 1]] },
+      { n: "Ангар", cont: ["toolbox", "shed", "car"], en: [["raider", 1, 2]] },
+      { n: "Обломки транспортника", cont: ["cargo", "milcrate"], en: [["soldier", 1, 2], ["screamer", 0, 1]], fixed: { note: "n_air" } },
+      { n: "Диспетчерская вышка", cont: ["desk", "locker"], en: [["sniper", 1, 1]], dark: 1 }
+    ]
+  },
+  asylum: {
+    n: "Психбольница «Тихая»",
+    ic: "🏥",
+    x: 54,
+    y: 47,
+    dg: 3,
+    d: "Больница за высоким забором. Из окон доносится смех — или визг.",
+    links: { forest: 55, farm: 60, swamp: 55 },
+    rooms: [
+      { n: "Приёмный покой", cont: ["desk", "medcab"], en: [["zombie", 1, 2], ["screamer", 0, 1]] },
+      { n: "Палаты", cont: ["night", "night", "body"], en: [["screamer", 1, 2], ["zombie", 1, 2]], dark: 1 },
+      { n: "Процедурная", cont: ["medcab", "labdesk"], en: [["bloater", 1, 1], ["sci", 0, 1]] },
+      { n: "Подвал", cont: ["stash", "labdesk"], en: [["rats", 1, 2], ["bloater", 0, 1]], dark: 1, fixed: { note: "n_asylum" } }
+    ]
+  },
+  flooded: {
+    n: "Затопленная деревня",
+    ic: "🏚️",
+    x: 22,
+    y: 88,
+    dg: 2,
+    d: "Деревню смыло весенним штормом. Из воды торчат крыши, на чердаках — чужие запасы.",
+    links: { base: 50, village: 45 },
+    fish: 1,
+    water: "sea",
+    rooms: [
+      { n: "Улица по колено в воде", cont: ["shore", "body"], en: [["drowned", 1, 3]] },
+      { n: "Чердак старосты", cont: ["wardrobe", "stash"], en: [["rats", 1, 1]], dark: 1 },
+      { n: "Лавка", cont: ["shelf", "kassa", "fridge"], en: [["drowned", 1, 2], ["bloater", 0, 1]] },
+      { n: "Часовня", cont: ["desk", "night"], en: [["screamer", 0, 1]], fixed: { note: "n_flooded" } }
+    ]
+  },
+  radiotower: {
+    n: "Радиовышка на горе",
+    ic: "🗻",
+    x: 27,
+    y: 9,
+    dg: 2,
+    d: "Ретранслятор на вершине. Ветер, обрыв и аппаратура, которой хватит на десяток радиостанций.",
+    links: { meteo: 50, lighthouse: 65, mine: 70 },
+    rooms: [
+      { n: "Тропа к вершине", cont: ["bushes", "body"], en: [["pdog", 0, 1], ["runner", 0, 1]] },
+      { n: "Будка связистов", cont: ["desk", "locker", "toolbox"], en: [["sniper", 0, 1], ["zombie", 1, 1]] },
+      { n: "Аппаратная", cont: ["toolbox", "labdesk"], en: [["rats", 1, 2]], dark: 1, fixed: { item: "rpart", note: "n_tower" } }
+    ]
+  }
+});
+LOCS.meteo.links.airfield = 60;
+LOCS.nii.links.airfield = 70;
+LOCS.swamp.links.airfield = 70;
+LOCS.forest.links.asylum = 55;
+LOCS.farm.links.asylum = 60;
+LOCS.swamp.links.asylum = 55;
+LOCS.base.links.flooded = 50;
+LOCS.village.links.flooded = 45;
+LOCS.meteo.links.radiotower = 50;
+LOCS.lighthouse.links.radiotower = 65;
+LOCS.mine.links.radiotower = 70;
+if (!ITEMS.rpart) delete LOCS.radiotower.rooms[2].fixed.item;
+Object.assign(NOTES, {
+  n_air: { t: "Бортовой журнал", x: "«Груз — ящики с маркировкой НИИ. Над островом приборы сошли с ума, стрелки крутятся. Идём на вынужденную…» Дальше запись обрывается." },
+  n_asylum: { t: "Записка санитара", x: "«Пациенты из 4-й палаты кричат по ночам одно и то же: “Синий свет поёт”. Главврач велел увеличить дозу. Не помогает. Они кричат громче, когда заражённые рядом»." },
+  n_flooded: { t: "Листок из часовни", x: "«Вода пришла ночью. Кто успел — уплыл к лодочной станции. Отец Николай остался звонить в колокол, чтобы мы не заблудились в шторм»." },
+  n_tower: { t: "Журнал связиста", x: "«Ретранслятор ловит материк. Слышу военную частоту: “Остров-7 закрыт, связи нет, приказ — никого не выпускать”. Значит, нас не ищут. Нас стерегут»." }
+});
+const _travelVisit = tick;
+tick = function(st, o) {
+  _travelVisit.apply(this, arguments);
+  try {
+    if (G && !G.dead) {
+      if (G.w.locs[G.loc] && !G.traveling) G.w.locs[G.loc].visited = true;
+      addictTick();
+      dailyMisc();
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+};
+function nextGoal() {
+  const c = G.ch, f = F();
+  if (G.dead) return null;
+  if (typeof bleeding === "function" && bleeding()) return { ic: "🩸", t: "Перевяжи рану", d: "Ты истекаешь кровью — Тело → «Перевязать»." };
+  if (f.virus && c.virus) return { ic: "🦠", t: "Найди сыворотку", d: "Вирус: Левин на метеостанции, кочевой торговец или лаборатории." };
+  if (c.food < 25 || c.drink < 25) return { ic: "🍽️", t: c.drink < c.food ? "Попей" : "Поешь", d: "Кнопка «Поесть и попить досыта» наверху." };
+  if (emissionSoon() && !inShelter()) return { ic: "☢️", t: "Выброс — в укрытие!", d: "Ближайшее: " + ((nearestShelter() || {}).loc ? LOCS[nearestShelter().loc].n : "база") };
+  const nb = nextBloodDay(), bnToday = nb === day();
+  if (bnToday && !atBase() && hour() >= 14) return { ic: "🌕", t: "Возвращайся на базу", d: "Сегодня в 22:00 Кровавая ночь." };
+  if (isNight() && !inShelter() && !G.traveling) {
+    const sh = nearestShelter();
+    return { ic: "🌙", t: "Ночью — в укрытие", d: sh ? "Ближайшее: ".concat(LOCS[sh.loc].n, " (~").concat(sh.mins, " мин)") : "Найди укрытие." };
+  }
+  if (c.energy < 20) return { ic: "😴", t: "Выспись", d: "Силы на исходе — в укрытии «Спать»." };
+  if (nb - day() <= 1) {
+    const pw = Math.round((25 + nb * 2.5) * f.horde), df = defense();
+    if (df < pw) return { ic: "🧱", t: "Укрепи базу", d: "Оборона ".concat(df, ", натиск ≈ ").concat(pw, ". База → Стройка, подготовка к ночи, охрана.") };
+  }
+  const mq = Object.entries(G.w.quests || {}).find(([k, v]) => v === "active" && QUESTS[k] && QUESTS[k].g === "main");
+  if (mq) return { ic: "⭐", t: QUESTS[mq[0]].n, d: QUESTS[mq[0]].d };
+  if ((G.w.caches || []).length) {
+    const x = G.w.caches[0];
+    return { ic: "🗺️", t: "Откопай тайник", d: "".concat(LOCS[x.loc].ic, " ").concat(LOCS[x.loc].n) };
+  }
+  const un = Object.keys(LOCS).filter((id) => !G.w.locs[id] || !G.w.locs[id].visited).filter((id) => !LOCS[id].ch2 && route(G.loc, id)).sort((a, b) => route(G.loc, a).mins - route(G.loc, b).mins)[0];
+  if (un) return { ic: "🧭", t: "Разведай новое место", d: "".concat(LOCS[un].ic, " ").concat(LOCS[un].n, " (~").concat(route(G.loc, un).mins, " мин)") };
+  return { ic: "🏘️", t: "Развивай поселение", d: "Контракты торговцев, жители, хозяйство, боссы группировок." };
+}
+const goalHtml = (cls) => {
+  const g = nextGoal();
+  return g ? '<div class="'.concat(cls, '"><span class="ic">').concat(g.ic, '</span><div class="grow"><b>Что дальше: ').concat(esc2(g.t), '</b><span class="s">').concat(esc2(g.d), "</span></div></div>") : "";
+};
+const _sideRightG = sideRight;
+sideRight = function() {
+  const g = nextGoal();
+  return (g ? '<div class="card"><h3>🎯 Что дальше</h3><div class="ln"><b>'.concat(g.ic, " ").concat(esc2(g.t), '</b></div><div class="ln mono" style="white-space:normal">').concat(esc2(g.d), "</div></div>") : "") + _sideRightG.apply(this, arguments);
+};
+window.setGoalTips = (v) => {
+  UIP.goal = v;
+  try {
+    localStorage.setItem("moti3_ui", JSON.stringify(UIP));
+  } catch (e) {
+  }
+  UI.render();
+};
+const _locRowsG = EXTUI.locRows;
+EXTUI.locRows = function() {
+  const h = _locRowsG.apply(this, arguments);
+  return (!uiWide() && UIP.goal !== false ? goalHtml("goalcard") : "") + h;
+};
+const BONUS = {
+  car: [["wire", 3], ["molotov", 1], ["pipe", 1], ["fireaxe", 1]],
+  shed: [["wire", 3], ["bees", 1], ["hen", 1]],
+  wardrobe: [["wire", 2]],
+  locker: [["wire", 2], ["tmap", 1]],
+  milcrate: [["wire", 2]],
+  backpack: [["arrow", 2], ["knuckles", 1], ["tmap", 1]],
+  body: [["tmap", 1], ["arrow", 1]],
+  desk: [["tmap", 2]],
+  bushes: [["bees", 1]],
+  toolbox: [["wire", 2]]
+};
+const _searchContB = searchCont;
+searchCont = function(k) {
+  const d = G.room != null ? roomDef(G.room) : null, ct = d && d.cont ? d.cont[k] : null, ready = d && contReady(G.room, k);
+  const r = _searchContB.apply(this, arguments);
+  if (ready && ct && BONUS[ct] && !G.dead && !G.combat && ch(0.22)) {
+    const id = wpick(BONUS[ct]);
+    const n = id === "wire" ? R(1, 3) : id === "arrow" ? R(3, 6) : 1;
+    invAdd(G.inv, id, n);
+    UI.log("✨ Ещё нашлось: ".concat(IT(id).ic, " ").concat(IT(id).n).concat(n > 1 ? " ×" + n : "", "."), "good");
+  }
+  return r;
+};

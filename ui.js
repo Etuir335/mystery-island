@@ -590,6 +590,7 @@ const UI = /* @__PURE__ */ (() => {
           const id = have(1);
           b.push(btn("🧴 Обработать", () => useItem(id, false, j), "sm", !id));
         }
+        if (j.t === "disl" && typeof reduceDisl === "function") b.push(btn("🦴 Вправить", () => reduceDisl(j), "sm"));
         if (j.t === "frac" && !j.splint) {
           const id = have(2);
           b.push(btn("🦯 Шина", () => useItem(id, false, j), "sm", !id));
@@ -701,7 +702,7 @@ const UI = /* @__PURE__ */ (() => {
     t = t.toLowerCase();
     if (/дневник|записки|^\W*события|справочник/.test(t)) return "diary";
     if (/кооператив|таблица|выживших|отряд/.test(t)) return "squad";
-    if (/достижения|статистика/.test(t)) return "ach";
+    if (/достижения|статистика|бестиарий|летопись/.test(t)) return "ach";
     if (/интерфейс|тема|звук|подсказки|своя сложность|сохранения|резервные|^\W*игра$/.test(t)) return "set";
     return "quests";
   }

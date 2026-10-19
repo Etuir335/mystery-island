@@ -700,7 +700,7 @@ const ART = /* @__PURE__ */ (() => {
       if (f.night && kind !== "app") haze("#0a1030", 0.35);
     } else {
       sky(f.hour, f, r, t);
-      (SCENES[spec.loc] || SCENES.base)(f, t, r);
+      (SCENES[spec.loc] || SCENES[{ airfield: "post", asylum: "nii", flooded: "village", radiotower: "meteo" }[spec.loc]] || SCENES.base)(f, t, r);
       if (spec.camp && spec.loc !== "base") campfire(34, HH - 10, t, false);
       if (f.night) haze("#0a1030", 0.28);
       if (f.fog) fog(f, f.hz);
