@@ -4121,6 +4121,7 @@ function throwIt(id) {
     cLog("💥 Вспышка и грохот — враги оглушены!", "good");
   }
   if (id === "noisem") {
+    cb.lure = 2;
     let n = 0;
     for (const e of alive) if (e.dist >= 1 && !ENEMY[e.id].boss && !ENEMY[e.id].human && ch(0.75)) {
       e.hp = 0;
@@ -4129,6 +4130,7 @@ function throwIt(id) {
       n++;
     }
     cLog(n ? "⏰ Шумелка затрезвонила — ".concat(n, " ушли на звук.") : "⏰ Шумелка звенит, но им не до неё.", n ? "good" : "dim");
+    if (cb.en.some((e) => e.hp > 0 && !ENEMY[e.id].human && !ENEMY[e.id].boss)) cLog("⏰ Остальные заражённые оглядываются на звон — пару ходов сбежать куда проще.", "good");
   }
   endPlayerTurn();
 }
@@ -4148,6 +4150,22 @@ function wrapCombatUi() {
           d.innerHTML = '<span class="mono muted" style="font-size:12px">Бросить:</span>' + have.map((id) => '<button class="btn sm" onclick="throwIt(\''.concat(id, '\')" title="').concat((IT(id).info || "").replace(/"/g, ""), '">').concat(IT(id).ic, " ").concat(IT(id).n, " ×").concat(cnt(G.inv, id), "</button>")).join("");
           const L2 = sh.querySelector(".list");
           if (L2) L2.after(d);
+        }
+      }
+    } catch (e) {
+    }
+    try {
+      const sh = document.querySelector("#modal .sheet.combat");
+      if (sh && G.combat && !G.combat.waiting && !sh.querySelector(".fleewhy")) {
+        const fi = fleeInfo();
+        if (fi.why.length) {
+          const d = document.createElement("p");
+          d.className = "fleewhy muted";
+          d.style.fontSize = "12.5px";
+          d.textContent = "🏃 Побег ".concat(Math.round(fi.p * 100), "%: ").concat(fi.why.join(", "));
+          const ac = [...sh.querySelectorAll(".acts")].find((x) => /Бежать/.test(x.textContent));
+          if (ac) ac.after(d);
+          else sh.appendChild(d);
         }
       }
     } catch (e) {
@@ -4183,6 +4201,7 @@ enemyTurn = function() {
   }
   const r = _enemyTurnT.apply(this, arguments);
   if (G.combat && G.combat.smoke > 0) G.combat.smoke--;
+  if (G.combat && G.combat.lure > 0) G.combat.lure--;
   return r;
 };
 const _enemyHitT = enemyHit;
@@ -4194,12 +4213,90 @@ enemyHit = function(e, ranged, near) {
   return _enemyHitT.apply(this, arguments);
 };
 const _fleeChanceT = fleeChance;
+function fleeInfo() {
+  const cb = G.combat, c = G.ch, why = [];
+  if (!cb) return { p: 0.5, why };
+  let p = 0.5 + skill("stealth") * 0.03 + mod("flee");
+  if (skill("stealth") >= 2) why.push("+скрытность");
+  let near = 0, fast = 0, burn = 0, busy = 0, guns = 0;
+  for (const e of cb.en) {
+    if (e.hp <= 0) continue;
+    const D = ENEMY[e.id];
+    if (e.burn > 0) {
+      burn++;
+      continue;
+    }
+    if (e.stun > 0) {
+      busy++;
+      continue;
+    }
+    if (cb.lure > 0 && !D.human && !D.boss) {
+      busy++;
+      continue;
+    }
+    const quick = D.sp > 1;
+    if (e.dist <= 1) {
+      p -= quick ? 0.15 : 0.07;
+      if (quick) fast++;
+      else near++;
+    } else if (quick) {
+      p -= 0.04;
+      fast++;
+    }
+    if (D.human && e.gear && IT(e.gear).c === "gun") {
+      p -= 0.05;
+      guns++;
+    }
+  }
+  if (fast) why.push("−".concat(fast, " быстр").concat(fast === 1 ? "ый" : "ых"));
+  if (near) why.push("−".concat(near, " рядом"));
+  if (guns) why.push("−стрелки");
+  if (burn) {
+    p += 0.06 * Math.min(3, burn);
+    why.push("+".concat(burn, " горят"));
+  }
+  if (busy) why.push("+".concat(busy, " не до тебя"));
+  if (cb.lure > 0) {
+    p += 0.25;
+    why.push("+⏰ шумелка");
+  }
+  if (cb.smoke > 0) {
+    p += 0.35;
+    why.push("+💨 дым");
+  }
+  if (cb.fleeTry) {
+    p += 0.08 * Math.min(3, cb.fleeTry);
+    why.push("+попытки ×".concat(cb.fleeTry));
+  }
+  if (legHurt() || c.inj.some((j) => j.t === "disl" && (j.part === "lleg" || j.part === "rleg"))) {
+    p -= 0.25;
+    why.push("−нога");
+  }
+  if (overW()) {
+    p -= 0.15;
+    why.push("−перегруз");
+  }
+  if (c.energy < 15) {
+    p -= 0.1;
+    why.push("−без сил");
+  }
+  if (cb.en.some((e) => e.hp > 0 && ENEMY[e.id].boss && !(e.stun > 0))) {
+    p -= 0.1;
+    why.push("−босс");
+  }
+  if (cb.en.every((e) => e.hp <= 0 || e.stun > 0 || e.burn > 0 || cb.lure > 0 && !ENEMY[e.id].human)) {
+    p = Math.max(p, 0.85);
+  }
+  return { p: clamp(p, 0.05, 0.95), why };
+}
 fleeChance = function() {
-  let p = _fleeChanceT.apply(this, arguments);
-  const c = G.ch;
-  if (G.combat && G.combat.smoke > 0) p += 0.35;
-  if (c.inj.some((j) => j.t === "disl" && (j.part === "lleg" || j.part === "rleg"))) p -= 0.15;
-  return clamp(p, 0.05, 0.95);
+  return fleeInfo().p;
+};
+const _pFleeF = pFlee;
+pFlee = function() {
+  const cb = G.combat;
+  if (cb) cb.fleeTry = (cb.fleeTry || 0) + 1;
+  return _pFleeF.apply(this, arguments);
 };
 Object.assign(ENEMY, {
   screamer: { n: "Крикун", ic: "😱", spr: "zombie", hp: 20, dmg: [3, 6], sp: 1, acc: 0.5, inj: ["scratch", "bite"], loot: "body", xp: 8, note: "Сам слабый, но визжит и зовёт других. Убей первым — или оглуши." },
