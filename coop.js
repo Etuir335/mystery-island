@@ -451,8 +451,12 @@ const COOP = (() => {
       qs.docs.forEach((d) => {
         if (d.exists && d.data()) o[d.id] = d.data();
       });
+      for (const [k, f] of Object.entries(o)) {
+        const pr = fights[k];
+        f._rx = pr && pr.at === f.at && pr._rx ? pr._rx : Date.now();
+      }
       fights = o;
-      for (const [k, f] of Object.entries(o)) if (k !== uid && f && !f.ended && f.loc === G.loc && !G.combat && !G.traveling && Date.now() - (f.at || 0) < 6e4) {
+      for (const [k, f] of Object.entries(o)) if (k !== uid && f && !f.ended && f.loc === G.loc && !G.combat && !G.traveling && Date.now() - (f._rx || 0) < 6e4) {
         const key = k + ":" + (f.start || f.room || "") + ":" + Math.floor((f.at || 0) / 6e5);
         if (!fightToasted[key]) {
           fightToasted[key] = 1;
@@ -953,7 +957,7 @@ const COOP = (() => {
     const cur = fights[uid];
     const allies2 = cur && cur.allies || [];
     if (!G.combat && !cur) return;
-    if (G.combat && !allies2.length && !here().length) return;
+    if (G.combat && !allies2.length && !others().some((p) => p.online)) return;
     clearTimeout(fightPushT);
     const go = async () => {
       try {

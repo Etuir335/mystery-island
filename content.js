@@ -895,7 +895,7 @@ function sideRight() {
     const ps = COOP.others();
     h += '<div class="card"><h3>🤝 Отряд</h3>'.concat(ps.length ? ps.map((p) => {
       var _a, _b, _c;
-      return '<div class="tm"><div><b>'.concat(cesc(p.name || "?"), "</b> ").concat(!p.online ? "💤" : p.alive === false ? "☠️" : p.combat ? "⚔️" : "", '<br><span class="mono">').concat(p.loc && LOCS[p.loc] ? LOCS[p.loc].ic + " " + cesc(LOCS[p.loc].n) : "").concat(p.room ? " · " + cesc(p.room) : "", '</span><br><span class="mono">').concat(cesc(p.act || ""), '</span></div><div class="mono" style="text-align:right;white-space:nowrap">❤️').concat((_a = p.hp) != null ? _a : "?", "<br>🍗").concat((_b = p.food) != null ? _b : "?", " 💧").concat((_c = p.drink) != null ? _c : "?", "</div></div>");
+      return '<div class="tm"><div><b>'.concat(cesc(p.name || "?"), "</b> ").concat(!p.online ? "💤" : p.alive === false ? "☠️" : p.combat ? "⚔️" : "", '<br><span class="mono">').concat(p.loc && LOCS[p.loc] ? LOCS[p.loc].ic + " " + cesc(LOCS[p.loc].n) : "").concat(p.room ? " · " + cesc(p.room) : "", '</span><br><span class="mono">').concat(cesc(p.act || ""), "</span>").concat(p.online && p.alive !== false && (p.combat || (COOP.fights || {})[p.id] && !COOP.fights[p.id].ended && Date.now() - (COOP.fights[p.id]._rx || 0) < 18e4) ? '<br><button class="btn sm pri" style="margin-top:4px" onclick="coopHelp(\''.concat(cesc(p.id), "')\">⚔️ ").concat(p.loc === G.loc ? "Помочь в бою" : "Идти на помощь", "</button>") : "", '</div><div class="mono" style="text-align:right;white-space:nowrap">❤️').concat((_a = p.hp) != null ? _a : "?", "<br>🍗").concat((_b = p.food) != null ? _b : "?", " 💧").concat((_c = p.drink) != null ? _c : "?", "</div></div>");
     }).join("") : '<div class="ln mono">друзей пока нет</div>', "</div>");
   }
   const act = Object.entries(G.w.quests || {}).filter(([k, v]) => v === "active" && QUESTS[k]).slice(0, 6);
@@ -6105,4 +6105,22 @@ EXTUI.locRows = function() {
   const h = _locRowsBot.apply(this, arguments), B = bot();
   if (!B || !B.alive || B.loc !== G.loc || B.trav || G.room != null) return h;
   return h + '<div class="row"><span class="ic">🤖</span><div class="grow"><span class="t">'.concat(esc2(B.name), ' здесь</span><span class="s">').concat(esc2(bTaskText(B)), " · ❤️ ").concat(Math.round(B.hp), ' · поможет в бою</span></div><div class="acts"><button class="btn sm" onclick="botTrade(\'give\')">🎁</button><button class="btn sm" onclick="botTrade(\'take\')">🤲</button><button class="btn sm" onclick="botCmd(\'').concat(B.mode === "follow" ? "auto" : "follow", "')\">").concat(B.mode === "follow" ? "Отпустить" : "👣 Со мной", "</button></div></div>");
+};
+window.coopHelp = (id) => {
+  if (!G || !G.coop || !window.COOP) return;
+  const p = COOP.others().find((x) => x.id === id);
+  if (!p) return;
+  if (G.combat) return UI.toast("Сначала закончи свой бой.");
+  const f = (COOP.fights || {})[id];
+  if (p.loc === G.loc && !G.traveling) {
+    if (f && !f.ended) COOP.joinFight(id);
+    else UI.toast("".concat(p.name || "Друг", " ещё не начал общий бой — подожди секунду."));
+    return;
+  }
+  if (G.traveling) return UI.toast("Ты уже в пути.");
+  const r = route(G.loc, p.loc);
+  if (!r) return UI.toast("Туда сейчас не пройти.");
+  UI.toast("🧭 Идёшь к ".concat(p.name || "другу", ": ").concat(LOCS[p.loc].n, " (~").concat(r.mins, " мин)"));
+  goTo(p.loc);
+  UI.render();
 };

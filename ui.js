@@ -830,7 +830,14 @@ const UI = /* @__PURE__ */ (() => {
   }
   function allyFightsHtml() {
     if (!G || !G.coop || !window.COOP || G.combat || G.traveling) return "";
-    return Object.values(COOP.fights || {}).filter((f) => f && !f.ended && f.owner && f.owner !== COOP.uid && f.loc === G.loc && Date.now() - (f.at || 0) < 18e4).map((f) => '<div class="row hot allyfight"><span class="ic">⚔️</span><div class="grow"><span class="t">'.concat(esc(f.name), " в бою рядом").concat(f.room ? " · " + esc(f.room) : "", '</span><span class="s">').concat((f.en || []).filter((e) => e.hp > 0).map((e) => ENEMY[e.id] ? ENEMY[e.id].ic : "❓").join(""), " · врагов: ").concat((f.en || []).filter((e) => e.hp > 0).length, " · ход ").concat(f.turn).concat((f.allies || []).length ? " · уже помогают" : "", "</span></div>").concat(btn("⚔️ Помочь", () => COOP.joinFight(f.owner), "pri sm"), "</div>")).join("");
+    const live = Object.values(COOP.fights || {}).filter((f) => f && !f.ended && f.owner && f.owner !== COOP.uid && Date.now() - (f._rx || 0) < 18e4);
+    const far = live.filter((f) => f.loc !== G.loc && LOCS[f.loc]).map((f) => {
+      const r = route(G.loc, f.loc);
+      return '<div class="row hot allyfight"><span class="ic">⚔️</span><div class="grow"><span class="t">'.concat(esc(f.name), " в бою: ").concat(LOCS[f.loc].ic, " ").concat(esc(LOCS[f.loc].n), '</span><span class="s">').concat((f.en || []).filter((e) => e.hp > 0).map((e) => ENEMY[e.id] ? ENEMY[e.id].ic : "❓").join("")).concat(r ? " · идти ~".concat(r.mins, " мин") : "", "</span></div>").concat(r ? btn("🧭 К нему", () => {
+        goTo(f.loc);
+      }, "sm", !!G.traveling) : "", "</div>");
+    }).join("");
+    return far + live.filter((f) => f.loc === G.loc).map((f) => '<div class="row hot allyfight"><span class="ic">⚔️</span><div class="grow"><span class="t">'.concat(esc(f.name), " в бою рядом").concat(f.room ? " · " + esc(f.room) : "", '</span><span class="s">').concat((f.en || []).filter((e) => e.hp > 0).map((e) => ENEMY[e.id] ? ENEMY[e.id].ic : "❓").join(""), " · врагов: ").concat((f.en || []).filter((e) => e.hp > 0).length, " · ход ").concat(f.turn).concat((f.allies || []).length ? " · уже помогают" : "", "</span></div>").concat(btn("⚔️ Помочь", () => COOP.joinFight(f.owner), "pri sm"), "</div>")).join("");
   }
   function render() {
     if (!G || full) return;
