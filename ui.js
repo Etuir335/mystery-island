@@ -424,6 +424,7 @@ const UI = /* @__PURE__ */ (() => {
       if (it.c === "med") out.push(btn("Использовать", () => useItem(e.id), "pri sm"));
       if (it.c === "bp") out.push(btn("Изучить", () => useItem(e.id), "pri sm"));
       if (["melee", "gun", "wear", "art"].includes(it.c)) out.push(btn("Надеть", () => equip(e), "pri sm"));
+      if (["melee", "gun"].includes(it.c)) out.push(btn("🔁 Запасным", () => equip2(e), "sm"));
       if (it.c === "mod" && typeof CUI !== "undefined") out.push(CUI.modBtn(e));
       if (typeof CUI !== "undefined" && CUI.quickCraft) out.push(CUI.quickCraft(e));
       if (atBase()) out.push(btn(e.n > 1 ? "На склад все" : "На склад", () => toStash(e)), e.n > 1 ? btn("На склад 1", () => toStash(e, 1), "sm") : "");
@@ -531,6 +532,7 @@ const UI = /* @__PURE__ */ (() => {
     ["body", "Одежда", "🧥", null],
     ["vest", "Бронежилет", "🦺", null],
     ["weapon", "Оружие", "🗡️", null],
+    ["weapon2", "Запасное", "🏹", null],
     ["bag", "Рюкзак", "🎒", null],
     ["art0", "Артефакт 1", "💠", 0],
     ["art1", "Артефакт 2", "💠", 1]
@@ -553,9 +555,13 @@ const UI = /* @__PURE__ */ (() => {
     if (e) {
       const it = IT(e.id), acts = [btn("Снять", () => unequip(S[3] != null ? "art" : sel2, S[3] != null ? S[3] : void 0), "sm")];
       if (sel2 === "weapon" && e.dur != null) acts.push(btn("🩶 Подлатать скотчем", repairWeapon, "sm", !allCnt("tape")));
+      if (sel2 === "weapon" || sel2 === "weapon2") acts.push(btn(sel2 === "weapon" ? "🔄 Взять запасное" : "🔄 Взять в руки", () => {
+        swapWeapons();
+        st.eqSel = "weapon";
+      }, "sm", !G.eq.weapon2 && sel2 === "weapon"));
       det = '<div class="eqdet"><div class="sechead"><span class="t"><b>'.concat(esc(it.n), '</b></span><span class="mono muted">').concat(S[1], "</span></div>\n        ").concat(d != null ? '<div class="durbig '.concat(d <= 15 ? "crit" : d <= 35 ? "low" : "", '"><span>Прочность ').concat(d, '%</span><span class="dur"><i style="width:').concat(d, '%"></i></span></div>') : "", '\n        <div class="s muted">').concat(itemSub(e), '</div><div class="acts">').concat(acts.join(""), "</div></div>");
     } else det = '<div class="eqdet"><span class="muted">'.concat(S[1], ": пусто. Надеть можно из рюкзака — кнопка «Надеть».</span></div>");
-    return '<div class="sec"><h2>Снаряжение</h2>\n      '.concat(warn.length ? '<div class="eqwarn">⚠️ Скоро сломается: '.concat(warn.map(([k, e2, d2]) => "<b>".concat(esc(IT(e2.id).n), "</b> ").concat(d2, "%")).join(", "), ". Почини заранее — в бою будет поздно.</div>") : "", '\n      <div class="doll"><div class="dcol">').concat(sl("mask")).concat(sl("body")).concat(sl("vest"), '</div><div class="dmid">').concat(fig, '</div><div class="dcol">').concat(sl("weapon")).concat(sl("bag")).concat(sl("art0")).concat(sl("art1"), "</div></div>\n      ").concat(det, "</div>");
+    return '<div class="sec"><h2>Снаряжение</h2>\n      '.concat(warn.length ? '<div class="eqwarn">⚠️ Скоро сломается: '.concat(warn.map(([k, e2, d2]) => "<b>".concat(esc(IT(e2.id).n), "</b> ").concat(d2, "%")).join(", "), ". Почини заранее — в бою будет поздно.</div>") : "", '\n      <div class="doll"><div class="dcol">').concat(sl("mask")).concat(sl("body")).concat(sl("vest"), '</div><div class="dmid">').concat(fig, '</div><div class="dcol">').concat(sl("weapon")).concat(sl("weapon2")).concat(sl("bag")).concat(sl("art0")).concat(sl("art1"), "</div></div>\n      ").concat(det, "</div>");
   }
   function renderInv() {
     const w = curW(), cap = capW();
@@ -931,7 +937,10 @@ const UI = /* @__PURE__ */ (() => {
     $("modal").innerHTML = '<div class="overlay"><div class="sheet bad combat '.concat(fresh ? "anim" : "", '" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>⚔️ Бой · ход ').concat(cb.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "% · ⚡").concat(Math.round(G.ch.energy)).concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>\n      ").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <div class="acts">').concat(alive.every((e) => e.dist > (ms.reach ? 1 : 0)) ? mbtn("⏳ Ждать, пока подойдут", () => {
       G.combat.log.push({ t: "⏳ Ты ждёшь, сжимая оружие…", c: "dim" });
       endPlayerTurn();
-    }) : "").concat(mbtn("🏃 Бежать (".concat(Math.round(fleeChance() * 100), "%)"), pFlee)).concat(human ? mbtn("🤝 Договориться", pTalk) : "").concat(G.coop && COOP.status === "online" && !G.combat.called ? mbtn("📣 Позвать на помощь", () => {
+    }) : "").concat(mbtn("🏃 Бежать (".concat(Math.round(fleeChance() * 100), "%)"), pFlee)).concat(G.eq.weapon2 ? mbtn("🔄 ".concat(IT(G.eq.weapon2.id).ic, " ").concat(esc(IT(G.eq.weapon2.id).n)), () => {
+      swapWeapons();
+      combat();
+    }, "sm") : "").concat(human ? mbtn("🤝 Договориться", pTalk) : "").concat(G.coop && COOP.status === "online" && !G.combat.called ? mbtn("📣 Позвать на помощь", () => {
       G.combat.called = true;
       COOP.ping("Нужна помощь! Я в бою.");
       combat();

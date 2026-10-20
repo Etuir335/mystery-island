@@ -123,7 +123,7 @@ function allTake(id, n) {
   if (n - a > 0) take(G.stash, id, n - a);
 }
 const hasAll = (need) => Object.entries(need).every(([k, v]) => allCnt(k) >= v);
-const eqList = () => [G.eq.weapon, G.eq.body, G.eq.vest, G.eq.bag, G.eq.mask, ...G.eq.art].filter(Boolean);
+const eqList = () => [G.eq.weapon, G.eq.weapon2, G.eq.body, G.eq.vest, G.eq.bag, G.eq.mask, ...G.eq.art].filter(Boolean);
 const weightOf = (list) => list.reduce((a, x) => a + IT(x.id).w * x.n, 0);
 const curW = () => weightOf(G.inv) + weightOf(eqList());
 const capW = () => 20 + mod("carry") + (G.eq.bag ? IT(G.eq.bag.id).cap : 0) + G.eq.art.filter(Boolean).reduce((a, x) => a + (IT(x.id).art.cap || 0), 0);
@@ -317,7 +317,7 @@ function newGame(mode, name, traits, prof) {
     em: { next: DAY * 3 + R(10, 20) * H, warned: false },
     inv: [],
     stash: [],
-    eq: { weapon: null, body: null, vest: null, bag: null, mask: null, art: [null, null] },
+    eq: { weapon: null, weapon2: null, body: null, vest: null, bag: null, mask: null, art: [null, null] },
     ch: newChar(name, traits, prof),
     w: newWorld(),
     log: [],
@@ -727,7 +727,7 @@ function die(cause) {
   }
   const items = G.inv.splice(0);
   eqList().forEach((x) => items.push(x));
-  G.eq = { weapon: null, body: null, vest: null, bag: null, mask: null, art: [null, null] };
+  G.eq = { weapon: null, weapon2: null, body: null, vest: null, bag: null, mask: null, art: [null, null] };
   if (items.length) G.w.corpses.push({ loc: G.traveling ? G.travelTo || G.loc : G.loc, items, name: c.name, at: G.time });
   if (f.death === "corpse") {
     for (const p in PARTS) c.parts[p] = Math.ceil(PARTS[p].max * 0.5);
@@ -762,7 +762,7 @@ function continueWorld(name, traits, prof) {
   G.loc = "base";
   G.room = null;
   G.traveling = false;
-  G.eq = { weapon: null, body: null, vest: null, bag: null, mask: null, art: [null, null] };
+  G.eq = { weapon: null, weapon2: null, body: null, vest: null, bag: null, mask: null, art: [null, null] };
   startKit();
   UI.log("🧍 ".concat(name, " приплыл на остров на обломке лодки. На базе его ждёт склад предшественника."), "sys");
   save();
@@ -1693,6 +1693,22 @@ function equip(e) {
   const i = G.inv.indexOf(e);
   if (i >= 0) G.inv.splice(i, 1);
   UI.log("".concat(it.ic, " Экипировано: ").concat(it.n, "."));
+}
+function equip2(e) {
+  const it = IT(e.id);
+  if (it.c !== "melee" && it.c !== "gun") return;
+  if (G.eq.weapon2) G.inv.push(G.eq.weapon2);
+  G.eq.weapon2 = e;
+  const i = G.inv.indexOf(e);
+  if (i >= 0) G.inv.splice(i, 1);
+  UI.log("".concat(it.ic, " Запасное оружие: ").concat(it.n, "."));
+}
+function swapWeapons() {
+  if (!G.eq.weapon2 && !G.eq.weapon) return;
+  [G.eq.weapon, G.eq.weapon2] = [G.eq.weapon2 || null, G.eq.weapon || null];
+  const w = G.eq.weapon ? IT(G.eq.weapon.id) : null;
+  if (G.combat) G.combat.log.push({ t: "🔄 Ты перехватываешь ".concat(w ? w.ic + " " + w.n : "кулаки", "."), c: "dim" });
+  else UI.log("🔄 В руках: ".concat(w ? w.ic + " " + w.n : "кулаки", "."));
 }
 function unequip(slot, idx) {
   if (slot === "art") {
