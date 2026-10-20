@@ -1229,6 +1229,7 @@ function damageWeapon(n) {
   }
 }
 function pAttack(i, sneak) {
+  if (!G.combat || !G.combat.en[i] || G.combat.en[i].hp <= 0 || G.combat.waiting) return UI.combat();
   const cb = G.combat, e = cb.en[i], D = ENEMY[e.id], ms = meleeStats();
   if (!sneak && e.dist > (ms.reach ? 1 : 0)) {
     cLog("Слишком далеко для удара.", "dim");
@@ -1257,6 +1258,7 @@ function pAttack(i, sneak) {
   endPlayerTurn();
 }
 function pShoot(i) {
+  if (!G.combat || !G.combat.en[i] || G.combat.en[i].hp <= 0 || G.combat.waiting) return UI.combat();
   const cb = G.combat, w = curWeapon();
   if (!w || w.c !== "gun") return;
   if (!cnt(G.inv, w.ammo)) {
@@ -1294,6 +1296,7 @@ function pShoot(i) {
   endPlayerTurn();
 }
 function pPush(i) {
+  if (!G.combat || !G.combat.en[i] || G.combat.en[i].hp <= 0 || G.combat.waiting) return UI.combat();
   const e = G.combat.en[i], D = ENEMY[e.id];
   if (e.dist > 0) return;
   G.ch.energy = Math.max(0, G.ch.energy - 3);
@@ -2110,7 +2113,12 @@ function addNote(id) {
   }
 }
 function sneakAttack(i) {
-  const s = roomSt(G.room), e = s.en[i], D = ENEMY[e.id], ms = meleeStats();
+  const s = G.room != null ? roomSt(G.room) : null, e = s && s.en ? s.en[i] : null;
+  if (!e || e.hp <= 0 || !ENEMY[e.id] || G.combat) {
+    UI.render();
+    return;
+  }
+  const D = ENEMY[e.id], ms = meleeStats();
   let d = R(ms.dmg[0], ms.dmg[1]) * (1 + skill("melee") * 0.08) * (D.boss ? 1.5 : 3) * (1 + mod("sneakDmg")) * mul("meleeDmg", 0.3);
   d = Math.max(1, Math.round(d - (D.arm || 0)));
   e.hp -= d;
