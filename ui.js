@@ -247,7 +247,8 @@ const UI = /* @__PURE__ */ (() => {
         h += '<div class="row evt hot"><span class="ic">'.concat(E.ic, '</span><div class="grow"><span class="t">Лагерь мародёров</span><span class="s">').concat(ev.cleared ? "зачищен — можно обыскать" : "часовых: ".concat(n, " · ещё ~").concat(left, " ч"), '</span></div><div class="acts">').concat(ev.cleared ? btn("Обыскать", () => campLoot(ev), "pri sm") : btn("⚔️ Напасть", () => campAttack(ev), "bad sm") + (ev.stolen ? "" : btn("🐾 Украсть (".concat(Math.round(stealthChance() * 80), "%)"), () => campSteal(ev), "sm")), "</div></div>");
       }
     }
-    if (G.coop) Object.values(COOP.fights).filter((f2) => f2 && !f2.ended && f2.owner && f2.owner !== COOP.uid && f2.loc === G.loc && Date.now() - (f2.at || 0) < 18e4).forEach((f2) => {
+    h += allyFightsHtml();
+    if (false) [].forEach((f2) => {
       h += '<div class="row hot"><span class="ic">⚔️</span><div class="grow"><span class="t">'.concat(esc(f2.name), " в бою").concat(f2.room ? " · " + esc(f2.room) : "", '</span><span class="s">врагов: ').concat((f2.en || []).filter((e) => e.hp > 0).length, " · ход ").concat(f2.turn).concat((f2.allies || []).length ? " · уже помогают" : "", "</span></div>").concat(btn("⚔️ Вступить в бой", () => COOP.joinFight(f2.owner), "pri sm", !!G.combat), "</div>");
     });
     if (G.coop) COOP.here().forEach((p) => {
@@ -821,12 +822,17 @@ const UI = /* @__PURE__ */ (() => {
     if (!items.length) return toast("Рюкзак пуст.");
     event({ title: "🎁 Передать: ".concat(p.name), text: "Что отдать?", choices: items.slice(0, 20).map((e) => ({ t: "".concat(IT(e.id).ic, " ").concat(IT(e.id).n).concat(e.n > 1 ? " ×" + e.n : ""), fn: () => e.n > 1 ? setTimeout(() => event({ title: "🎁 ".concat(IT(e.id).ic, " ").concat(IT(e.id).n, " ×").concat(e.n), text: "Сколько отдать: ".concat(p.name, "?"), choices: [{ t: "1 шт.", fn: () => COOP.give(p.id, e, 1) }].concat(e.n >= 4 ? [{ t: "Половину (".concat(Math.floor(e.n / 2), ")"), fn: () => COOP.give(p.id, e, Math.floor(e.n / 2)) }] : []).concat([{ t: "Все (".concat(e.n, ")"), fn: () => COOP.give(p.id, e) }, { t: "Отмена" }]) }), 0) : COOP.give(p.id, e) })).concat([{ t: "Отмена" }]) });
   }
+  function allyFightsHtml() {
+    if (!G || !G.coop || !window.COOP || G.combat || G.traveling) return "";
+    return Object.values(COOP.fights || {}).filter((f) => f && !f.ended && f.owner && f.owner !== COOP.uid && f.loc === G.loc && Date.now() - (f.at || 0) < 18e4).map((f) => '<div class="row hot allyfight"><span class="ic">⚔️</span><div class="grow"><span class="t">'.concat(esc(f.name), " в бою рядом").concat(f.room ? " · " + esc(f.room) : "", '</span><span class="s">').concat((f.en || []).filter((e) => e.hp > 0).map((e) => ENEMY[e.id] ? ENEMY[e.id].ic : "❓").join(""), " · врагов: ").concat((f.en || []).filter((e) => e.hp > 0).length, " · ход ").concat(f.turn).concat((f.allies || []).length ? " · уже помогают" : "", "</span></div>").concat(btn("⚔️ Помочь", () => COOP.joinFight(f.owner), "pri sm"), "</div>")).join("");
+  }
   function render() {
     if (!G || full) return;
     ACT = [];
     renderTop();
     renderTabs();
-    const scr = { map: renderMap, loc: renderLoc, inv: renderInv, char: renderChar, base: renderBase, jour: renderJour }[st.tab]();
+    let scr = { map: renderMap, loc: renderLoc, inv: renderInv, char: renderChar, base: renderBase, jour: renderJour }[st.tab]();
+    if (st.tab !== "loc") scr = allyFightsHtml() + scr;
     const mn = $("main");
     const changed = st.lastTab !== st.tab;
     const keep = changed ? 0 : mn.scrollTop;

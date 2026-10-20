@@ -3,6 +3,7 @@ const COOP = (() => {
   let db = null, user = null, uid = null, avail = null;
   let code = null, ready = false, status = "off";
   let subs = [], timer = null, pushing = false, again = false, rTimer = null;
+  const fightToasted = {};
   let fights = {}, joined = null, hitSeen = 0, pending = [], actsSeen = {}, fightPushT = null, hitN = 0;
   let feedL = [], chatLoaded = false, feedLoaded = false;
   let kicked = {}, slog = [];
@@ -451,6 +452,21 @@ const COOP = (() => {
         if (d.exists && d.data()) o[d.id] = d.data();
       });
       fights = o;
+      for (const [k, f] of Object.entries(o)) if (k !== uid && f && !f.ended && f.loc === G.loc && !G.combat && !G.traveling && Date.now() - (f.at || 0) < 6e4) {
+        const key = k + ":" + (f.start || f.room || "") + ":" + Math.floor((f.at || 0) / 6e5);
+        if (!fightToasted[key]) {
+          fightToasted[key] = 1;
+          UI.toast("⚔️ ".concat(f.name, " сражается рядом — можно помочь!"));
+          if (window.SFX) try {
+            SFX.play("notify");
+          } catch (e) {
+          }
+          try {
+            if (window.TGA && TGA.tg && TGA.tg.HapticFeedback) TGA.tg.HapticFeedback.notificationOccurred("warning");
+          } catch (e) {
+          }
+        }
+      }
       if (joined) {
         const f = fights[joined];
         if (!f || f.ended) {

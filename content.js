@@ -2984,13 +2984,6 @@ if (typeof document !== "undefined") (() => {
         const nb = bs[(i0 < 0 ? 0 : i0) + (dx < 0 ? 1 : -1)];
         if (nb) {
           nb.click();
-          const mn2 = document.getElementById("main");
-          if (mn2) {
-            mn2.classList.remove("swl", "swr");
-            void mn2.offsetWidth;
-            mn2.classList.add(dx < 0 ? "swl" : "swr");
-            setTimeout(() => mn2.classList.remove("swl", "swr"), 260);
-          }
           haptic();
           setTimeout(() => {
             const nb2 = document.querySelector("#main .toggle.subtabs button.on");
@@ -3004,13 +2997,6 @@ if (typeof document !== "undefined") (() => {
     if (i < 0) return;
     const j = i + (dx < 0 ? 1 : -1);
     if (j < 0 || j >= SWIPE_TABS.length) return;
-    const mn = document.getElementById("main");
-    if (mn) {
-      mn.classList.remove("swl", "swr");
-      void mn.offsetWidth;
-      mn.classList.add(dx < 0 ? "swl" : "swr");
-      setTimeout(() => mn.classList.remove("swl", "swr"), 260);
-    }
     st.open = null;
     if (SWIPE_TABS[j] !== "loc") st.trader = null;
     UI.go(SWIPE_TABS[j]);

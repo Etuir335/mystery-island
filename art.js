@@ -979,6 +979,25 @@ const ART = /* @__PURE__ */ (() => {
   }
   const enemyImg = (id, cls = "") => '<img class="spr '.concat(cls, '" src="').concat(enemy(id), '" alt="').concat(ENEMY[id] ? ENEMY[id].n : "", '" width="32" height="32">');
   const mapCache = {};
+  function tracePath(x, d) {
+    const t = d.match(/[MLCZmlcz]|-?\d*\.?\d+/g) || [];
+    let i = 0, cmd = "";
+    x.beginPath();
+    const n = () => +t[i++];
+    while (i < t.length) {
+      if (/[A-Za-z]/.test(t[i])) cmd = t[i++].toUpperCase();
+      if (cmd === "Z") {
+        x.closePath();
+        continue;
+      }
+      if (cmd === "M") {
+        x.moveTo(n(), n());
+        cmd = "L";
+      } else if (cmd === "L") x.lineTo(n(), n());
+      else if (cmd === "C") x.bezierCurveTo(n(), n(), n(), n(), n(), n());
+      else i++;
+    }
+  }
   function mapBg(islandPath, reef) {
     const ck = reef ? "r" : "n";
     if (mapCache[ck]) return mapCache[ck];
@@ -996,19 +1015,20 @@ const ART = /* @__PURE__ */ (() => {
     }
     x.save();
     x.scale(S, S);
-    const p = new Path2D(islandPath);
+    tracePath(x, islandPath);
     x.lineWidth = 3.2;
     x.strokeStyle = "#4f8aa0";
-    x.stroke(p);
+    x.stroke();
     x.lineWidth = 1.6;
     x.strokeStyle = "#d8c48a";
-    x.stroke(p);
+    x.stroke();
     x.fillStyle = "#7d9a5a";
-    x.fill(p);
+    x.fill();
     x.restore();
     x.save();
     x.scale(S, S);
-    x.clip(new Path2D(islandPath));
+    tracePath(x, islandPath);
+    x.clip();
     const blob = (cx, cy, rr, cols, n) => {
       for (let i = 0; i < n; i++) {
         const a = r() * 6.28, d = Math.sqrt(r()) * rr;
