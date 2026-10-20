@@ -616,7 +616,7 @@ function useBombs(n) {
     left -= 3;
   }
 }
-function campLoot(k, rich) {
+function raidLoot(k, rich) {
   const F0 = FACTIONS[k], out = [];
   for (let i = R(3, 4) + F0.tier + (rich ? 2 : 0); i > 0; i--) {
     const id = wpick(F0.loot);
@@ -734,7 +734,7 @@ function raidAfter(k, r, back) {
     c.grudge = Math.min(100, c.grudge + 20);
     return back(r === "talk" ? "Вы разошлись миром. В этот раз без добычи." : "Рейд сорвался — пришлось бежать без добычи.", "bad");
   }
-  const loot = campLoot(k, c.raided === 0), res = grabLoot(loot);
+  const loot = raidLoot(k, c.raided === 0), res = grabLoot(loot);
   st0.won++;
   c.raided++;
   c.readyAt = G.time + 5 * DAY;
