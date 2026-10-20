@@ -175,7 +175,7 @@ const UI = /* @__PURE__ */ (() => {
       if (l.shelter) card += '<span class="chip good">укрытие от Выброса</span>';
       if (l.trader) card += '<span class="chip">'.concat(TRADERS[l.trader].ic, " ").concat(TRADERS[l.trader].n, "</span>");
       if (f.hints >= 2) card += '<span class="chip">комнат: '.concat(l.rooms.length, "</span>");
-      if (l.lock) card += '<span class="chip '.concat(cnt(G.inv, l.lock) ? "good" : "bad", '">🔒 ').concat(IT(l.lock).n, "</span>");
+      if (l.lock) card += '<span class="chip '.concat(locKey(l.lock) ? "good" : "bad", '">').concat(locKey(l.lock) && !cnt(G.inv, l.lock) ? "🔓" : "🔒", " ").concat(IT(l.lock).n).concat(locKey(l.lock) && !cnt(G.inv, l.lock) ? " (у отряда)" : "", "</span>");
       if (G.w.corpses.some((x) => x.loc === sel2)) card += '<span class="chip warn">🪦 твоё тело</span>';
       eventsAt(sel2).forEach((ev) => card += '<span class="chip warn">'.concat(EVTS[ev.type].ic, " ").concat(EVTS[ev.type].n, "</span>"));
       card += "</div>";
@@ -942,7 +942,7 @@ const UI = /* @__PURE__ */ (() => {
     const human = alive.some((e) => ENEMY[e.id].human);
     const lg = cb.log.slice(-8).map((x) => '<div class="lg '.concat(x.c || "", '">').concat(esc(x.t), "</div>")).join("");
     const fresh = !$("modal").querySelector(".combat");
-    $("modal").innerHTML = '<div class="overlay"><div class="sheet bad combat '.concat(fresh ? "anim" : "", '" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>⚔️ Бой · ход ').concat(cb.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "% · ⚡").concat(Math.round(G.ch.energy)).concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>\n      ").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", "\n      ").concat(cb.waiting ? '<div class="waitally">⏳ Ждём ход: <b>'.concat(esc(COOP.waitNames(cb).join(", ")), "</b> · ").concat(Math.max(0, Math.ceil((cb.waiting - Date.now()) / 1e3)), ' с</div><div class="acts">').concat(mbtn("⏭️ Не ждать", () => COOP.stopWaiting(), "sm"), "</div>") : '<div class="acts">'.concat(alive.every((e) => e.dist > (ms.reach ? 1 : 0)) ? mbtn("⏳ Ждать, пока подойдут", () => {
+    $("modal").innerHTML = '<div class="overlay"><div class="sheet bad combat '.concat(fresh ? "anim" : "", '" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>⚔️ Бой · ход ').concat(cb.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "% · ⚡").concat(Math.round(G.ch.energy)).concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>\n      ").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", "\n      ").concat(cb.ini && window.COOP ? iniBar(COOP.iniView(cb)) : "").concat(cb.waiting ? '<div class="waitally">⏳ Ходит: <b>'.concat(esc(COOP.waitNames(cb).join(", ")), "</b> · ").concat(Math.max(0, Math.ceil((cb.waiting - Date.now()) / 1e3)), ' с</div><div class="acts">').concat(mbtn("⏭️ Не ждать", () => COOP.stopWaiting(), "sm"), "</div>") : '<div class="acts">'.concat(alive.every((e) => e.dist > (ms.reach ? 1 : 0)) ? mbtn("⏳ Ждать, пока подойдут", () => {
       G.combat.log.push({ t: "⏳ Ты ждёшь, сжимая оружие…", c: "dim" });
       endPlayerTurn();
     }) : "").concat(mbtn("🏃 Бежать (".concat(Math.round(fleeChance() * 100), "%)"), pFlee)).concat(G.eq.weapon2 ? mbtn("🔄 ".concat(IT(G.eq.weapon2.id).ic, " ").concat(esc(IT(G.eq.weapon2.id).n)), () => {
@@ -994,6 +994,7 @@ const UI = /* @__PURE__ */ (() => {
     save();
   }
   let allyTick = null, allyLast = null;
+  const iniBar = (v) => v && v.order ? '<div class="inibar">'.concat(v.order.map((x, k) => '<span class="'.concat(k === v.pos ? "cur" : k < v.pos ? "done" : "", '">').concat(esc(x.n), "</span>")).join("<i>→</i>"), "</div>") : "";
   function allyPass(f, owner, txt) {
     st.allySent = owner + ":" + f.turn;
     COOP.allyAct(owner, { i: -1, dmg: 0, stun: 0, txt });
@@ -1006,7 +1007,7 @@ const UI = /* @__PURE__ */ (() => {
     MACT = [];
     allyLast = [f, owner];
     const ms = meleeStats(), w = curWeapon(), gun = w && w.c === "gun";
-    const DIST = ["вплотную", "рядом", "далеко"], sent = st.allySent === owner + ":" + f.turn;
+    const DIST = ["вплотную", "рядом", "далеко"], myTurn = !f.ini || f.cur === COOP.uid, sent = st.allySent === owner + ":" + f.turn || !myTurn;
     const left = f.waiting ? Math.max(0, Math.ceil((f.waiting - Date.now()) / 1e3)) : 0;
     const enemies = (f.en || []).map((e, i) => {
       const D = ENEMY[e.id] || ENEMY.zombie;
@@ -1021,14 +1022,15 @@ const UI = /* @__PURE__ */ (() => {
     const lg = (f.log || []).slice(-8).map((x) => '<div class="lg '.concat(x.c || "", '">').concat(esc(x.t), "</div>")).join("");
     const meds = ["bandage", "dband", "medkit", "painkill"].filter((id) => cnt(G.inv, id) && (id === "medkit" || id === "painkill" ? healthPct() < 80 : bleeding()));
     const w2 = G.eq.weapon2 ? IT(G.eq.weapon2.id) : null;
-    const status = sent ? "✅ Ход сделан. Ждём ".concat(f.waiting ? "остальных" : "хода " + esc(f.name), " — потом ходят враги.") : f.waiting ? "🟢 <b>Твой ход!</b> ".concat(esc(f.name), " ждёт тебя ещё ").concat(left, " с.") : "Ходит ".concat(esc(f.name), ". Выбери своё действие — оно сработает в этом раунде, до хода врагов.");
-    $("modal").innerHTML = '<div class="overlay"><div class="sheet combat" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>🤝 Бой '.concat(esc(f.name), " · ход ").concat(f.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "%").concat(bleeding() ? " · 🩸" : "", " · ").concat(w ? w.ic + " " + esc(w.n) : "👊", '</span></div>\n      <div class="list">').concat(enemies, "</div>").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <div class="waitally ').concat(!sent && f.waiting ? "go" : "", '">').concat(status, '</div>\n      <div class="acts">').concat(w2 ? mbtn("🔄 ".concat(w2.ic, " ").concat(esc(w2.n)), () => {
+    const curN = f.ini && f.ini.order[f.ini.pos] ? f.ini.order[f.ini.pos].n : esc(f.name);
+    const status = st.allySent === owner + ":" + f.turn ? "✅ Ход сделан — ждём своей очереди." : !myTurn ? "⏳ Сейчас ходит: <b>".concat(esc(curN), "</b>. Твой ход по очереди.") : f.waiting ? "🟢 <b>Твой ход!</b> Осталось ".concat(left, " с.") : "🟢 Выбери действие — сработает в твою очередь.";
+    $("modal").innerHTML = '<div class="overlay"><div class="sheet combat" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>🤝 Бой '.concat(esc(f.name), " · ход ").concat(f.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "%").concat(bleeding() ? " · 🩸" : "", " · ").concat(w ? w.ic + " " + esc(w.n) : "👊", "</span></div>\n      ").concat(iniBar(f.ini), '<div class="list">').concat(enemies, "</div>").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <div class="waitally ').concat(!sent && myTurn ? "go" : "", '">').concat(status, '</div>\n      <div class="acts">').concat(w2 ? mbtn("🔄 ".concat(w2.ic, " ").concat(esc(w2.n)), () => {
       swapWeapons();
       allyFight(f, owner);
     }, "sm") : "").concat(!sent ? meds.map((id) => mbtn("".concat(IT(id).ic, " ").concat(IT(id).n), () => {
       useItem(id, true);
       allyPass(f, owner, "".concat(IT(id).ic, " использует: ").concat(IT(id).n));
-    }, "sm")).join("") : "").concat(!sent ? mbtn("⏭️ Пропустить ход", () => allyPass(f, owner, "⏳ выжидает"), "sm") : "").concat(mbtn("🏃 Выйти из боя", () => COOP.leaveFight(), "sm"), '</div>\n      <p class="muted" style="font-size:12.5px">Раунд: ').concat(esc(f.name), " → ты и другие помощники → враги. Враги могут бить и тебя. Смена оружия хода не тратит.</p></div></div>");
+    }, "sm")).join("") : "").concat(!sent ? mbtn("⏭️ Пропустить ход", () => allyPass(f, owner, "⏳ выжидает"), "sm") : "").concat(mbtn("🏃 Выйти из боя", () => COOP.leaveFight(), "sm"), '</div>\n      <p class="muted" style="font-size:12.5px">Ходы идут по инициативе (полоска сверху). Враги, идущие подряд, ходят разом. Враги могут бить и тебя. Смена оружия хода не тратит.</p></div></div>');
     const cl = $("clog");
     if (cl) cl.scrollTop = 1e9;
     renderTop();

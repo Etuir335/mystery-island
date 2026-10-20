@@ -4209,7 +4209,7 @@ if (typeof window !== "undefined" && window.addEventListener) window.addEventLis
 const _enemyTurnT = enemyTurn;
 enemyTurn = function() {
   const cb = G.combat;
-  if (cb) {
+  if (cb && !cb.partial) {
     for (const e of cb.en) if (e.hp > 0 && e.burn > 0) {
       const d = R(4, 7);
       e.hp -= d;
@@ -4231,8 +4231,10 @@ enemyTurn = function() {
     }
   }
   const r = _enemyTurnT.apply(this, arguments);
-  if (G.combat && G.combat.smoke > 0) G.combat.smoke--;
-  if (G.combat && G.combat.lure > 0) G.combat.lure--;
+  if (G.combat && !G.combat.partial) {
+    if (G.combat.smoke > 0) G.combat.smoke--;
+    if (G.combat.lure > 0) G.combat.lure--;
+  }
   return r;
 };
 const _enemyHitT = enemyHit;
@@ -6277,3 +6279,43 @@ window.npcPrio = (id, v) => wEdit(() => {
   const n = npcBy(id);
   if (n) n.prio = v;
 });
+function combatRoundEffects(cb) {
+  for (const e of cb.en) if (e.hp > 0 && e.burn > 0) {
+    const d = R(4, 7);
+    e.hp -= d;
+    e.burn--;
+    cLog("🔥 ".concat(ENEMY[e.id].n, " горит: −").concat(d), "good");
+  }
+  if (cb.smoke > 0) cb.smoke--;
+  if (cb.lure > 0) cb.lure--;
+}
+const LOC_KEYS = [...new Set(Object.values(LOCS).map((l) => l.lock).filter(Boolean))];
+function shareLocKeys() {
+  if (!G.coop) return;
+  G.w.flags = G.w.flags || {};
+  for (const k of LOC_KEYS) if (!G.w.flags["key_" + k] && cnt(G.inv, k)) {
+    G.w.flags["key_" + k] = 1;
+    const L2 = Object.values(LOCS).find((l) => l.lock === k);
+    UI.log("🔑 ".concat(IT(k).ic, " ").concat(IT(k).n, " — теперь ").concat(L2 ? L2.ic + " " + L2.n : "это место", " открыто всему отряду."), "good");
+    FEED("🔑 ".concat(IT(k).n, ": ").concat(L2 ? L2.n : "", " открыто для отряда"));
+    if (window.COOP) try {
+      COOP.sync();
+    } catch (e) {
+    }
+  }
+}
+const _tickLK = tick;
+tick = function() {
+  const r = _tickLK.apply(this, arguments);
+  try {
+    if (G && !G.dead) shareLocKeys();
+  } catch (e) {
+  }
+  return r;
+};
+if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("load", () => setInterval(() => {
+  try {
+    if (typeof G !== "undefined" && G && !G.dead) shareLocKeys();
+  } catch (e) {
+  }
+}, 5e3));

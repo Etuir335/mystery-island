@@ -710,7 +710,7 @@ const COOP = (() => {
   }
   async function kick(id) {
     if (!ready || !G.coop || G.coop.host !== uid || id === uid) return;
-    const nm = (players[id] || {}).name || "игрока";
+    const nm2 = (players[id] || {}).name || "игрока";
     const ref = db.doc("coop/".concat(code, "/kicked/all")), add = (cur) => ({ uids: Object.assign({}, cur && cur.uids || {}, { [id]: Date.now() }) });
     try {
       if (ref.tx) await ref.tx(add);
@@ -722,7 +722,7 @@ const COOP = (() => {
       kicked[id] = Date.now();
       delete players[id];
       try {
-        feed("🚫 исключил из мира: ".concat(nm));
+        feed("🚫 исключил из мира: ".concat(nm2));
       } catch (e) {
       }
     } catch (e) {
@@ -942,6 +942,8 @@ const COOP = (() => {
       room: roomName(),
       turn: cb ? cb.turn : 0,
       waiting: cb && cb.waiting ? cb.waiting : 0,
+      ini: cb ? iniView(cb) : null,
+      cur: cb && cb.ini && cb.ini.order[cb.ini.pos] ? cb.ini.order[cb.ini.pos].t === "me" ? uid : cb.ini.order[cb.ini.pos].t === "ally" ? cb.ini.order[cb.ini.pos].id : "en" : null,
       ended: !cb,
       res: res || null,
       at: Date.now(),
@@ -1020,38 +1022,176 @@ const COOP = (() => {
     UI.allyFightEnd("left");
   }
   let waitT = null;
-  const needFrom = (cb) => allies().filter((a) => !pending.some((p) => p.from === a && p.turn >= cb.turn));
-  function waitAllies(cb) {
-    if (!ready || !needFrom(cb).length) return false;
-    cb.waiting = Date.now() + 25e3;
-    pushFight();
-    UI.combat();
+  const nm = (id) => (players[id] || {}).name || "друг";
+  function iniRoll(cb) {
+    const ents = [{ t: "me", v: 10 + Math.random() * 5 + (G.ch.energy > 50 ? 1 : 0) + skill("stealth") * 0.3, tie: 2 }];
+    for (const a of allies()) ents.push({ t: "ally", id: a, v: 10 + Math.random() * 5, tie: 1 });
+    const byType = {};
+    cb.en.forEach((e, i) => {
+      if (e.hp <= 0) return;
+      const D = ENEMY[e.id];
+      if (!byType[e.id]) byType[e.id] = { t: "en", ids: [], v: (D.human ? 8 + (e.gear && IT(e.gear).c === "gun" ? 2 : 0) : 6) + (D.sp || 1) * 3 + Math.random() * 4, tie: 0 };
+      byType[e.id].ids.push(i);
+    });
+    ents.push(...Object.values(byType));
+    ents.sort((a, b) => b.v - a.v || b.tie - a.tie);
+    const order = [];
+    for (const x of ents) {
+      const last = order[order.length - 1];
+      if (x.t === "en" && last && last.t === "en") last.ids.push(...x.ids);
+      else order.push(x.t === "en" ? { t: "en", ids: x.ids.slice() } : x);
+    }
+    return order;
+  }
+  const iniOn = (cb) => !!(cb && cb.ini);
+  function killCheck(cb) {
+    cb.en.forEach((e) => {
+      if (e.hp <= 0 && !e.dead) {
+        e.dead = true;
+        onKill(e);
+      }
+    });
+    if (cb.en.every((e) => e.hp <= 0)) {
+      cb.ini = null;
+      endCombat("win");
+      return true;
+    }
+    return false;
+  }
+  function slotLabel(cb, s) {
+    if (s.t === "me") return "👤 " + G.ch.name;
+    if (s.t === "ally") return "👤 " + nm(s.id);
+    const al = s.ids.filter((i) => cb.en[i] && cb.en[i].hp > 0);
+    const ids = [...new Set(al.map((i) => cb.en[i].id))];
+    return ids.map((id) => {
+      const k = al.filter((i) => cb.en[i].id === id).length;
+      return ENEMY[id].ic + " " + ENEMY[id].n + (k > 1 ? " ×" + k : "");
+    }).join(" + ") || "—";
+  }
+  function iniAfterMe(cb) {
+    if (!ready || !cb.ini && !allies().length) return false;
+    if (allyTurn(cb) && killCheck(cb)) return true;
+    if (typeof petTurn === "function" && petTurn(cb) && killCheck(cb)) return true;
+    if (!cb.ini) {
+      cb.ini = { order: iniRoll(cb), pos: 0 };
+      cb.log.push({ t: "🎲 Друг в бою — ходы по инициативе: " + cb.ini.order.map((x) => slotLabel(cb, x)).join(" → "), c: "dim" });
+      cb.ini.pos = cb.ini.order.findIndex((x) => x.t === "me");
+    }
+    cb.ini.pos++;
+    runSlots(cb);
+    return true;
+  }
+  function roundEnd(cb) {
+    if (typeof combatRoundEffects === "function") combatRoundEffects(cb);
+    if (G.combat !== cb || killCheck(cb)) return false;
+    cb.turn++;
+    cb.ini = { order: iniRoll(cb), pos: 0 };
+    return true;
+  }
+  function runSlots(cb) {
     clearInterval(waitT);
-    waitT = setInterval(() => {
-      const c = G.combat;
-      if (!c || c !== cb || !c.waiting) {
-        clearInterval(waitT);
+    cb.waiting = null;
+    for (let guard = 0; guard < 40; guard++) {
+      if (G.combat !== cb || G.dead) return;
+      if (cb.ini.pos >= cb.ini.order.length) {
+        if (!roundEnd(cb)) return;
+        continue;
+      }
+      const s = cb.ini.order[cb.ini.pos];
+      if (s.t === "en") {
+        const live = s.ids.filter((i) => cb.en[i] && cb.en[i].hp > 0);
+        if (!live.length) {
+          cb.ini.pos++;
+          continue;
+        }
+        cb.only = new Set(live.map((i) => cb.en[i]));
+        cb.partial = true;
+        try {
+          enemyTurn();
+        } finally {
+          if (cb) {
+            cb.only = null;
+            cb.partial = false;
+          }
+        }
+        if (G.combat !== cb || G.dead) return;
+        cb.ini.pos++;
+        continue;
+      }
+      if (s.t === "me") {
+        UI.combat();
+        pushFight();
         return;
       }
-      if (!needFrom(c).length || Date.now() > c.waiting) {
-        clearInterval(waitT);
-        c.waiting = null;
-        endPlayerTurn(true);
-        if (G.combat) UI.combat();
-      } else UI.combat();
-    }, 500);
+      if (s.t === "ally") {
+        if (!allies().includes(s.id)) {
+          cb.ini.pos++;
+          continue;
+        }
+        if (applyAlly(cb, s.id)) {
+          if (killCheck(cb)) return;
+          cb.ini.pos++;
+          continue;
+        }
+        cb.waiting = Date.now() + 25e3;
+        cb.waitFor = s.id;
+        UI.combat();
+        pushFight();
+        waitT = setInterval(() => {
+          const c = G.combat;
+          if (c !== cb || !c.ini) {
+            clearInterval(waitT);
+            return;
+          }
+          if (applyAlly(c, s.id)) {
+            clearInterval(waitT);
+            c.waiting = null;
+            if (killCheck(c)) return;
+            c.ini.pos++;
+            runSlots(c);
+            return;
+          }
+          if (Date.now() > c.waiting || !allies().includes(s.id)) {
+            clearInterval(waitT);
+            c.waiting = null;
+            c.log.push({ t: "⏳ ".concat(nm(s.id), " пропускает ход."), c: "dim" });
+            c.ini.pos++;
+            runSlots(c);
+            return;
+          }
+          UI.combat();
+        }, 400);
+        return;
+      }
+      cb.ini.pos++;
+    }
+  }
+  function applyAlly(cb, id) {
+    const mine = pending.filter((p) => p.from === id && p.turn >= cb.turn);
+    if (!mine.length) return false;
+    pending = pending.filter((p) => p.from !== id);
+    const a = mine[mine.length - 1], e = cb.en[a.i];
+    if (e && e.hp > 0 && a.dmg > 0) {
+      e.hp -= a.dmg;
+      if (a.stun) e.stun = Math.max(e.stun || 0, 1);
+    }
+    cb.log.push({ t: "🤝 ".concat(a.n, ": ").concat(a.txt || "выжидает").concat(e && a.dmg > 0 ? " (".concat(ENEMY[e.id].n, ": ").concat(Math.max(0, Math.round(e.hp)), "/").concat(e.max, ")") : ""), c: a.dmg > 0 ? "good" : "dim" });
+    pushFight();
     return true;
   }
   function stopWaiting() {
     const c = G.combat;
-    if (c && c.waiting) {
-      c.waiting = null;
+    if (c && c.ini && c.waiting) {
       clearInterval(waitT);
-      endPlayerTurn(true);
-      if (G.combat) UI.combat();
+      c.waiting = null;
+      c.log.push({ t: "⏭️ Не ждём ".concat(nm(c.waitFor), "."), c: "dim" });
+      c.ini.pos++;
+      runSlots(c);
     }
   }
-  const waitNames = (cb) => needFrom(cb).map((a) => (players[a] || {}).name || "друг");
+  const waitAllies = () => false;
+  const waitNames = (cb) => cb && cb.waitFor ? [nm(cb.waitFor)] : [];
+  const iniView = (cb) => cb && cb.ini ? { order: cb.ini.order.map((s) => ({ t: s.t, id: s.id || null, n: slotLabel(cb, s) })), pos: cb.ini.pos } : null;
   function consumeActs(cb) {
     if (!pending.length) return false;
     const list = pending.splice(0);
@@ -1094,6 +1234,9 @@ const COOP = (() => {
     waitAllies,
     stopWaiting,
     waitNames,
+    iniAfterMe,
+    iniView,
+    iniOn,
     allies,
     hitAlly,
     get fights() {

@@ -776,11 +776,12 @@ function travelTime(to) {
   if (LOCS[to].boat && !boatReady()) m *= 1.5;
   return Math.round(m);
 }
+const locKey = (id) => cnt(G.inv, id) > 0 || !!(G.w.flags && G.w.flags["key_" + id]);
 function canTravel(to) {
   if (curW() > capW() * 1.5) return "Слишком тяжело — выложи что-нибудь.";
   if (LOCS[to].ch2 && !CH2()) return "Туда не добраться.";
   if (LOCS[to].boat && !boatReady() && !(typeof iceRoute === "function" && iceRoute())) return "Нужна лодка с кристальным двигателем (База → Постройки → Лодка).";
-  if (LOCS[to].lock && !cnt(G.inv, LOCS[to].lock)) return "Нужен: ".concat(IT(LOCS[to].lock).ic, " ").concat(IT(LOCS[to].lock).n);
+  if (LOCS[to].lock && !locKey(LOCS[to].lock)) return "Нужен: ".concat(IT(LOCS[to].lock).ic, " ").concat(IT(LOCS[to].lock).n);
   return "";
 }
 function travel(to, topt = {}) {
@@ -1348,7 +1349,7 @@ function endPlayerTurn(force) {
     }
   });
   if (cb.en.every((e) => e.hp <= 0)) return endCombat("win");
-  if (!force && window.COOP && G.coop && COOP.waitAllies && COOP.waitAllies(cb)) return;
+  if (!force && window.COOP && G.coop && COOP.iniAfterMe && COOP.iniAfterMe(cb)) return;
   cb.waiting = null;
   if (window.COOP && G.coop && COOP.consumeActs(cb)) {
     cb.en.forEach((e) => {
@@ -1383,7 +1384,7 @@ function enemyTurn() {
   const cb = G.combat, mult = F().enemies;
   const near = cb.en.filter((e) => e.hp > 0 && e.dist === 0).length;
   for (const e of cb.en) {
-    if (e.hp <= 0) continue;
+    if (e.hp <= 0 || cb.only && !cb.only.has(e)) continue;
     const D = ENEMY[e.id];
     if (e.stun > 0) {
       e.stun--;
@@ -1404,7 +1405,7 @@ function enemyTurn() {
       return;
     }
   }
-  cb.turn++;
+  if (!cb.partial) cb.turn++;
   checkDeath();
   if (G.dead) {
     if (window.COOP && G.coop) COOP.pushFight("dead");
@@ -2197,7 +2198,7 @@ function route(from, to) {
     if (dist[u] === Infinity) break;
     Q.delete(u);
     if (u === to) break;
-    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].ch2 && (!CH2() || !(boatReady() || typeof iceRoute === "function" && iceRoute()))) && !(LOCS[v].lock && v !== to && !cnt(G.inv, LOCS[v].lock)) && dist[u] + m < dist[v]) {
+    for (const [v, m] of Object.entries(LOCS[u].links)) if (Q.has(v) && !(LOCS[v].ch2 && (!CH2() || !(boatReady() || typeof iceRoute === "function" && iceRoute()))) && !(LOCS[v].lock && v !== to && !locKey(LOCS[v].lock)) && dist[u] + m < dist[v]) {
       dist[v] = dist[u] + m;
       prev[v] = u;
     }
