@@ -271,7 +271,16 @@ function genContracts() {
     }
     out[tr] = list;
   }
-  G.w.contracts = { day: day(), list: out, taken: {}, base: {} };
+  const old = G.w.contracts, taken = {}, base = {};
+  if (old && old.list) {
+    for (const tr in old.list) for (const c of old.list[tr]) if (old.taken[c.k] === "active" && day() - (c.born || old.day) < 3) {
+      c.born = c.born || old.day;
+      (out[tr] = out[tr] || []).unshift(c);
+      taken[c.k] = "active";
+      if (old.base[c.k] != null) base[c.k] = old.base[c.k];
+    }
+  }
+  G.w.contracts = { day: day(), list: out, taken, base };
 }
 function contracts() {
   if (!G.w.contracts || G.w.contracts.day !== day()) {
@@ -6220,4 +6229,25 @@ window.coopHelp = (id) => {
   UI.toast("🧭 Идёшь к ".concat(p.name || "другу", ": ").concat(LOCS[p.loc].n, " (~").concat(r.mins, " мин)"));
   goTo(p.loc);
   UI.render();
+};
+function contractVisitTick() {
+  const C = G.w.contracts;
+  if (!C || !C.list) return;
+  for (const tr in C.list) for (const c of C.list[tr]) if (c.type === "visit" && C.taken[c.k] === "active" && !C.base[c.k] && c.loc === G.loc) {
+    C.base[c.k] = 1;
+    UI.log("📋 Место разведано: ".concat(LOCS[c.loc].ic, " ").concat(LOCS[c.loc].n, ". Заказ можно сдавать: ").concat(TRADERS[tr] ? TRADERS[tr].ic + " " + TRADERS[tr].n : "заказчик", "."), "good");
+    try {
+      SND("quest");
+    } catch (e) {
+    }
+  }
+}
+const _tickCV = tick;
+tick = function() {
+  const r = _tickCV.apply(this, arguments);
+  try {
+    if (G && !G.dead) contractVisitTick();
+  } catch (e) {
+  }
+  return r;
 };
