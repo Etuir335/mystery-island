@@ -3413,7 +3413,27 @@ npcDaily = function() {
         out.push("🎣 ".concat(n.name, ": рыба ×").concat(k));
       }
     }
-    if (r === "forager") {
+    const fprio = r === "forager" ? n.prio === "wood" && !(w && w.chop) ? "mix" : n.prio || "mix" : null;
+    if (fprio === "wood") {
+      const got = [];
+      const k = rnd(R(6, 9) * m);
+      invAdd(G.stash, "wood", k);
+      got.push("🪵×" + k);
+      if (ch(0.4)) {
+        invAdd(G.stash, "stick", 1);
+        got.push("🦯");
+      }
+      wearNpc(n, "w", 4);
+      out.push("🧺 ".concat(n.name, " (рубит дрова): ").concat(got.join("")));
+    } else if (fprio === "food" && !win) {
+      const got = [];
+      for (let k = rnd(R(3, 4) * m); k > 0; k--) {
+        const id = wpick([["berries", 3], ["mushroom", 3], ["herbs", 2]]);
+        invAdd(G.stash, id, 1);
+        got.push(IT(id).ic);
+      }
+      if (got.length) out.push("🧺 ".concat(n.name, " (еда и травы): ").concat(got.join("")));
+    } else if (r === "forager") {
       const got = [];
       for (let k = rnd((win ? 1 : R(2, 3)) * m); k > 0; k--) {
         const id = wpick(win ? [["wood", 3], ["stick", 1]] : [["berries", 3], ["mushroom", 3], ["herbs", 2], ["wood", 3]]);
@@ -4058,7 +4078,9 @@ npcGearHtml = function(n) {
   if (n.exp) return npcSkillsHtml(n);
   const req = n.req ? '<div class="nreq">🙏 Просит: '.concat(IT(n.req.id).ic, " ").concat(IT(n.req.id).n, " · ещё ").concat(Math.max(0, Math.ceil((n.req.until - G.time) / H)), " ч ").concat(UI.btn("Отдать", () => npcGiveReq(n.id), "sm", !(cnt(G.stash, n.req.id) || cnt(G.inv, n.req.id))), "</div>") : "";
   const sh = '<div class="toggle nshift">'.concat(Object.entries(SHIFTS).map(([k, t]) => '<button class="'.concat((n.shift || "day") === k ? "on" : "", '" onclick="npcShift(\'').concat(n.id, "','").concat(k, "')\">").concat(t, "</button>")).join(""), "</div>");
-  return req + npcSkillsHtml(n) + sh + _gearHtmlS(n) + '<div class="acts">'.concat(UI.btn("🐪 Караван к торговцу…", () => caravanMenu(n.id), "sm", n.shift === "off"), "</div>");
+  const chop = neq(n).w && IT(neq(n).w.id).chop, pr = n.prio === "wood" && !chop ? "mix" : n.prio || "mix";
+  const fp = n.role === "forager" ? '<div class="s muted" style="margin-top:6px">Что собирать:</div><div class="toggle nshift">'.concat([["mix", "🧺 Всё понемногу", false], ["food", "🍄 Еда и травы", false], ["wood", "🪓 Дрова", !chop]].map(([k, t, dis]) => '<button class="'.concat(pr === k ? "on" : "", '" ').concat(dis ? 'disabled title="Дай собирателю топор"' : "", " onclick=\"npcPrio('").concat(n.id, "','").concat(k, "')\">").concat(t, "</button>")).join(""), "</div>").concat(!chop ? '<div class="s muted" style="font-size:12px">🪓 Дай топор (слот оружия) — будет рубить дрова, а с приоритетом «Дрова» — 6–9 в день.</div>' : "") : "";
+  return req + npcSkillsHtml(n) + sh + fp + _gearHtmlS(n) + '<div class="acts">'.concat(UI.btn("🐪 Караван к торговцу…", () => caravanMenu(n.id), "sm", n.shift === "off"), "</div>");
 };
 const _workPanelS = CUI.work;
 CUI.work = function() {
@@ -6251,3 +6273,7 @@ tick = function() {
   }
   return r;
 };
+window.npcPrio = (id, v) => wEdit(() => {
+  const n = npcBy(id);
+  if (n) n.prio = v;
+});
