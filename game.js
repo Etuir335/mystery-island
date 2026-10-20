@@ -1335,7 +1335,7 @@ function pUse(id) {
   useItem(id, true);
   endPlayerTurn();
 }
-function endPlayerTurn() {
+function endPlayerTurn(force) {
   const cb = G.combat;
   if (!cb) return;
   cb.en.forEach((e) => {
@@ -1345,6 +1345,8 @@ function endPlayerTurn() {
     }
   });
   if (cb.en.every((e) => e.hp <= 0)) return endCombat("win");
+  if (!force && window.COOP && G.coop && COOP.waitAllies && COOP.waitAllies(cb)) return;
+  cb.waiting = null;
   if (window.COOP && G.coop && COOP.consumeActs(cb)) {
     cb.en.forEach((e) => {
       if (e.hp <= 0 && !e.dead) {

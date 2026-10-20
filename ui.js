@@ -928,13 +928,14 @@ const UI = /* @__PURE__ */ (() => {
       if (e.dist === 0 && !D.boss) acts.push(mbtn("🦶", () => pPush(i), "sm"));
       const ex = EXTUI.combatActs(i, e);
       if (ex) acts.push(ex);
+      if (cb.waiting) acts.length = 0;
       return '<div class="enemy">'.concat(ART.enemyImg(e.id, e.stun ? "stun" : ""), '<div><div class="t">').concat(D.n).concat(e.gear ? ' <span class="muted">('.concat(IT(e.gear).n, ")</span>") : "").concat(e.stun ? " 💫" : "", "</div>").concat(bar(e.hp, e.max), '<span class="dist">').concat(DIST[Math.min(2, e.dist)], '</span></div><div class="acts">').concat(acts.join(""), "</div></div>");
     }).join("");
     const meds = ["bandage", "dband", "medkit", "painkill", "antisep", "splint"].filter((id) => cnt(G.inv, id));
     const human = alive.some((e) => ENEMY[e.id].human);
     const lg = cb.log.slice(-8).map((x) => '<div class="lg '.concat(x.c || "", '">').concat(esc(x.t), "</div>")).join("");
     const fresh = !$("modal").querySelector(".combat");
-    $("modal").innerHTML = '<div class="overlay"><div class="sheet bad combat '.concat(fresh ? "anim" : "", '" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>⚔️ Бой · ход ').concat(cb.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "% · ⚡").concat(Math.round(G.ch.energy)).concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>\n      ").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <div class="acts">').concat(alive.every((e) => e.dist > (ms.reach ? 1 : 0)) ? mbtn("⏳ Ждать, пока подойдут", () => {
+    $("modal").innerHTML = '<div class="overlay"><div class="sheet bad combat '.concat(fresh ? "anim" : "", '" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>⚔️ Бой · ход ').concat(cb.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "% · ⚡").concat(Math.round(G.ch.energy)).concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>\n      ").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", "\n      ").concat(cb.waiting ? '<div class="waitally">⏳ Ждём ход: <b>'.concat(esc(COOP.waitNames(cb).join(", ")), "</b> · ").concat(Math.max(0, Math.ceil((cb.waiting - Date.now()) / 1e3)), ' с</div><div class="acts">').concat(mbtn("⏭️ Не ждать", () => COOP.stopWaiting(), "sm"), "</div>") : '<div class="acts">'.concat(alive.every((e) => e.dist > (ms.reach ? 1 : 0)) ? mbtn("⏳ Ждать, пока подойдут", () => {
       G.combat.log.push({ t: "⏳ Ты ждёшь, сжимая оружие…", c: "dim" });
       endPlayerTurn();
     }) : "").concat(mbtn("🏃 Бежать (".concat(Math.round(fleeChance() * 100), "%)"), pFlee)).concat(G.eq.weapon2 ? mbtn("🔄 ".concat(IT(G.eq.weapon2.id).ic, " ").concat(esc(IT(G.eq.weapon2.id).n)), () => {
@@ -944,7 +945,7 @@ const UI = /* @__PURE__ */ (() => {
       G.combat.called = true;
       COOP.ping("Нужна помощь! Я в бою.");
       combat();
-    }) : "").concat(meds.map((id) => mbtn("".concat(IT(id).ic, " ").concat(IT(id).n), () => pUse(id), "sm")).join(""), '</div>\n      <p class="muted" style="font-size:12.5px">Бить можно только тех, кто вплотную').concat(ms.reach ? " (копьём — и тех, кто рядом)" : "", ". 🦶 — оттолкнуть и оглушить. Выстрелы шумят и привлекают других.</p>\n    </div></div>");
+    }) : "").concat(meds.map((id) => mbtn("".concat(IT(id).ic, " ").concat(IT(id).n), () => pUse(id), "sm")).join(""), "</div>"), '\n      <p class="muted" style="font-size:12.5px">Бить можно только тех, кто вплотную').concat(ms.reach ? " (копьём — и тех, кто рядом)" : "", ". 🦶 — оттолкнуть и оглушить. Выстрелы шумят и привлекают других.</p>\n    </div></div>");
     const cl = $("clog");
     if (cl) cl.scrollTop = 1e9;
     renderTop();
@@ -985,12 +986,21 @@ const UI = /* @__PURE__ */ (() => {
     allyFight(f, owner);
     save();
   }
+  let allyTick = null, allyLast = null;
+  function allyPass(f, owner, txt) {
+    st.allySent = owner + ":" + f.turn;
+    COOP.allyAct(owner, { i: -1, dmg: 0, stun: 0, txt });
+    allyFight(f, owner);
+    save();
+  }
   function allyFight(f, owner) {
     if (G.combat || full) return;
     allyOpen = true;
     MACT = [];
+    allyLast = [f, owner];
     const ms = meleeStats(), w = curWeapon(), gun = w && w.c === "gun";
     const DIST = ["вплотную", "рядом", "далеко"], sent = st.allySent === owner + ":" + f.turn;
+    const left = f.waiting ? Math.max(0, Math.ceil((f.waiting - Date.now()) / 1e3)) : 0;
     const enemies = (f.en || []).map((e, i) => {
       const D = ENEMY[e.id] || ENEMY.zombie;
       if (e.hp <= 0) return '<div class="enemy dead">'.concat(ART.enemyImg(e.id), "<div>").concat(D.n, " ☠️</div><span></span></div>");
@@ -1002,19 +1012,32 @@ const UI = /* @__PURE__ */ (() => {
       return '<div class="enemy">'.concat(ART.enemyImg(e.id, e.stun ? "stun" : ""), '<div><div class="t">').concat(D.n).concat(e.stun ? " 💫" : "", "</div>").concat(bar(e.hp, e.max), '<span class="dist">').concat(DIST[Math.min(2, e.dist)], '</span></div><div class="acts">').concat(acts.join(""), "</div></div>");
     }).join("");
     const lg = (f.log || []).slice(-8).map((x) => '<div class="lg '.concat(x.c || "", '">').concat(esc(x.t), "</div>")).join("");
-    const band = ["bandage", "dband"].find((id) => cnt(G.inv, id));
-    $("modal").innerHTML = '<div class="overlay"><div class="sheet combat" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>🤝 Бой '.concat(esc(f.name), " · ход ").concat(f.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "%").concat(bleeding() ? " · 🩸" : "", '</span></div>\n      <div class="list">').concat(enemies, "</div>").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <p class="muted" style="font-size:12.5px">').concat(sent ? "⏳ Твой ход отправлен — он сработает, когда ходит ".concat(esc(f.name), ".") : "Твой удар сработает в начале хода врагов. Враги могут бить и тебя.", '</p>\n      <div class="acts">').concat(band && bleeding() ? mbtn("🩹 Перевязаться", () => {
-      useItem(band, true);
+    const meds = ["bandage", "dband", "medkit", "painkill"].filter((id) => cnt(G.inv, id) && (id === "medkit" || id === "painkill" ? healthPct() < 80 : bleeding()));
+    const w2 = G.eq.weapon2 ? IT(G.eq.weapon2.id) : null;
+    const status = sent ? "✅ Ход сделан. Ждём ".concat(f.waiting ? "остальных" : "хода " + esc(f.name), " — потом ходят враги.") : f.waiting ? "🟢 <b>Твой ход!</b> ".concat(esc(f.name), " ждёт тебя ещё ").concat(left, " с.") : "Ходит ".concat(esc(f.name), ". Выбери своё действие — оно сработает в этом раунде, до хода врагов.");
+    $("modal").innerHTML = '<div class="overlay"><div class="sheet combat" role="dialog" aria-modal="true">\n      <div class="sechead"><h2>🤝 Бой '.concat(esc(f.name), " · ход ").concat(f.turn, '</h2><span class="mono muted">❤️ ').concat(healthPct(), "%").concat(bleeding() ? " · 🩸" : "", " · ").concat(w ? w.ic + " " + esc(w.n) : "👊", '</span></div>\n      <div class="list">').concat(enemies, "</div>").concat(lg ? '<div class="clog" id="clog">'.concat(lg, "</div>") : "", '\n      <div class="waitally ').concat(!sent && f.waiting ? "go" : "", '">').concat(status, '</div>\n      <div class="acts">').concat(w2 ? mbtn("🔄 ".concat(w2.ic, " ").concat(esc(w2.n)), () => {
+      swapWeapons();
       allyFight(f, owner);
-    }) : "").concat(mbtn("🏃 Выйти из боя", () => COOP.leaveFight()), "</div></div></div>");
+    }, "sm") : "").concat(!sent ? meds.map((id) => mbtn("".concat(IT(id).ic, " ").concat(IT(id).n), () => {
+      useItem(id, true);
+      allyPass(f, owner, "".concat(IT(id).ic, " использует: ").concat(IT(id).n));
+    }, "sm")).join("") : "").concat(!sent ? mbtn("⏭️ Пропустить ход", () => allyPass(f, owner, "⏳ выжидает"), "sm") : "").concat(mbtn("🏃 Выйти из боя", () => COOP.leaveFight(), "sm"), '</div>\n      <p class="muted" style="font-size:12.5px">Раунд: ').concat(esc(f.name), " → ты и другие помощники → враги. Враги могут бить и тебя. Смена оружия хода не тратит.</p></div></div>");
     const cl = $("clog");
     if (cl) cl.scrollTop = 1e9;
     renderTop();
+    clearInterval(allyTick);
+    if (f.waiting && !sent) allyTick = setInterval(() => {
+      if (!allyOpen || !allyLast) return clearInterval(allyTick);
+      const [f2, o2] = allyLast;
+      if (!f2.waiting || Date.now() > f2.waiting + 1e3) return clearInterval(allyTick);
+      allyFight(f2, o2);
+    }, 1e3);
   }
   function allyFightEnd(res) {
     if (!allyOpen) return;
     allyOpen = false;
     st.allySent = null;
+    clearInterval(allyTick);
     $("modal").innerHTML = "";
     if (res === "win") {
       xp("melee", 3);

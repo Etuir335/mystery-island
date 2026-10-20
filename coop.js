@@ -937,6 +937,7 @@ const COOP = (() => {
       loc: G.loc,
       room: roomName(),
       turn: cb ? cb.turn : 0,
+      waiting: cb && cb.waiting ? cb.waiting : 0,
       ended: !cb,
       res: res || null,
       at: Date.now(),
@@ -1014,6 +1015,39 @@ const COOP = (() => {
     }
     UI.allyFightEnd("left");
   }
+  let waitT = null;
+  const needFrom = (cb) => allies().filter((a) => !pending.some((p) => p.from === a && p.turn >= cb.turn));
+  function waitAllies(cb) {
+    if (!ready || !needFrom(cb).length) return false;
+    cb.waiting = Date.now() + 25e3;
+    pushFight();
+    UI.combat();
+    clearInterval(waitT);
+    waitT = setInterval(() => {
+      const c = G.combat;
+      if (!c || c !== cb || !c.waiting) {
+        clearInterval(waitT);
+        return;
+      }
+      if (!needFrom(c).length || Date.now() > c.waiting) {
+        clearInterval(waitT);
+        c.waiting = null;
+        endPlayerTurn(true);
+        if (G.combat) UI.combat();
+      } else UI.combat();
+    }, 500);
+    return true;
+  }
+  function stopWaiting() {
+    const c = G.combat;
+    if (c && c.waiting) {
+      c.waiting = null;
+      clearInterval(waitT);
+      endPlayerTurn(true);
+      if (G.combat) UI.combat();
+    }
+  }
+  const waitNames = (cb) => needFrom(cb).map((a) => (players[a] || {}).name || "друг");
   function consumeActs(cb) {
     if (!pending.length) return false;
     const list = pending.splice(0);
@@ -1053,6 +1087,9 @@ const COOP = (() => {
     allyAct,
     leaveFight,
     consumeActs,
+    waitAllies,
+    stopWaiting,
+    waitNames,
     allies,
     hitAlly,
     get fights() {
